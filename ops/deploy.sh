@@ -37,29 +37,20 @@ SSH="sshpass -e ssh -p $VPS_PORT -o StrictHostKeyChecking=accept-new"
 RSH="sshpass -e ssh -p $VPS_PORT -o StrictHostKeyChecking=accept-new"
 
 echo "--- rsync → $VPS_USER@$VPS_HOST:$REMOTE_DIR ---"
-rsync -az --delete \
-  --exclude ".git/" \
-  --exclude ".env" --exclude ".env.*" \
-  --exclude "node_modules/" --exclude ".next/" \
-  --exclude ".venv/" --exclude "__pycache__/" \
-  --exclude "*.pyc" \
-  --exclude "frontend/out/" --exclude "frontend/.next/" \
-  -e "$RSH" \
-  backend/ frontend/ ops/ db/ docker-compose.yml \
-  "$VPS_USER@$VPS_HOST:$REMOTE_DIR/stage/"
+COMMON_EXCLUDES=(
+  --exclude ".git/"
+  --exclude ".env" --exclude ".env.*"
+  --exclude "node_modules/" --exclude ".next/" --exclude "out/"
+  --exclude ".venv/" --exclude "__pycache__/" --exclude "*.pyc"
+)
 
-# The above rsync into a staging dir is just to simplify the sub-paths;
-# now move them into place atomically-ish with one more rsync.
-$SSH "$VPS_USER@$VPS_HOST" "set -euo pipefail
-cd $REMOTE_DIR
-rsync -a --delete stage/backend/ backend/
-rsync -a --delete stage/frontend/ frontend/
-rsync -a --delete stage/ops/ ops/
-rsync -a --delete stage/db/ db/
-cp -f stage/docker-compose.yml docker-compose.yml
-rm -rf stage
-chmod +x ops/*.sh 2>/dev/null || true
-"
+for dir in backend frontend ops db; do
+  rsync -az --delete -e "$RSH" "${COMMON_EXCLUDES[@]}" \
+    "$dir/" "$VPS_USER@$VPS_HOST:$REMOTE_DIR/$dir/"
+done
+rsync -az -e "$RSH" docker-compose.yml "$VPS_USER@$VPS_HOST:$REMOTE_DIR/"
+
+$SSH "$VPS_USER@$VPS_HOST" "cd $REMOTE_DIR && chmod +x ops/*.sh 2>/dev/null || true"
 
 if [ "$FAST" = "--fast" ]; then
   echo "--- fast mode: restart only ---"
