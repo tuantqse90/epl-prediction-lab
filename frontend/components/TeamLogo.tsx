@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { logoFor } from "@/lib/team-logos";
 
 export default function TeamLogo({
@@ -12,7 +15,9 @@ export default function TeamLogo({
   className?: string;
 }) {
   const src = logoFor(slug);
-  if (!src) {
+  const [failed, setFailed] = useState(false);
+
+  if (!src || failed) {
     return (
       <span
         aria-label={name}
@@ -31,6 +36,7 @@ export default function TeamLogo({
       width={size}
       height={size}
       loading="lazy"
+      onError={() => setFailed(true)}
       className={`inline-block shrink-0 ${className}`}
       style={{ width: size, height: size }}
     />

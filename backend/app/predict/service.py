@@ -30,9 +30,12 @@ async def predict_and_persist(
     if match is None:
         raise ValueError(f"match {match_id} not found")
 
-    df = await queries.fetch_finished_matches_df(pool)
+    league_code = match["league_code"] if match["league_code"] else None
+    df = await queries.fetch_finished_matches_df(pool, league_code=league_code)
     if df.empty:
-        raise RuntimeError("no finished matches with xG in DB — run ingest first")
+        raise RuntimeError(
+            f"no finished matches with xG for league {league_code!r} — run ingest first"
+        )
 
     strengths = compute_team_strengths(df, as_of=match["kickoff_time"], last_n=last_n)
     home = strengths.get(match["home_name"], NEUTRAL)
@@ -64,17 +67,30 @@ async def predict_all_upcoming(
     horizon_days: int = 14,
     last_n: int = 12,
     temperature: float = 1.0,
+    league_code: str | None = None,
 ) -> list[int]:
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id FROM matches
-            WHERE status = 'scheduled'
-              AND kickoff_time BETWEEN NOW() AND NOW() + ($1 || ' days')::INTERVAL
-            ORDER BY kickoff_time ASC
-            """,
-            str(horizon_days),
-        )
+        if league_code:
+            rows = await conn.fetch(
+                """
+                SELECT id FROM matches
+                WHERE status = 'scheduled'
+                  AND league_code = $2
+                  AND kickoff_time BETWEEN NOW() AND NOW() + ($1 || ' days')::INTERVAL
+                ORDER BY kickoff_time ASC
+                """,
+                str(horizon_days), league_code,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT id FROM matches
+                WHERE status = 'scheduled'
+                  AND kickoff_time BETWEEN NOW() AND NOW() + ($1 || ' days')::INTERVAL
+                ORDER BY kickoff_time ASC
+                """,
+                str(horizon_days),
+            )
     created: list[int] = []
     for r in rows:
         pid, _ = await predict_and_persist(

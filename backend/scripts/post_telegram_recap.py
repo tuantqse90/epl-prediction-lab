@@ -25,6 +25,12 @@ import asyncpg
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.core.config import get_settings
+from app.leagues import BY_CODE, DEFAULT_LEAGUE
+
+
+def _league_prefix(code: str | None) -> str:
+    lg = BY_CODE.get(code or DEFAULT_LEAGUE) or BY_CODE[DEFAULT_LEAGUE]
+    return f"{lg.emoji} {lg.short}"
 
 
 SITE = "https://predictor.nullshift.sh"
@@ -71,7 +77,8 @@ async def _fetch(pool: asyncpg.Pool, days: int) -> list[dict]:
                 FROM predictions p
                 ORDER BY p.match_id, p.created_at DESC
             )
-            SELECT m.id, m.kickoff_time, m.home_goals, m.away_goals,
+            SELECT m.id, m.kickoff_time, m.league_code,
+                   m.home_goals, m.away_goals,
                    ht.short_name AS home_short, ht.name AS home_name,
                    at.short_name AS away_short, at.name AS away_name,
                    l.p_home_win, l.p_draw, l.p_away_win
@@ -106,7 +113,7 @@ def _format(rows: list[dict], days: int) -> str | None:
     n = len(rows)
     acc = len(hits) / n
     lines = [
-        f"📈 *EPL tuần vừa rồi — mô hình đoán {len(hits)}/{n} ({round(acc * 100)}%)*",
+        f"📈 *Top 5 giải — mô hình đoán {len(hits)}/{n} ({round(acc * 100)}%)*",
         "",
         f"_Nhìn lại {days} ngày qua: model dự đoán đúng/sai những trận nào._",
         "",
@@ -116,8 +123,9 @@ def _format(rows: list[dict], days: int) -> str | None:
         link = f"{SITE}/match/{e['id']}"
         day = _day_label(e["kickoff_time"])
         pick_label = _pick_label(e["pick"], _escape(e["home_short"]), _escape(e["away_short"]))
+        prefix = _league_prefix(e.get("league_code"))
         return (
-            f"{mark} [{_escape(e['home_short'])} {e['home_goals']}-{e['away_goals']} "
+            f"{mark} {prefix} · [{_escape(e['home_short'])} {e['home_goals']}-{e['away_goals']} "
             f"{_escape(e['away_short'])}]({link}) "
             f"· _{day}_ · dự đoán *{pick_label}* ({round(e['confidence'] * 100)}%)"
         )
@@ -137,8 +145,9 @@ def _format(rows: list[dict], days: int) -> str | None:
             day = _day_label(e["kickoff_time"])
             pick_label = _pick_label(e["pick"], home, away)
             actual_phrase = _actual_phrase(e["home_goals"], e["away_goals"], home, away)
+            prefix = _league_prefix(e.get("league_code"))
             lines.append(
-                f"• [{home} {e['home_goals']}-{e['away_goals']} {away}]({link}) "
+                f"• {prefix} · [{home} {e['home_goals']}-{e['away_goals']} {away}]({link}) "
                 f"· _{day}_ · dự đoán *{pick_label}* ({round(e['confidence'] * 100)}%), "
                 f"thực tế _{actual_phrase}_"
             )

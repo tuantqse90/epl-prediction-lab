@@ -231,6 +231,64 @@ def test_predict_match_temperature_softens_winner_prob():
     assert soft.p_home_win + soft.p_draw + soft.p_away_win == pytest.approx(1.0)
 
 
+# --- live_probabilities (in-play recompute) ---
+
+
+def test_live_probs_at_kickoff_match_full_poisson():
+    """At minute 0 with score 0-0 the live probs must equal the pre-match prediction."""
+    from app.models.poisson import live_probabilities, predict_match
+
+    lh, la = 1.8, 0.9
+    pre = predict_match(lh, la, rho=-0.15, temperature=1.0)
+    live = live_probabilities(lh, la, 0, 0, minute=0, rho=-0.15)
+
+    assert live.p_home_win == pytest.approx(pre.p_home_win, abs=0.02)
+    assert live.p_draw == pytest.approx(pre.p_draw, abs=0.02)
+    assert live.p_away_win == pytest.approx(pre.p_away_win, abs=0.02)
+
+
+def test_live_probs_at_final_whistle_locked_to_score():
+    """At minute 90 the probs collapse to the actual result — no further goals possible."""
+    from app.models.poisson import live_probabilities
+
+    # Home leading 1-0 at 90'
+    r = live_probabilities(2.0, 1.2, 1, 0, minute=90)
+    assert r.p_home_win == pytest.approx(1.0, abs=1e-6)
+    assert r.p_draw + r.p_away_win == pytest.approx(0.0, abs=1e-6)
+
+    # Draw 2-2 at 90'
+    r = live_probabilities(2.0, 1.2, 2, 2, minute=90)
+    assert r.p_draw == pytest.approx(1.0, abs=1e-6)
+
+
+def test_live_probs_sum_to_one():
+    from app.models.poisson import live_probabilities
+
+    for (h, a, minute) in [(0, 0, 15), (1, 0, 30), (1, 1, 60), (0, 2, 75), (3, 1, 85)]:
+        r = live_probabilities(1.7, 1.3, h, a, minute=minute)
+        assert r.p_home_win + r.p_draw + r.p_away_win == pytest.approx(1.0, abs=1e-6)
+
+
+def test_live_probs_lead_strengthens_winning_side():
+    """Up 1-0 at half time should raise P(home win) above pre-match."""
+    from app.models.poisson import live_probabilities
+
+    pre = live_probabilities(1.5, 1.5, 0, 0, minute=0)
+    leading = live_probabilities(1.5, 1.5, 1, 0, minute=45)
+    assert leading.p_home_win > pre.p_home_win
+    assert leading.p_away_win < pre.p_away_win
+
+
+def test_live_probs_expected_remaining_goals_scale_with_time():
+    """Remaining goals distribution should shrink as minutes elapse."""
+    from app.models.poisson import live_probabilities
+
+    early = live_probabilities(1.8, 1.2, 0, 0, minute=10)
+    late = live_probabilities(1.8, 1.2, 0, 0, minute=80)
+    # Later in the game, a 0-0 is more likely to stay 0-0 → draw prob rises
+    assert late.p_draw > early.p_draw
+
+
 def test_predict_match_rho_sign_follows_dc_formula():
     """Sanity-check the DC sign convention used here.
 

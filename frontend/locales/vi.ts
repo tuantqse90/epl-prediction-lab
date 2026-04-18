@@ -29,7 +29,11 @@ const vi: typeof en = {
   "status.scheduled": "Sắp diễn ra",
   "status.final": "Đã kết thúc",
   "status.live": "Đang đá",
-  "match.topScore": "Tỷ số dễ xảy ra nhất",
+  "match.topScore": "Tỷ số dự đoán",
+  "match.liveScore": "Tỷ số trực tiếp",
+  "match.finalScore": "Kết quả",
+  "match.predictedLabel": "Dự đoán",
+  "match.actualLabel": "Thực tế",
   "match.pending": "Chưa có dự đoán",
   "match.value": "Giá trị",
   "match.vs": "vs",
@@ -155,6 +159,10 @@ const vi: typeof en = {
   "scorers.sortAssists": "Kiến tạo",
   "scorers.sortDelta": "Bàn − xG",
   "scorers.empty": "Chưa có dữ liệu cầu thủ mùa {season}.",
+  "events.title": "Diễn biến trận đấu",
+  "events.goals": "Bàn thắng",
+  "events.cards": "Thẻ phạt",
+  "events.subs": "Thay người",
 };
 
 export default vi;

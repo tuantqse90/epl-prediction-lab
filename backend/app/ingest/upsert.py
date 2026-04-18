@@ -24,12 +24,13 @@ RETURNING id, slug
 
 _UPSERT_MATCH = """
 INSERT INTO matches (
-    external_id, season, kickoff_time,
+    external_id, league_code, season, kickoff_time,
     home_team_id, away_team_id,
     home_goals, away_goals, home_xg, away_xg, status
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 ON CONFLICT (external_id) DO UPDATE SET
+    league_code  = EXCLUDED.league_code,
     kickoff_time = EXCLUDED.kickoff_time,
     home_goals   = EXCLUDED.home_goals,
     away_goals   = EXCLUDED.away_goals,
@@ -43,6 +44,8 @@ async def upsert_all(
     pool: asyncpg.Pool,
     teams: Iterable[TeamRow],
     matches: Iterable[MatchRow],
+    *,
+    league_code: str = "ENG-Premier League",
 ) -> tuple[int, int]:
     """Upsert teams then matches inside a single transaction. Returns (n_teams, n_matches)."""
     async with pool.acquire() as conn:
@@ -59,6 +62,7 @@ async def upsert_all(
                 await conn.execute(
                     _UPSERT_MATCH,
                     m.external_id,
+                    league_code,
                     m.season,
                     m.kickoff_time.to_pydatetime(),
                     slug_to_id[m.home_slug],

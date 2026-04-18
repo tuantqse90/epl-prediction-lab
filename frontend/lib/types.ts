@@ -2,6 +2,7 @@ export type TeamBrief = {
   slug: string;
   name: string;
   short_name: string;
+  form?: string[];
 };
 
 export type Scoreline = {
@@ -38,10 +39,31 @@ export type OddsOut = {
   best_edge?: number | null;
 };
 
+export type LiveOut = {
+  minute: number;
+  live_updated_at: string | null;
+  p_home_win: number;
+  p_draw: number;
+  p_away_win: number;
+  expected_remaining_home_goals: number;
+  expected_remaining_away_goals: number;
+};
+
+export type MatchEvent = {
+  minute: number | null;
+  extra_minute: number | null;
+  team_slug: string | null;
+  player_name: string | null;
+  assist_name: string | null;
+  event_type: string;
+  event_detail: string | null;
+};
+
 export type MatchOut = {
   id: number;
   external_id: string;
   season: string;
+  league_code: string;
   kickoff_time: string;
   status: "scheduled" | "live" | "final" | string;
   home: TeamBrief;
@@ -52,4 +74,6 @@ export type MatchOut = {
   away_xg: number | null;
   prediction: PredictionOut | null;
   odds: OddsOut | null;
+  live: LiveOut | null;
+  events: MatchEvent[];
 };

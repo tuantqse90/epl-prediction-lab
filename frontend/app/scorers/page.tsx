@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import TeamLogo from "@/components/TeamLogo";
-import { getLang, tFor } from "@/lib/i18n-server";
+import { getLang, getLeagueSlug, tFor } from "@/lib/i18n-server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +24,10 @@ type ScorerOut = {
   goals_minus_xg: number;
 };
 
-async function fetchScorers(season: string, sort: string): Promise<ScorerOut[]> {
-  const res = await fetch(
-    `${BASE}/api/stats/scorers?season=${encodeURIComponent(season)}&sort=${sort}&limit=25`,
-    { cache: "no-store" },
-  );
+async function fetchScorers(season: string, sort: string, league?: string): Promise<ScorerOut[]> {
+  const qs = new URLSearchParams({ season, sort, limit: "25" });
+  if (league) qs.set("league", league);
+  const res = await fetch(`${BASE}/api/stats/scorers?${qs}`, { cache: "no-store" });
   if (!res.ok) return [];
   return res.json();
 }
@@ -48,9 +47,10 @@ export default async function ScorersPage({
   const season = sp.season ?? "2025-26";
   const sort = sp.sort ?? "goals";
   const lang = await getLang();
+  const league = await getLeagueSlug();
   const t = tFor(lang);
 
-  const rows = await fetchScorers(season, sort);
+  const rows = await fetchScorers(season, sort, league);
 
   const sorts: Array<{ key: string; label: string }> = [
     { key: "goals", label: t("scorers.sortGoals") },

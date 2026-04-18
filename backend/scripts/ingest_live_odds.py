@@ -30,6 +30,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.core.config import get_settings
 from app.ingest.odds import OddsRow, upsert_odds
+from app.leagues import LEAGUES, get_league
 
 
 # The Odds API returns full EPL team names; Understat uses the shorter form.
@@ -46,7 +47,7 @@ def _canon(name: str) -> str:
     return LIVE_NAME_MAP.get(name, name)
 
 
-def _fetch(api_key: str, regions: str) -> list[dict]:
+def _fetch(api_key: str, sport_key: str, regions: str) -> list[dict]:
     params = {
         "apiKey": api_key,
         "regions": regions,
@@ -54,7 +55,7 @@ def _fetch(api_key: str, regions: str) -> list[dict]:
         "oddsFormat": "decimal",
         "dateFormat": "iso",
     }
-    url = "https://api.the-odds-api.com/v4/sports/soccer_epl/odds/?" + urllib.parse.urlencode(params)
+    url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, headers={"User-Agent": "epl-lab/0.1"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         remaining = resp.headers.get("x-requests-remaining")
@@ -117,32 +118,45 @@ def events_to_rows(events: list[dict], season: str) -> list[OddsRow]:
     return rows
 
 
-async def run(season: str, regions: str) -> None:
+async def run(season: str, regions: str, leagues: list) -> None:
     api_key = os.environ.get("THE_ODDS_API_KEY")
     if not api_key:
         print("[live-odds] missing THE_ODDS_API_KEY")
         return
-    events = _fetch(api_key, regions)
-    print(f"[live-odds] {len(events)} EPL events returned")
-    rows = events_to_rows(events, season=season)
-    print(f"[live-odds] {len(rows)} rows parsed")
 
     settings = get_settings()
     pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=2)
     try:
-        n = await upsert_odds(pool, rows)
+        total_events = 0
+        total_upserted = 0
+        for lg in leagues:
+            try:
+                events = _fetch(api_key, lg.the_odds_api_key, regions)
+            except Exception as e:
+                print(f"[live-odds] {lg.short}: {type(e).__name__}: {e}")
+                continue
+            rows = events_to_rows(events, season=season)
+            n = await upsert_odds(pool, rows)
+            print(f"[live-odds] {lg.short}: {len(events)} events · {len(rows)} parsed · {n} upserted")
+            total_events += len(events)
+            total_upserted += n
+        print(f"[live-odds] total: {total_events} events / {total_upserted} upserted")
     finally:
         await pool.close()
-    print(f"[live-odds] upserted {n} matches")
 
 
 def main() -> None:
     logging.disable(logging.CRITICAL)
+    from app.leagues import LEAGUES, get_league
+
     p = argparse.ArgumentParser()
     p.add_argument("--season", default="2025-26")
     p.add_argument("--regions", default="uk,eu")
+    p.add_argument("--league", default=None,
+                   help="optional single-league filter; default = all top-5")
     args = p.parse_args()
-    asyncio.run(run(args.season, args.regions))
+    leagues = [get_league(args.league)] if args.league else LEAGUES
+    asyncio.run(run(args.season, args.regions, leagues))
 
 
 if __name__ == "__main__":

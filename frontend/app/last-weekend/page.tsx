@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import TeamLogo from "@/components/TeamLogo";
 import { formatDateOnly } from "@/lib/date";
-import { getLang, tFor } from "@/lib/i18n-server";
+import { getLang, getLeagueSlug, tFor } from "@/lib/i18n-server";
 
 export const dynamic = "force-dynamic";
 
@@ -37,8 +37,10 @@ type RecentWindow = {
   matches: RecentMatch[];
 };
 
-async function fetchRecent(days: number): Promise<RecentWindow | null> {
-  const res = await fetch(`${BASE}/api/stats/recent?days=${days}`, { cache: "no-store" });
+async function fetchRecent(days: number, league?: string): Promise<RecentWindow | null> {
+  const qs = new URLSearchParams({ days: String(days) });
+  if (league) qs.set("league", league);
+  const res = await fetch(`${BASE}/api/stats/recent?${qs}`, { cache: "no-store" });
   if (!res.ok) return null;
   return res.json();
 }
@@ -55,8 +57,9 @@ function pct(x: number) {
 export default async function LastWeekendPage() {
   const days = 7;
   const lang = await getLang();
+  const league = await getLeagueSlug();
   const t = tFor(lang);
-  const w = await fetchRecent(days);
+  const w = await fetchRecent(days, league);
 
   if (!w) {
     return (
@@ -133,9 +136,14 @@ export default async function LastWeekendPage() {
                       {m.home_short}
                     </span>
                   </div>
-                  <span className="stat text-2xl">
-                    {m.home_goals}–{m.away_goals}
-                  </span>
+                  <div className="flex flex-col items-center">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted">
+                      {t("match.finalScore")}
+                    </span>
+                    <span className="stat text-2xl text-neon">
+                      {m.home_goals}–{m.away_goals}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-2 min-w-0 justify-end">
                     <span className="font-display text-xl font-semibold uppercase tracking-tighter truncate">
                       {m.away_short}
@@ -145,7 +153,9 @@ export default async function LastWeekendPage() {
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted">{t("recent.predicted")}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                    {t("match.predictedLabel")} · {t("recent.predicted")}
+                  </span>
                   <span className={m.hit ? "text-neon" : "text-secondary"}>
                     {predicted} · {pct(m.confidence)}
                   </span>

@@ -8,7 +8,18 @@ from datetime import date
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 
+from app.leagues import get_league
+
 router = APIRouter(prefix="/api/stats", tags=["stats"])
+
+
+def _resolve_league_code(league: str | None) -> str | None:
+    if not league:
+        return None
+    try:
+        return get_league(league).code
+    except KeyError:
+        return None
 
 
 class AccuracyOut(BaseModel):
@@ -148,6 +159,7 @@ WHERE m.status = 'final'
   AND m.home_goals IS NOT NULL
   AND m.kickoff_time >= NOW() - ($1 || ' days')::INTERVAL
   AND m.kickoff_time <= NOW()
+  AND ($2::text IS NULL OR m.league_code = $2)
 ORDER BY m.kickoff_time DESC
 """
 
@@ -167,6 +179,7 @@ JOIN latest l ON l.match_id = m.id
 WHERE m.status = 'final'
   AND m.season = $1
   AND m.home_goals IS NOT NULL
+  AND ($2::text IS NULL OR m.league_code = $2)
 ORDER BY m.kickoff_time ASC
 """
 
@@ -184,9 +197,9 @@ def _outcome(hg: int, ag: int) -> str:
     return "H" if hg > ag else ("A" if hg < ag else "D")
 
 
-async def _fetch_scored(pool, season: str):
+async def _fetch_scored(pool, season: str, league_code: str | None = None):
     async with pool.acquire() as conn:
-        return await conn.fetch(_QUERY, season)
+        return await conn.fetch(_QUERY, season, league_code)
 
 
 def _aggregate(rows):
@@ -219,8 +232,10 @@ def _aggregate(rows):
 async def accuracy(
     request: Request,
     season: str = Query("2025-26"),
+    league: str | None = Query(None),
 ) -> AccuracyOut:
-    rows = await _fetch_scored(request.app.state.pool, season)
+    league_code = _resolve_league_code(league)
+    rows = await _fetch_scored(request.app.state.pool, season, league_code)
     scored, correct, baseline_home, ll_sum, _ = _aggregate(rows)
 
     return AccuracyOut(
@@ -235,9 +250,14 @@ async def accuracy(
 
 
 @router.get("/calibration", response_model=StatsOut)
-async def calibration(request: Request, season: str = Query("2025-26")) -> StatsOut:
+async def calibration(
+    request: Request,
+    season: str = Query("2025-26"),
+    league: str | None = Query(None),
+) -> StatsOut:
     """Breakdown of accuracy + reliability by matchweek and confidence bin."""
-    rows = await _fetch_scored(request.app.state.pool, season)
+    league_code = _resolve_league_code(league)
+    rows = await _fetch_scored(request.app.state.pool, season, league_code)
 
     scored, correct, baseline_home, ll_sum, brier_sum = _aggregate(rows)
     overall = AccuracyOut(
@@ -314,11 +334,16 @@ async def calibration(request: Request, season: str = Query("2025-26")) -> Stats
 
 
 @router.get("/recent", response_model=RecentWindowOut)
-async def recent(request: Request, days: int = Query(7, ge=1, le=30)) -> RecentWindowOut:
+async def recent(
+    request: Request,
+    days: int = Query(7, ge=1, le=30),
+    league: str | None = Query(None),
+) -> RecentWindowOut:
     """Finals in the last N days with how the model scored each pick."""
     pool = request.app.state.pool
+    league_code = _resolve_league_code(league)
     async with pool.acquire() as conn:
-        rows = await conn.fetch(_RECENT_QUERY, str(days))
+        rows = await conn.fetch(_RECENT_QUERY, str(days), league_code)
 
     out_rows: list[RecentMatchResult] = []
     correct = 0
@@ -430,8 +455,10 @@ async def scorers(
     season: str = Query("2025-26"),
     sort: str = Query("goals", pattern="^(goals|xg|assists|goals_minus_xg)$"),
     limit: int = Query(25, ge=1, le=100),
+    league: str | None = Query(None),
 ) -> list[ScorerOut]:
     pool = request.app.state.pool
+    league_code = _resolve_league_code(league)
     sort_col = {
         "goals": "p.goals DESC NULLS LAST, p.xg DESC NULLS LAST",
         "xg": "p.xg DESC NULLS LAST, p.goals DESC NULLS LAST",
@@ -445,11 +472,17 @@ async def scorers(
     FROM player_season_stats p
     JOIN teams t ON t.id = p.team_id
     WHERE p.season = $1
+      AND ($3::text IS NULL OR EXISTS (
+          SELECT 1 FROM matches m
+          WHERE (m.home_team_id = p.team_id OR m.away_team_id = p.team_id)
+            AND m.season = $1
+            AND m.league_code = $3
+      ))
     ORDER BY {sort_col}
     LIMIT $2
     """
     async with pool.acquire() as conn:
-        rows = await conn.fetch(query, season, limit)
+        rows = await conn.fetch(query, season, limit, league_code)
     out: list[ScorerOut] = []
     for i, r in enumerate(rows, 1):
         goals = int(r["goals"] or 0)

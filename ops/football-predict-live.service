@@ -1,12 +1,12 @@
 [Unit]
-Description=EPL Prediction Lab — weekly refresh (ingest + backtest + predict)
+Description=EPL Prediction Lab — live score polling (API-Football)
 After=docker.service
 Requires=docker.service
 
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/football-predict
-ExecStart=/bin/bash /opt/football-predict/ops/weekly.sh
+ExecStart=/bin/bash /opt/football-predict/ops/live.sh
 StandardOutput=journal
 StandardError=journal
-TimeoutStartSec=30m
+TimeoutStartSec=2m

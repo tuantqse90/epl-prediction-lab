@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS teams (
 CREATE TABLE IF NOT EXISTS matches (
     id            SERIAL PRIMARY KEY,
     external_id   TEXT UNIQUE,
+    league_code   TEXT NOT NULL DEFAULT 'ENG-Premier League',
     season        TEXT NOT NULL,
     matchweek     INT,
     kickoff_time  TIMESTAMPTZ NOT NULL,
@@ -29,8 +30,10 @@ CREATE TABLE IF NOT EXISTS matches (
     away_shots    INT,
     home_ppda     FLOAT,
     away_ppda     FLOAT,
-    status        TEXT,
-    created_at    TIMESTAMPTZ DEFAULT NOW()
+    status          TEXT,
+    minute          INT,
+    live_updated_at TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS predictions (
@@ -53,6 +56,27 @@ CREATE TABLE IF NOT EXISTS predictions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_predictions_commitment_hash ON predictions (commitment_hash);
+
+CREATE TABLE IF NOT EXISTS match_events (
+    id             SERIAL PRIMARY KEY,
+    match_id       INT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+    minute         INT,
+    extra_minute   INT,
+    team_slug      TEXT,
+    player_name    TEXT,
+    assist_name    TEXT,
+    event_type     TEXT NOT NULL,
+    event_detail   TEXT,
+    notified_at    TIMESTAMPTZ,
+    captured_at    TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_match_events_unique
+    ON match_events (
+        match_id, COALESCE(minute, -1), COALESCE(extra_minute, 0),
+        COALESCE(player_name, ''), event_type, COALESCE(event_detail, '')
+    );
+CREATE INDEX IF NOT EXISTS idx_match_events_match
+    ON match_events (match_id, minute);
 
 CREATE TABLE IF NOT EXISTS match_odds (
     id          SERIAL PRIMARY KEY,

@@ -8,10 +8,13 @@ const BASE =
     ? process.env.SERVER_API_URL ?? "http://localhost:8000"
     : process.env.NEXT_PUBLIC_API_URL ?? "";
 
-export async function listMatches(opts: { upcomingOnly?: boolean; limit?: number } = {}) {
+export async function listMatches(
+  opts: { upcomingOnly?: boolean; limit?: number; league?: string } = {},
+) {
   const params = new URLSearchParams();
   if (opts.upcomingOnly !== undefined) params.set("upcoming_only", String(opts.upcomingOnly));
   if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  if (opts.league) params.set("league", opts.league);
   const url = `${BASE}/api/matches?${params.toString()}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`listMatches failed: ${res.status}`);

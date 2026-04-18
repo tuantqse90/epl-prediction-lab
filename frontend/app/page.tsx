@@ -1,7 +1,8 @@
+import LivePoller from "@/components/LivePoller";
 import MatchCard from "@/components/MatchCard";
 import QuickPicks from "@/components/QuickPicks";
 import { listMatches } from "@/lib/api";
-import { getLang, tFor } from "@/lib/i18n-server";
+import { getLang, getLeagueSlug, tFor } from "@/lib/i18n-server";
 import type { MatchOut } from "@/lib/types";
 
 const BASE = process.env.SERVER_API_URL ?? "http://localhost:8000";
@@ -16,9 +17,11 @@ type Accuracy = {
   uniform_log_loss: number;
 };
 
-async function fetchAccuracy(): Promise<Accuracy | null> {
+async function fetchAccuracy(league?: string): Promise<Accuracy | null> {
   try {
-    const res = await fetch(`${BASE}/api/stats/accuracy?season=2025-26`, { cache: "no-store" });
+    const qs = new URLSearchParams({ season: "2025-26" });
+    if (league) qs.set("league", league);
+    const res = await fetch(`${BASE}/api/stats/accuracy?${qs}`, { cache: "no-store" });
     if (!res.ok) return null;
     return (await res.json()) as Accuracy;
   } catch {
@@ -30,19 +33,22 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const lang = await getLang();
+  const league = await getLeagueSlug();
   const t = tFor(lang);
 
   let matches: MatchOut[] = [];
   let error: string | null = null;
   try {
-    matches = await listMatches({ upcomingOnly: true, limit: 20 });
+    matches = await listMatches({ upcomingOnly: true, limit: 20, league });
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
-  const acc = await fetchAccuracy();
+  const acc = await fetchAccuracy(league);
+  const hasLive = matches.some((m) => m.status === "live");
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12 space-y-10">
+      {hasLive && <LivePoller />}
       <header className="space-y-3">
         <h1 className="headline-hero">{t("dash.headline")}</h1>
         <p className="max-w-2xl text-secondary text-base md:text-lg">{t("dash.subhead")}</p>

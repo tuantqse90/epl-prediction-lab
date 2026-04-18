@@ -14,6 +14,7 @@ import pandas as pd
 # football-data uses short team labels; map them back to the Understat
 # canonical names we already have in `teams.name`.
 NAME_MAP: dict[str, str] = {
+    # --- Premier League ---
     "Man United": "Manchester United",
     "Man City": "Manchester City",
     "Wolves": "Wolverhampton Wanderers",
@@ -25,7 +26,32 @@ NAME_MAP: dict[str, str] = {
     "Ipswich": "Ipswich",
     "Leicester": "Leicester",
     "Southampton": "Southampton",
-    # identity-mapped names can be added lazily via _canon
+    # --- La Liga ---
+    "Ath Bilbao": "Athletic Club",
+    "Ath Madrid": "Atletico Madrid",
+    "Celta": "Celta Vigo",
+    "Espanol": "Espanyol",
+    "Vallecano": "Rayo Vallecano",
+    "Betis": "Real Betis",
+    "Sociedad": "Real Sociedad",
+    "Oviedo": "Real Oviedo",
+    # --- Bundesliga ---
+    "Dortmund": "Borussia Dortmund",
+    "Leverkusen": "Bayer Leverkusen",
+    "M'gladbach": "Borussia M.Gladbach",
+    "Ein Frankfurt": "Eintracht Frankfurt",
+    "FC Koln": "FC Cologne",
+    "Heidenheim": "FC Heidenheim",
+    "Hamburg": "Hamburger SV",
+    "Mainz": "Mainz 05",
+    "RB Leipzig": "RasenBallsport Leipzig",
+    "St Pauli": "St. Pauli",
+    "Stuttgart": "VfB Stuttgart",
+    # --- Serie A ---
+    "Milan": "AC Milan",
+    "Parma": "Parma Calcio 1913",
+    # --- Ligue 1 ---
+    "Paris SG": "Paris Saint Germain",
 }
 
 

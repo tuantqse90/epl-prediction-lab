@@ -11,6 +11,7 @@ class TeamBrief(BaseModel):
     slug: str
     name: str
     short_name: str
+    form: list[str] = []
 
 
 class Scoreline(BaseModel):
@@ -47,9 +48,30 @@ class OddsOut(BaseModel):
     best_edge: float | None = None
 
 
+class LiveOut(BaseModel):
+    minute: int
+    live_updated_at: datetime | None = None
+    p_home_win: float
+    p_draw: float
+    p_away_win: float
+    expected_remaining_home_goals: float
+    expected_remaining_away_goals: float
+
+
+class MatchEventOut(BaseModel):
+    minute: int | None = None
+    extra_minute: int | None = None
+    team_slug: str | None = None
+    player_name: str | None = None
+    assist_name: str | None = None
+    event_type: str
+    event_detail: str | None = None
+
+
 class MatchOut(BaseModel):
     id: int
     external_id: str
+    league_code: str = "ENG-Premier League"
     season: str
     kickoff_time: datetime
     status: str
@@ -61,3 +83,5 @@ class MatchOut(BaseModel):
     away_xg: float | None = None
     prediction: PredictionOut | None = None
     odds: OddsOut | None = None
+    live: LiveOut | None = None
+    events: list[MatchEventOut] = []

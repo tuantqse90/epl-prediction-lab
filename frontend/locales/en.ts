@@ -27,7 +27,11 @@ const en = {
   "status.scheduled": "Upcoming",
   "status.final": "Final",
   "status.live": "Live",
-  "match.topScore": "Most likely score",
+  "match.topScore": "Predicted final score",
+  "match.liveScore": "Live score",
+  "match.finalScore": "Final score",
+  "match.predictedLabel": "Predicted",
+  "match.actualLabel": "Actual",
   "match.pending": "Prediction pending",
   "match.value": "Value",
   "match.vs": "vs",
@@ -153,6 +157,10 @@ const en = {
   "scorers.sortAssists": "Assists",
   "scorers.sortDelta": "G − xG",
   "scorers.empty": "No player stats ingested for {season} yet.",
+  "events.title": "What happened",
+  "events.goals": "Goals",
+  "events.cards": "Cards",
+  "events.subs": "Substitutions",
 };
 
 export default en;

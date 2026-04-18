@@ -27,6 +27,12 @@ import asyncpg
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.core.config import get_settings
 from app.ingest.odds import fair_probs
+from app.leagues import BY_CODE, DEFAULT_LEAGUE
+
+
+def _league_prefix(code: str | None) -> str:
+    lg = BY_CODE.get(code or DEFAULT_LEAGUE) or BY_CODE[DEFAULT_LEAGUE]
+    return f"{lg.emoji} {lg.short}"
 
 
 SITE = "https://predictor.nullshift.sh"
@@ -80,7 +86,7 @@ async def _fetch_upcoming(pool: asyncpg.Pool, horizon_days: int) -> list[dict]:
                 FROM predictions p
                 ORDER BY p.match_id, p.created_at DESC
             )
-            SELECT m.id, m.kickoff_time,
+            SELECT m.id, m.kickoff_time, m.league_code,
                    ht.slug AS home_slug, ht.short_name AS home_short, ht.name AS home_name,
                    at.slug AS away_slug, at.short_name AS away_short, at.name AS away_name,
                    l.p_home_win, l.p_draw, l.p_away_win,
@@ -144,7 +150,7 @@ def _confidence_picks(matches: list[dict]) -> list[dict]:
 
 def _format_message(value_bets: list[dict], confidence: list[dict]) -> str:
     lines = [
-        "🏆 *EPL tuần này — dự đoán mô hình*",
+        "🏆 *Top 5 giải châu Âu — dự đoán tuần này*",
         "",
     ]
 
@@ -166,8 +172,9 @@ def _format_message(value_bets: list[dict], confidence: list[dict]) -> str:
             model_p = round(probs[side] * 100)
             market_p = round(fair_map[side] * 100) if fair_map else None
             verb = _outcome_verb(side, _escape_md(m["home_short"]), _escape_md(m["away_short"]))
+            prefix = _league_prefix(m.get("league_code"))
             lines.append(
-                f"*{i}.* [{_escape_md(m['home_short'])} vs {_escape_md(m['away_short'])}]({link})"
+                f"*{i}.* {prefix} · [{_escape_md(m['home_short'])} vs {_escape_md(m['away_short'])}]({link})"
                 f" — _{_kickoff(m['kickoff_time'])}_"
             )
             lines.append(
@@ -187,8 +194,9 @@ def _format_message(value_bets: list[dict], confidence: list[dict]) -> str:
             m = cp["match"]
             link = f"{SITE}/match/{m['id']}"
             verb = _outcome_verb(cp["outcome"], _escape_md(m["home_short"]), _escape_md(m["away_short"]))
+            prefix = _league_prefix(m.get("league_code"))
             lines.append(
-                f"*{i}.* [{_escape_md(m['home_short'])} vs {_escape_md(m['away_short'])}]({link})"
+                f"*{i}.* {prefix} · [{_escape_md(m['home_short'])} vs {_escape_md(m['away_short'])}]({link})"
                 f" — _{_kickoff(m['kickoff_time'])}_"
             )
             lines.append(f"    → *{verb}* ({round(cp['confidence'] * 100)}%)")

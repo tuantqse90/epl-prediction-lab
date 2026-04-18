@@ -131,6 +131,72 @@ def temperature_scale_1x2(
     return raw[0] / z, raw[1] / z, raw[2] / z
 
 
+@dataclass(frozen=True)
+class LivePrediction:
+    p_home_win: float
+    p_draw: float
+    p_away_win: float
+    expected_remaining_home_goals: float
+    expected_remaining_away_goals: float
+
+
+def live_probabilities(
+    lam_home: float,
+    lam_away: float,
+    current_home: int,
+    current_away: int,
+    *,
+    minute: int,
+    rho: float = 0.0,
+    max_additional: int = 6,
+) -> LivePrediction:
+    """Re-derive P(H/D/A) partway through a live match.
+
+    Treats the match as two legs: what already happened (known score) plus
+    remaining time modeled as a fresh Poisson draw with rates scaled by the
+    minutes left (`rem = max(0, (90-minute)/90)`). Dixon-Coles ρ correction is
+    applied to the remaining-goals matrix only — DC is a low-score adjustment,
+    which still makes sense for the residual distribution.
+    """
+    rem = max(0.0, min(1.0, (90 - minute) / 90.0))
+
+    if rem == 0:
+        # Match over — result is locked in.
+        if current_home > current_away:
+            return LivePrediction(1.0, 0.0, 0.0, 0.0, 0.0)
+        if current_home < current_away:
+            return LivePrediction(0.0, 0.0, 1.0, 0.0, 0.0)
+        return LivePrediction(0.0, 1.0, 0.0, 0.0, 0.0)
+
+    lam_h_rem = lam_home * rem
+    lam_a_rem = lam_away * rem
+    matrix = poisson_score_matrix(lam_h_rem, lam_a_rem, max_goals=max_additional)
+    if rho != 0.0:
+        matrix = apply_dixon_coles(matrix, lam_h_rem, lam_a_rem, rho)
+
+    total = float(matrix.sum())
+    p_h = p_d = p_a = 0.0
+    for i in range(matrix.shape[0]):
+        for j in range(matrix.shape[1]):
+            final_h = current_home + i
+            final_a = current_away + j
+            cell = float(matrix[i, j]) / total
+            if final_h > final_a:
+                p_h += cell
+            elif final_h < final_a:
+                p_a += cell
+            else:
+                p_d += cell
+
+    return LivePrediction(
+        p_home_win=p_h,
+        p_draw=p_d,
+        p_away_win=p_a,
+        expected_remaining_home_goals=lam_h_rem,
+        expected_remaining_away_goals=lam_a_rem,
+    )
+
+
 def predict_match(
     lam_home: float,
     lam_away: float,
