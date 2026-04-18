@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html,
+  body {
+    background-color: #000;
+    color: #fff;
+    font-family: "Geist", "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: #e0ff32;
+    color: #000;
+  }
+}
+
+@layer components {
+  .headline-hero {
+    @apply font-display font-bold uppercase leading-[0.95] tracking-tightest text-5xl md:text-7xl;
+  }
+  .headline-section {
+    @apply font-display font-semibold uppercase tracking-tighter text-3xl md:text-4xl;
+  }
+  .label {
+    @apply font-mono uppercase tracking-[0.08em] text-xs text-muted;
+  }
+  .stat {
+    @apply font-mono font-medium tabular-nums text-2xl md:text-3xl text-primary;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-full px-6 py-3
+           font-mono text-sm font-semibold uppercase tracking-[0.04em]
+           bg-neon text-on-neon transition-colors hover:bg-neon-dim;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-full px-6 py-3
+           font-mono text-sm uppercase tracking-[0.04em]
+           bg-high text-primary border border-border hover:bg-max;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-1 px-3 py-2 text-secondary
+           hover:text-neon transition-colors;
+  }
+  .card {
+    @apply bg-raised border border-border rounded-xl p-5;
+  }
+}

@@ -1,0 +1,158 @@
+const en = {
+  // global
+  "site.title": "EPL Prediction Lab",
+  "site.tagline": "xG doesn't lie. But the bookies do.",
+  "nav.fixtures": "Fixtures",
+  "nav.table": "Table",
+  "nav.stats": "Stats",
+  "nav.recent": "Last weekend",
+  "nav.scorers": "Top scorers",
+  "common.back": "← Back",
+  "common.viewTx": "View transaction →",
+  "common.season": "Season",
+  "common.noData": "No data yet.",
+  "common.loading": "Loading…",
+
+  // dashboard
+  "dash.headline": "This week's fixtures",
+  "dash.subhead": "Poisson + Dixon-Coles on recent xG, reasoning by Qwen.",
+  "dash.apiError": "API error",
+  "dash.empty": "No upcoming matches yet. Run the ingest and predict scripts.",
+  "dash.stat.accuracy": "Model accuracy",
+  "dash.stat.baseline": "Baseline (home always)",
+  "dash.stat.logloss": "Log-loss",
+  "dash.stat.matches": "Matches scored",
+
+  // match card / status
+  "status.scheduled": "Upcoming",
+  "status.final": "Final",
+  "status.live": "Live",
+  "match.topScore": "Most likely score",
+  "match.pending": "Prediction pending",
+  "match.value": "Value",
+  "match.vs": "vs",
+
+  // match detail
+  "detail.breadcrumb": "Match #{id} • {date} • {status}",
+  "detail.expectedGoals": "Expected goals (λ)",
+  "detail.home": "Home",
+  "detail.draw": "Draw",
+  "detail.away": "Away",
+  "detail.pendingPost": "Prediction pending — POST /api/predictions/{id}",
+  "detail.analysis": "Analysis",
+  "detail.scoreMatrix.title": "Scoreline probabilities",
+  "detail.scoreMatrix.top": "Most likely",
+  "detail.scoreMatrix.footer": "Each cell is the model's probability of that exact scoreline. Derived from λ_home={lamH}, λ_away={lamA}, ρ={rho}.",
+
+  // fingerprint
+  "fp.title": "Prediction fingerprint",
+  "fp.badge": "verifiable",
+  "fp.explain": "Deterministic SHA-256 of the prediction body. Recompute it from the public data to verify the model view hasn't been tampered with.",
+
+  // odds
+  "odds.title": "Bookmaker odds",
+  "odds.outcome": "Outcome",
+  "odds.odds": "Odds",
+  "odds.fair": "Fair %",
+  "odds.edge": "Model Δ",
+  "odds.valueHint": "The model sees {edge} of value on {outcome}. The model and the market can disagree — use your judgment.",
+
+  // table
+  "table.title": "Standings vs xG",
+  "table.subhead": "Real points are what happened. xG diff is what should have happened.",
+  "table.empty": "No final matches for {season} yet.",
+  "table.col.rank": "#",
+  "table.col.team": "Team",
+  "table.col.played": "P",
+  "table.col.wins": "W",
+  "table.col.draws": "D",
+  "table.col.losses": "L",
+  "table.col.gf": "GF",
+  "table.col.ga": "GA",
+  "table.col.gd": "GD",
+  "table.col.xgf": "xGF",
+  "table.col.xga": "xGA",
+  "table.col.xgd": "xGD",
+
+  // stats
+  "stats.title": "Model calibration",
+  "stats.subhead": "How well does the model know what it knows? The confidence breakdown below tells you which numbers to trust.",
+  "stats.brier": "Brier score",
+  "stats.bins.title": "Confidence reliability",
+  "stats.bins.hint": "If the model's predicted probability is honest, actual hit rate should land inside each bin range. Positive Δ = underconfident; negative = overconfident.",
+  "stats.bins.empty": "Not enough scored matches yet.",
+  "stats.bins.bin": "Bin",
+  "stats.bins.n": "Matches",
+  "stats.bins.pred": "Predicted",
+  "stats.bins.actual": "Actual",
+  "stats.bins.delta": "Δpp",
+  "stats.bins.reliability": "Reliability",
+  "stats.weekly.title": "Weekly accuracy",
+  "stats.weekly.hint": "Baseline line shows home-always = {baseline}. Anything taller beats the naive pick.",
+
+  // team profile
+  "team.played": "Played",
+  "team.record": "W-D-L",
+  "team.points": "Points",
+  "team.goals": "Goals (GF–GA)",
+  "team.xgDiff": "xG diff",
+  "team.form": "Form (last 10, newest first)",
+  "team.form.none": "No finals yet.",
+  "team.topScorers": "Top scorers",
+  "team.topScorers.empty": "Player stats haven't been ingested. Run scripts/ingest_players.py --season {season}.",
+  "team.recent": "Recent finals",
+  "team.upcoming": "Upcoming fixtures",
+  "team.none": "(none)",
+  "team.trajectoryTitle": "Form trajectory (5-match rolling xG)",
+  "team.trajectoryMatches": "matches",
+  "team.trajectoryXgFor": "xG for {value}",
+  "team.trajectoryXgAgainst": "xG against {value}",
+  "team.trajectoryFooter": "Green line = goals the team should be scoring. Red = goals they should be conceding. Crossing = regime change.",
+
+  // chat widget
+  "chat.title": "Ask the analyst",
+  "chat.placeholder": "Ask anything about this match…",
+  "chat.send": "Send",
+  "chat.streaming": "Thinking…",
+  "chat.empty": "Ask a question about this match — or tap a suggestion below.",
+  "chat.error": "Something went wrong.",
+  "chat.you": "You",
+  "chat.bot": "Analyst",
+
+  // recent window
+  "recent.title": "How the model scored last weekend",
+  "recent.subhead": "Finals from the last {days} days, with the model's pre-kickoff pick and whether it landed.",
+  "recent.empty": "No finals in the last {days} days.",
+  "recent.summary.scored": "Matches scored",
+  "recent.summary.accuracy": "Accuracy",
+  "recent.summary.logloss": "Log-loss",
+  "recent.summary.correct": "Correct picks",
+  "recent.hit": "Hit",
+  "recent.miss": "Miss",
+  "recent.predicted": "Model picked",
+  "recent.actual": "Result",
+
+  // ROI chart on /stats
+  "roi.title": "Value-bet P&L",
+  "roi.subhead": "Cumulative profit if you'd flat-staked 1u on every model edge ≥ {threshold}pp this season.",
+  "roi.totalBets": "Bets",
+  "roi.totalPnl": "P&L (units)",
+  "roi.roi": "ROI",
+  "roi.empty": "No bets met the threshold yet.",
+
+  // quick picks
+  "quick.title": "Top value this week",
+  "quick.empty": "No strong value bets this week.",
+  "quick.edge": "Edge",
+
+  // scorers
+  "scorers.title": "Top scorers",
+  "scorers.subhead": "Who's leading the {season} golden boot race — and who the xG model says got lucky.",
+  "scorers.sortGoals": "Goals",
+  "scorers.sortXg": "xG",
+  "scorers.sortAssists": "Assists",
+  "scorers.sortDelta": "G − xG",
+  "scorers.empty": "No player stats ingested for {season} yet.",
+};
+
+export default en;

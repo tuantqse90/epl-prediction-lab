@@ -1,0 +1,51 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-epl}
+      POSTGRES_USER: ${POSTGRES_USER:-epl}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # db stays internal to the compose network (no host port binding);
+    # other stacks on the same VPS bind their own 5432.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-epl} -d ${POSTGRES_DB:-epl}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-epl}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-epl}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      API_FOOTBALL_KEY: ${API_FOOTBALL_KEY:-}
+      THE_ODDS_API_KEY: ${THE_ODDS_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-8500}:8000"
+
+  web:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      SERVER_API_URL: http://api:8000
+      NEXT_PUBLIC_API_URL: ""
+    ports:
+      - "127.0.0.1:${WEB_HOST_PORT:-3500}:3000"
+
+volumes:
+  pgdata:
