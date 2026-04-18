@@ -353,29 +353,51 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
         return False
 
     async with pool.acquire() as conn:
+        # Capture the prior score so we can decide whether to spend an events
+        # call. /fixtures/events is the expensive endpoint — only worth it
+        # when something actually changed on the scoreboard.
         match_row = await conn.fetchrow(
             """
+            WITH prev AS (
+                SELECT m.id, m.status AS prev_status,
+                       m.home_goals AS prev_hg, m.away_goals AS prev_ag
+                FROM matches m
+                JOIN teams ht ON ht.id = m.home_team_id
+                JOIN teams at ON at.id = m.away_team_id
+                WHERE ht.name = $5 AND at.name = $6
+                  AND m.kickoff_time BETWEEN NOW() - INTERVAL '6 hours'
+                                         AND NOW() + INTERVAL '30 minutes'
+                LIMIT 1
+            )
             UPDATE matches m
             SET status = $1,
                 home_goals = $2,
                 away_goals = $3,
                 minute = $4,
                 live_updated_at = NOW()
-            FROM teams ht, teams at
-            WHERE ht.id = m.home_team_id
-              AND at.id = m.away_team_id
-              AND ht.name = $5 AND at.name = $6
-              AND m.kickoff_time BETWEEN NOW() - INTERVAL '6 hours'
-                                     AND NOW() + INTERVAL '30 minutes'
-            RETURNING m.id
+            FROM prev
+            WHERE m.id = prev.id
+            RETURNING m.id, prev.prev_status, prev.prev_hg, prev.prev_ag
             """,
             db_status, int(hg), int(ag), elapsed, home, away,
         )
     if not match_row:
         return False
 
-    # Pull and upsert the event timeline while the match is live or just ended.
-    if db_status in ("live", "final") and fixture_id and api_key:
+    score_changed = (
+        match_row["prev_hg"] != int(hg) or match_row["prev_ag"] != int(ag)
+    )
+    status_changed = match_row["prev_status"] != db_status
+
+    # Only hit /fixtures/events when something interesting changed. Most
+    # polling cycles (90%+) see a static scoreline — skipping events there
+    # lets us poll aggressively without blowing API-Football quota.
+    should_fetch_events = (
+        (score_changed or status_changed)
+        and db_status in ("live", "final")
+        and fixture_id and api_key
+    )
+    if should_fetch_events:
         events = _fetch_events(api_key, int(fixture_id))
         new_ids = await _upsert_events(pool, match_row["id"], events, home, away)
         if new_ids:
