@@ -1,6 +1,12 @@
 // "all" is a virtual league that short-circuits the ?league= filter —
 // pages treat it as "no filter, everything across top 5".
-export type LeagueSlug = "all" | "epl" | "laliga" | "seriea" | "bundesliga" | "ligue1";
+export type LeagueSlug =
+  | "all"
+  | "epl"
+  | "laliga"
+  | "seriea"
+  | "bundesliga"
+  | "ligue1";
 
 export type League = {
   slug: LeagueSlug;
@@ -27,6 +33,9 @@ export const LEAGUES: League[] = [
   { slug: "seriea",     code: "ITA-Serie A",        short: "Serie A",   name_en: "Serie A",        name_vi: "Serie A",        emoji: "🇮🇹" },
   { slug: "bundesliga", code: "GER-Bundesliga",     short: "Bundesliga",name_en: "Bundesliga",     name_vi: "Bundesliga",     emoji: "🇩🇪" },
   { slug: "ligue1",     code: "FRA-Ligue 1",        short: "Ligue 1",   name_en: "Ligue 1",        name_vi: "Ligue 1",        emoji: "🇫🇷" },
+  // Championship / Eredivisie / Primeira / MLS / J-League are registered
+  // on the backend for the future ingest pipeline; they stay out of the FE
+  // dropdown until xG / predictions are populated to avoid empty pages.
 ];
 
 // Real competitions only — used where "all" makes no sense (e.g. table).

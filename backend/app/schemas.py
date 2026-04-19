@@ -52,6 +52,7 @@ class LiveOut(BaseModel):
     minute: int
     live_period: str | None = None     # '1H' | 'HT' | '2H' | 'FT' | 'AET' | 'PEN'
     live_updated_at: datetime | None = None
+    # (referee sits on MatchOut directly since it applies pre-match too)
     p_home_win: float
     p_draw: float
     p_away_win: float
@@ -82,6 +83,7 @@ class MatchOut(BaseModel):
     away_goals: int | None = None
     home_xg: float | None = None
     away_xg: float | None = None
+    referee: str | None = None
     prediction: PredictionOut | None = None
     odds: OddsOut | None = None
     live: LiveOut | None = None

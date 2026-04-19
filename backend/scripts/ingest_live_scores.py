@@ -368,6 +368,7 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
     hg = goals.get("home")
     ag = goals.get("away")
     fixture_id = fixture.get("id")
+    referee = (fixture.get("referee") or "").strip() or None
 
     db_status = _map_status(status_short)
     if hg is None or ag is None:
@@ -402,12 +403,13 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
                 away_goals = $3,
                 minute = $4,
                 live_period = $7,
+                referee = COALESCE($8, m.referee),
                 live_updated_at = NOW()
             FROM prev
             WHERE m.id = prev.id
             RETURNING m.id, prev.prev_status, prev.prev_hg, prev.prev_ag
             """,
-            db_status, int(hg), int(ag), elapsed, home, away, status_short,
+            db_status, int(hg), int(ag), elapsed, home, away, status_short, referee,
         )
     if not match_row:
         return False

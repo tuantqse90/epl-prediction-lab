@@ -7,6 +7,9 @@ import CommitmentBadge from "@/components/CommitmentBadge";
 import H2HPanel from "@/components/H2HPanel";
 import InjuriesPanel from "@/components/InjuriesPanel";
 import InjuryImpactBadge from "@/components/InjuryImpactBadge";
+import HalfTimePanel from "@/components/HalfTimePanel";
+import TipsterSubmit from "@/components/TipsterSubmit";
+import XgMomentum from "@/components/XgMomentum";
 import LineupsPanel from "@/components/LineupsPanel";
 import LiveBadge from "@/components/LiveBadge";
 import LivePoller from "@/components/LivePoller";
@@ -21,7 +24,7 @@ import ShareButtons from "@/components/ShareButtons";
 import TeamLogo from "@/components/TeamLogo";
 import TerminalBlock from "@/components/TerminalBlock";
 import { OddsPanel } from "@/components/ValueBetBadge";
-import { getH2H, getInjuries, getInjuryImpact, getLineups, getMarkets, getMatch, getScorerOdds, getWeather } from "@/lib/api";
+import { getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getMarkets, getMatch, getScorerOdds, getWeather } from "@/lib/api";
 import { formatKickoff } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
 import { leagueByCode } from "@/lib/leagues";
@@ -80,6 +83,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const injuryImpact = await getInjuryImpact(matchId).catch(() => null);
   const weather = await getWeather(matchId).catch(() => null);
   const markets = await getMarkets(matchId).catch(() => null);
+  const halfTime = await getHalfTime(matchId).catch(() => null);
 
   const p = match.prediction;
   const isLive = match.status === "live" && !!match.live;
@@ -128,6 +132,11 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             <p className="font-mono text-xs text-muted">
               {t("detail.breadcrumb", { id: match.id, date: kickoff, status: statusLabel })}
             </p>
+            {match.referee && (
+              <span className="font-mono text-xs text-muted">
+                · {lang === "vi" ? "TT" : "Ref"}: {match.referee}
+              </span>
+            )}
           </div>
           <h1 className="flex flex-wrap items-center gap-4 md:gap-6">
             <span className="flex items-center gap-3">
@@ -244,6 +253,23 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
         lang={lang}
       />
 
+      <XgMomentum
+        homeSlug={match.home.slug}
+        homeShort={match.home.short_name}
+        awaySlug={match.away.slug}
+        awayShort={match.away.short_name}
+        season={match.season}
+        lang={lang}
+      />
+
+      {halfTime && (
+        <HalfTimePanel
+          data={halfTime}
+          homeShort={match.home.short_name}
+          awayShort={match.away.short_name}
+          lang={lang}
+        />
+      )}
       {markets && <MarketsPanel markets={markets} lang={lang} />}
       {match.odds && <OddsPanel odds={match.odds} lang={lang} matchId={match.id} prediction={match.prediction} />}
       {p && (
@@ -256,6 +282,14 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
       )}
       {p?.reasoning && <TerminalBlock title={t("detail.analysis")}>{p.reasoning}</TerminalBlock>}
       {p && <CommitmentBadge prediction={p} lang={lang} />}
+
+      {match.status === "scheduled" && (
+        <TipsterSubmit
+          matchId={match.id}
+          homeShort={match.home.short_name}
+          awayShort={match.away.short_name}
+        />
+      )}
 
       <ChatWidget matchId={match.id} />
     </main>

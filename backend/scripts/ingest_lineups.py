@@ -109,23 +109,31 @@ async def _resolve_fixture_ids(pool: asyncpg.Pool, key: str, window_minutes: int
         fixtures = _fetch_fixtures_for_day(key, lg.api_football_id, season_year, iso_date)
         if not fixtures:
             continue
-        by_pair: dict[tuple[str, str], int] = {}
+        by_pair: dict[tuple[str, str], tuple[int, str | None]] = {}
         for f in fixtures:
             teams = f.get("teams") or {}
             h = _canon((teams.get("home") or {}).get("name", "").strip())
             a = _canon((teams.get("away") or {}).get("name", "").strip())
-            fid = (f.get("fixture") or {}).get("id")
+            fix = f.get("fixture") or {}
+            fid = fix.get("id")
+            ref = (fix.get("referee") or "").strip() or None
             if h and a and fid:
-                by_pair[(h, a)] = int(fid)
+                by_pair[(h, a)] = (int(fid), ref)
 
         async with pool.acquire() as conn:
             for r in bucket:
-                fid = by_pair.get((r["home_name"], r["away_name"]))
-                if fid is None:
+                info = by_pair.get((r["home_name"], r["away_name"]))
+                if info is None:
                     continue
+                fid, ref = info
                 await conn.execute(
-                    "UPDATE matches SET api_football_fixture_id = $1 WHERE id = $2",
-                    fid, r["id"],
+                    """
+                    UPDATE matches
+                    SET api_football_fixture_id = $1,
+                        referee = COALESCE($2, referee)
+                    WHERE id = $3
+                    """,
+                    fid, ref, r["id"],
                 )
                 resolved += 1
     return resolved

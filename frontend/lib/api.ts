@@ -149,6 +149,20 @@ export async function getMarkets(matchId: number): Promise<Markets | null> {
   return (await res.json()) as Markets | null;
 }
 
+export type HalfTimePredictions = {
+  p_home_lead: number;
+  p_draw: number;
+  p_away_lead: number;
+  top_scorelines: [number, number, number][];
+  htft: Array<{ ht: "H" | "D" | "A"; ft: "H" | "D" | "A"; p: number }>;
+};
+
+export async function getHalfTime(matchId: number): Promise<HalfTimePredictions | null> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/halftime`, { cache: "no-store" });
+  if (!res.ok) return null;
+  return (await res.json()) as HalfTimePredictions | null;
+}
+
 export async function fetchSuggestedPrompts(matchId: number): Promise<string[]> {
   const res = await fetch(`${BASE}/api/chat/suggest/${matchId}`, { cache: "no-store" });
   if (!res.ok) return [];

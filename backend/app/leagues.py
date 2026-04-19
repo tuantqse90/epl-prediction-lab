@@ -60,6 +60,46 @@ LEAGUES: list[League] = [
         football_data_code="F1", api_football_id=61,
         the_odds_api_key="soccer_france_ligue_one",
     ),
+    # ── second-tier + outside top-5. football-data supplies odds; Understat
+    # covers only top-5 so player stats / xG depth is weaker here. Matches +
+    # basic Poisson still work; model is best on the original top-5.
+    League(
+        code="ENG-Championship", slug="championship", short="Champ",
+        name_en="Championship", name_vi="Hạng Nhất Anh",
+        emoji="🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+        football_data_code="E1", api_football_id=40,
+        the_odds_api_key="soccer_efl_champ",
+    ),
+    League(
+        code="NED-Eredivisie", slug="eredivisie", short="Eredivisie",
+        name_en="Eredivisie", name_vi="Eredivisie",
+        emoji="🇳🇱",
+        football_data_code="N1", api_football_id=88,
+        the_odds_api_key="soccer_netherlands_eredivisie",
+    ),
+    League(
+        code="POR-Liga Portugal", slug="primeira", short="Primeira",
+        name_en="Primeira Liga", name_vi="VĐQG Bồ Đào Nha",
+        emoji="🇵🇹",
+        football_data_code="P1", api_football_id=94,
+        the_odds_api_key="soccer_portugal_primeira_liga",
+    ),
+    League(
+        code="USA-Major League Soccer", slug="mls", short="MLS",
+        name_en="MLS", name_vi="MLS",
+        emoji="🇺🇸",
+        football_data_code="",  # football-data doesn't cover MLS — odds via the-odds-api
+        api_football_id=253,
+        the_odds_api_key="soccer_usa_mls",
+    ),
+    League(
+        code="JPN-J1 League", slug="jleague", short="J-League",
+        name_en="J-League", name_vi="J-League",
+        emoji="🇯🇵",
+        football_data_code="",
+        api_football_id=98,
+        the_odds_api_key="soccer_japan_j_league",
+    ),
 ]
 
 BY_CODE: dict[str, League] = {lg.code: lg for lg in LEAGUES}

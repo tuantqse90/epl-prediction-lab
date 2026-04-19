@@ -73,6 +73,7 @@ export type MatchOut = {
   away_goals: number | null;
   home_xg: number | null;
   away_xg: number | null;
+  referee: string | null;
   prediction: PredictionOut | null;
   odds: OddsOut | null;
   live: LiveOut | null;

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import LangToggle from "./LangToggle";
 import LeagueSelector from "./LeagueSelector";
+import SearchModal from "./SearchModal";
 import type { Lang } from "@/lib/i18n";
 import { getLeagueSlug, tFor } from "@/lib/i18n-server";
 
@@ -31,6 +32,7 @@ export default async function SiteHeader({ lang }: { lang: Lang }) {
         <Link href="/stats" className="text-secondary hover:text-neon transition-colors whitespace-nowrap">
           {t("nav.stats")}
         </Link>
+        <SearchModal />
         <LangToggle />
       </div>
     </nav>

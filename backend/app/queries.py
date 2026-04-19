@@ -20,7 +20,7 @@ SELECT
     m.id, m.external_id, m.league_code, m.season, m.matchweek, m.kickoff_time, m.status,
     m.home_goals, m.away_goals, m.home_xg, m.away_xg,
     m.home_team_id, m.away_team_id,
-    m.minute, m.live_period, m.live_updated_at,
+    m.minute, m.live_period, m.live_updated_at, m.referee,
     ht.slug AS home_slug, ht.name AS home_name, ht.short_name AS home_short,
     at.slug AS away_slug, at.name AS away_name, at.short_name AS away_short,
     lp.p_home_win, lp.p_draw, lp.p_away_win,

@@ -47,6 +47,15 @@ class WeatherOut(BaseModel):
     fetched_at: str | None
 
 
+class HalfTimeOut(BaseModel):
+    p_home_lead: float
+    p_draw: float
+    p_away_lead: float
+    top_scorelines: list[tuple[int, int, float]]
+    # HT/FT 9-cell grid flattened into an array of dicts for JSON friendliness.
+    htft: list[dict]  # [{"ht": "H", "ft": "H", "p": 0.37}, ...]
+
+
 class MarketsOut(BaseModel):
     prob_over_0_5: float
     prob_over_1_5: float
@@ -302,6 +311,42 @@ async def match_lineups(match_id: int, request: Request) -> MatchLineups:
         )
 
     return MatchLineups(home=_build(pair["home_slug"]), away=_build(pair["away_slug"]))
+
+
+@router.get("/{match_id}/halftime", response_model=HalfTimeOut | None)
+async def match_halftime(match_id: int, request: Request) -> HalfTimeOut | None:
+    """Half-time winner + HT correct-score + HT/FT 9-grid from latest prediction."""
+    from app.models.half_time import halftime_correct_score_top, ht_winner_probs, htft_grid
+
+    pool = request.app.state.pool
+    row = await pool.fetchrow(
+        """
+        SELECT expected_home_goals, expected_away_goals
+        FROM predictions
+        WHERE match_id = $1
+        ORDER BY created_at DESC LIMIT 1
+        """,
+        match_id,
+    )
+    if row is None or row["expected_home_goals"] is None:
+        return None
+    lam_h = float(row["expected_home_goals"])
+    lam_a = float(row["expected_away_goals"])
+
+    w = ht_winner_probs(lam_h, lam_a)
+    top = halftime_correct_score_top(lam_h, lam_a, n=3)
+    grid = htft_grid(lam_h, lam_a)
+    htft_list = [
+        {"ht": ht, "ft": ft, "p": round(p, 4)}
+        for (ht, ft), p in sorted(grid.cells.items(), key=lambda kv: kv[1], reverse=True)
+    ]
+    return HalfTimeOut(
+        p_home_lead=w.p_home_lead,
+        p_draw=w.p_draw,
+        p_away_lead=w.p_away_lead,
+        top_scorelines=[(h, a, round(p, 4)) for h, a, p in top],
+        htft=htft_list,
+    )
 
 
 @router.get("/{match_id}/markets", response_model=MarketsOut | None)

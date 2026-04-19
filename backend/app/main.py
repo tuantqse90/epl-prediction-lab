@@ -7,12 +7,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import admin as admin_router
 from app.api import chat as chat_router
+from app.api import fpl as fpl_router
 from app.api import matches as matches_router
+from app.api import players as players_router
 from app.api import predictions as predictions_router
 from app.api import push as push_router
+from app.api import search as search_router
 from app.api import stats as stats_router
 from app.api import table as table_router
 from app.api import teams as teams_router
+from app.api import tipsters as tipsters_router
 from app.core.db import lifespan
 
 app = FastAPI(title="EPL Prediction Lab", lifespan=lifespan)
@@ -32,6 +36,10 @@ app.include_router(stats_router.router)
 app.include_router(teams_router.router)
 app.include_router(admin_router.router)
 app.include_router(push_router.router)
+app.include_router(fpl_router.router)
+app.include_router(search_router.router)
+app.include_router(players_router.router)
+app.include_router(tipsters_router.router)
 
 
 @app.get("/health")
