@@ -28,6 +28,13 @@ done
 # each iterates internally over LEAGUES / match.league_code.
 run python scripts/ingest_live_odds.py   --season "$SEASON" || true
 run python scripts/ingest_injuries.py    --season "$SEASON" || true
+
+# Retrain XGBoost on all prior seasons so the booster stays fresh as new
+# matches accumulate. Holdout is the current season → honest out-of-sample
+# metrics on every retrain. Saved to the persistent /data volume, picked
+# up automatically by the api service (lazy-loaded via XGB_MODEL_PATH).
+run python scripts/train_xgboost.py      --holdout-season "$SEASON"
+
 run python scripts/backtest.py            --season "$SEASON"
 run python scripts/post_telegram_recap.py --days 7 || true
 run python scripts/predict_upcoming.py    --horizon-days "$HORIZON_DAYS" --with-reasoning
