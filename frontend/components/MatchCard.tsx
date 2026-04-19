@@ -94,6 +94,39 @@ export default function MatchCard({ match, lang }: { match: MatchOut; lang: Lang
 
       {displayPrediction ? (
         <>
+          {(() => {
+            // Model's argmax pick — the single line users actually need to
+            // act on. Shown BEFORE the 3-way bar so the eye lands on it first.
+            const probs = {
+              H: displayPrediction.p_home_win,
+              D: displayPrediction.p_draw,
+              A: displayPrediction.p_away_win,
+            } as const;
+            const pick = (Object.entries(probs) as Array<["H" | "D" | "A", number]>)
+              .reduce((a, b) => (b[1] > a[1] ? b : a));
+            const [side, conf] = pick;
+            const pickLabel =
+              side === "H" ? match.home.short_name
+              : side === "A" ? match.away.short_name
+              : t(lang, "detail.draw");
+            const edge = match.odds?.best_edge;
+            const edgeHit = typeof edge === "number" && match.odds?.best_outcome === side && edge >= 0.05;
+            return (
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full bg-neon/15 px-3 py-1 font-mono text-xs uppercase tracking-wide text-neon">
+                  <span aria-hidden>✓</span>
+                  <span>{lang === "vi" ? "Model chọn" : "Model picks"}</span>
+                  <span className="font-semibold">{pickLabel}</span>
+                  <span className="text-neon/70">· {Math.round(conf * 100)}%</span>
+                </span>
+                {edgeHit && (
+                  <span className="font-mono text-[10px] uppercase tracking-wide text-neon">
+                    +{Math.round(edge * 100)}% vs market
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           <PredictionBar prediction={displayPrediction} lang={lang} />
           {topScore && !isLive && (
             <div className="flex items-center justify-between">

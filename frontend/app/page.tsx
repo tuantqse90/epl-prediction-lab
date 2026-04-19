@@ -3,6 +3,7 @@ import Link from "next/link";
 import FavoritesSection from "@/components/FavoritesSection";
 import LivePoller from "@/components/LivePoller";
 import MatchCard from "@/components/MatchCard";
+import ProofStrip from "@/components/ProofStrip";
 import PushButton from "@/components/PushButton";
 import QuickPicks from "@/components/QuickPicks";
 import TelegramCTA from "@/components/TelegramCTA";
@@ -72,6 +73,10 @@ export default async function HomePage() {
             {lang === "vi" ? "Mô hình hoạt động thế nào →" : "How the model works →"}
           </Link>
           <span className="text-muted">·</span>
+          <Link href="/proof" className="text-neon hover:opacity-80 transition-opacity font-mono text-xs uppercase tracking-wide">
+            {lang === "vi" ? "Chứng minh →" : "Proof →"}
+          </Link>
+          <span className="text-muted">·</span>
           <PushButton />
         </div>
       </header>
@@ -86,6 +91,8 @@ export default async function HomePage() {
       {!error && matches.length === 0 && (
         <div className="card text-secondary">{t("dash.empty")}</div>
       )}
+
+      <ProofStrip league={leagueParam} lang={lang} />
 
       {matches.length > 0 && <FavoritesSection matches={matches} />}
       {matches.length > 0 && <QuickPicks matches={matches} lang={lang} />}

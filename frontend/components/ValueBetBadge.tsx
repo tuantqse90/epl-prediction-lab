@@ -12,6 +12,7 @@ function kelly(prob: number, odds: number, cap = 0.25): number {
 }
 
 export const VALUE_THRESHOLD = 0.05;
+export const VALUE_POPOUT_THRESHOLD = 0.10;
 
 function pp(x: number) {
   const n = Math.round(x * 1000) / 10;
@@ -63,6 +64,19 @@ export function OddsPanel({
     { key: "D", label: t(lang, "detail.draw"), odd: odds.odds_draw, fair: odds.fair_draw, edge: odds.edge_draw },
     { key: "A", label: t(lang, "detail.away"), odd: odds.odds_away, fair: odds.fair_away, edge: odds.edge_away },
   ];
+  const bestRow = odds.best_outcome
+    ? rows.find((r) => r.key === odds.best_outcome)
+    : null;
+  const bestModelProb = bestRow && prediction
+    ? bestRow.key === "H" ? prediction.p_home_win
+      : bestRow.key === "D" ? prediction.p_draw
+      : prediction.p_away_win
+    : null;
+  const bestKelly = bestRow && bestModelProb != null ? kelly(bestModelProb, bestRow.odd) : 0;
+  const showPopout = odds.best_edge != null
+    && odds.best_edge >= VALUE_POPOUT_THRESHOLD
+    && bestRow != null;
+
   return (
     <section className="card space-y-3">
       <div className="flex items-baseline justify-between">
@@ -71,6 +85,56 @@ export function OddsPanel({
         </h2>
         <span className="font-mono text-[10px] text-muted">{odds.source}</span>
       </div>
+      {showPopout && bestRow && (
+        <div className="rounded-lg border-2 border-neon bg-neon/10 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.15em] text-neon font-semibold">
+              <span aria-hidden>◆</span>
+              {lang === "vi" ? "Cơ hội giá trị" : "Value detected"}
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-wide text-neon/70">
+              {lang === "vi" ? "Model > Nhà cái" : "Model beats market"}
+            </span>
+          </div>
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <span className="font-display text-2xl md:text-3xl font-semibold uppercase tracking-tight text-neon">
+              {bestRow.label}
+            </span>
+            <span className="font-mono text-sm text-secondary">
+              @ {bestRow.odd.toFixed(2)}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-4 pt-2 border-t border-neon/30">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
+                {lang === "vi" ? "Chênh lệch" : "Edge"}
+              </p>
+              <p className="stat text-neon text-xl">{pp(odds.best_edge!)}</p>
+            </div>
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
+                {lang === "vi" ? "Xác suất model" : "Model prob"}
+              </p>
+              <p className="stat text-primary text-xl">
+                {bestModelProb != null ? `${Math.round(bestModelProb * 100)}%` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
+                {lang === "vi" ? "Stake Kelly" : "Kelly stake"}
+              </p>
+              <p className="stat text-neon text-xl">
+                {bestKelly > 0 ? `${(bestKelly * 100).toFixed(1)}%` : "—"}
+              </p>
+            </div>
+          </div>
+          <p className="font-mono text-[10px] text-muted leading-relaxed">
+            {lang === "vi"
+              ? "Kelly phân đoạn, tối đa 25% vốn. Chỉ là gợi ý thống kê — không phải lời khuyên cá cược."
+              : "Fractional Kelly, capped at 25% of bankroll. Statistical guidance, not betting advice."}
+          </p>
+        </div>
+      )}
       <div className="overflow-x-auto -mx-2">
       <table className="w-full font-mono text-sm">
         <thead className="text-muted">

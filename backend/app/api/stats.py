@@ -396,6 +396,105 @@ async def recent(
     )
 
 
+class Comparison(BaseModel):
+    """Side-by-side accuracy of four predictors over the chosen window."""
+    days: int
+    league_code: str | None
+    scored: int
+    model_accuracy: float
+    bookmaker_accuracy: float     # argmax of fair-probs from market odds
+    home_baseline_accuracy: float
+    uniform_baseline_accuracy: float
+    model_log_loss: float
+
+
+_COMPARISON_QUERY = """
+WITH latest AS (
+    SELECT DISTINCT ON (p.match_id)
+        p.match_id, p.p_home_win, p.p_draw, p.p_away_win
+    FROM predictions p
+    ORDER BY p.match_id, p.created_at DESC
+)
+SELECT m.home_goals, m.away_goals,
+       l.p_home_win, l.p_draw, l.p_away_win,
+       o.odds_home, o.odds_draw, o.odds_away
+FROM matches m
+JOIN latest l ON l.match_id = m.id
+LEFT JOIN LATERAL (
+    SELECT odds_home, odds_draw, odds_away
+    FROM match_odds WHERE match_id = m.id
+    ORDER BY captured_at DESC LIMIT 1
+) o ON TRUE
+WHERE m.status = 'final'
+  AND m.home_goals IS NOT NULL
+  AND m.kickoff_time >= NOW() - ($1 || ' days')::INTERVAL
+  AND ($2::text IS NULL OR m.league_code = $2)
+"""
+
+
+@router.get("/comparison", response_model=Comparison)
+async def comparison(
+    request: Request,
+    days: int = Query(30, ge=1, le=365),
+    league: str | None = Query(None),
+) -> Comparison:
+    """Four-way accuracy: model vs bookmakers vs always-home vs uniform."""
+    from app.ingest.odds import fair_probs
+
+    pool = request.app.state.pool
+    league_code = _resolve_league_code(league)
+    cache_key = ("comparison", days, league_code)
+    cached = _STATS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(_COMPARISON_QUERY, str(days), league_code)
+
+    scored = 0
+    model_correct = 0
+    bk_correct = 0
+    home_correct = 0
+    ll_sum = 0.0
+
+    for r in rows:
+        hg, ag = int(r["home_goals"]), int(r["away_goals"])
+        actual = _outcome(hg, ag)
+
+        probs = {"H": float(r["p_home_win"]), "D": float(r["p_draw"]), "A": float(r["p_away_win"])}
+        model_pick = max(probs, key=probs.get)
+        if model_pick == actual:
+            model_correct += 1
+        ll_sum += -math.log(max(probs[actual], 1e-12))
+
+        if actual == "H":
+            home_correct += 1
+
+        if r["odds_home"] is not None:
+            fair = fair_probs(r["odds_home"], r["odds_draw"], r["odds_away"])
+            if fair:
+                bk_probs = {"H": fair[0], "D": fair[1], "A": fair[2]}
+                if max(bk_probs, key=bk_probs.get) == actual:
+                    bk_correct += 1
+        scored += 1
+
+    def _acc(n: int) -> float:
+        return n / scored if scored else 0.0
+
+    out = Comparison(
+        days=days,
+        league_code=league_code,
+        scored=scored,
+        model_accuracy=_acc(model_correct),
+        bookmaker_accuracy=_acc(bk_correct),
+        home_baseline_accuracy=_acc(home_correct),
+        uniform_baseline_accuracy=1.0 / 3.0,
+        model_log_loss=(ll_sum / scored) if scored else 0.0,
+    )
+    _STATS_CACHE.set(cache_key, out)
+    return out
+
+
 class HistorySeason(BaseModel):
     season: str
     scored: int

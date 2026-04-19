@@ -2,6 +2,18 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-19 15:00 +07 — 5-item UI/UX batch: convey model quality
+
+**#81 ProofStrip hero**: new `<ProofStrip>` server component above the match grid. 4-row horizontal bar chart — Model / Bookmakers / Always-Home / Random — on 30-day finals. Backed by new `/api/stats/comparison` endpoint (TTL-cached) that argmaxes both model probs and devigged bookmaker odds. Hidden if `scored < 10`.
+
+**#82 Model-pick banner on MatchCard**: neon pill above the 3-way bar — `✓ Model picks {team} · {conf}%` + `+X% vs market` chip when best_edge ≥ 5pp matches the pick.
+
+**#83 Last-10 W/L dots**: inside `<ProofStrip>`, renders 10 circles (green=hit, red=miss) from `/api/stats/recent` with N/10 counter.
+
+**#84 Kelly value popout**: `<OddsPanel>` now renders a neon-bordered callout above the odds table whenever `best_edge ≥ 10pp` — outcome label, odds, edge, model prob, Kelly stake in one hero card.
+
+**#85 /proof marketing page**: new route combining weighted-accuracy + log-loss trust numbers, 30d head-to-head comparison, per-season accuracy bars, calibration reliability table, "why it works" 3-up explainer, and a 4-step hash-verification how-to. Linked from homepage header.
+
 ## 2026-04-19 13:30 +07 — Model validation + XGBoost leg + 3 new locales + match detail tabs
 
 **Model validation**: 5-config walk-forward backtest (2,263 matches, 6 seasons). Ensemble **full-stack (Poisson + Dixon-Coles + Elo 25% + opp-adjusted xG)** beats baseline **+0.71% accuracy / −1.73% log-loss**. Elo single biggest leg (−0.0149), opp-adjust mild (−0.0046). Decay alone neutral. Keep full-stack config (`scripts/compare_configs.py`).
