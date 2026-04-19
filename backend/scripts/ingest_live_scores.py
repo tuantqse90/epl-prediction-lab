@@ -440,6 +440,42 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
     return True
 
 
+async def _flip_stuck_live_to_final(pool: asyncpg.Pool) -> int:
+    """Cleanup: matches stuck at status='live' after API-Football dropped them.
+
+    API-Football removes a fixture from `/fixtures?live=all` the moment the
+    referee blows full-time. If that response never carries the FT transition
+    (e.g. the ingest timer skipped the one cycle it would've caught the
+    change), our DB row stays at status='live' forever. Visible symptom: UI
+    shows "LIVE 90'" on a match that ended hours ago.
+
+    We flip to 'final' any row where:
+      * status='live'
+      * live_updated_at is older than 90s (9 missed 10s ingest cycles)
+      * kickoff_time was more than 105 min ago (90 play + 15 HT; safe
+        against half-time network blips)
+    Score + minute are preserved — only status flips.
+    """
+    async with pool.acquire() as conn:
+        n = await conn.fetchval(
+            """
+            WITH flipped AS (
+                UPDATE matches
+                SET status = 'final', live_updated_at = NOW()
+                WHERE status = 'live'
+                  AND (live_updated_at IS NULL
+                       OR live_updated_at < NOW() - INTERVAL '90 seconds')
+                  AND kickoff_time < NOW() - INTERVAL '105 minutes'
+                  AND home_goals IS NOT NULL
+                  AND away_goals IS NOT NULL
+                RETURNING 1
+            )
+            SELECT COUNT(*) FROM flipped
+            """,
+        )
+    return int(n or 0)
+
+
 async def run() -> None:
     key = os.environ.get("API_FOOTBALL_KEY")
     if not key:
@@ -462,6 +498,10 @@ async def run() -> None:
             except Exception as e:
                 print(f"[live-scores] skip fixture: {type(e).__name__}: {e}")
         print(f"[live-scores] updated {touched} rows")
+
+        flipped = await _flip_stuck_live_to_final(pool)
+        if flipped:
+            print(f"[live-scores] flipped {flipped} stale live rows → final")
     finally:
         await pool.close()
 
