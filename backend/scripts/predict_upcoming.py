@@ -70,6 +70,16 @@ async def run(horizon_days: int, with_reasoning: bool) -> None:
                     print(f"  match {r['match_id']}: {e}")
             print(f"> reasoning attached to {ok}/{len(rows)} matches")
     finally:
+        # predict_and_persist fire-and-forgets a CI pre-warm task per match.
+        # Those tasks hold a reference to the pool, so closing the pool while
+        # they're still running throws `InterfaceError: pool is closing`.
+        # Wait for them (bounded) before teardown so the cron log is clean.
+        pending = {t for t in asyncio.all_tasks() if t is not asyncio.current_task()}
+        if pending:
+            try:
+                await asyncio.wait(pending, timeout=60)
+            except asyncio.CancelledError:
+                pass
         await pool.close()
 
 

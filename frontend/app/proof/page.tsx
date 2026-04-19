@@ -149,6 +149,65 @@ export default async function ProofPage() {
         </p>
       </header>
 
+      {/* Ensemble-upgrade banner — 3-leg ensemble went live 2026-04-19 */}
+      <section className="relative overflow-hidden rounded-xl border border-neon/40 bg-black p-5 md:p-6">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-60"
+          style={{
+            background:
+              "radial-gradient(closest-side at 0% 0%, rgba(224,255,50,0.18), transparent 55%)",
+          }}
+        />
+        <div className="relative space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.18em] text-neon">
+              <span className="relative inline-flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-neon opacity-75 animate-ping" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-neon" />
+              </span>
+              {lang === "vi" ? "Ensemble v2 đã live" : "Ensemble v2 live"}
+            </div>
+            <span className="font-mono text-[10px] uppercase tracking-wide text-muted">
+              {lang === "vi" ? "từ 19-04-2026" : "since 2026-04-19"}
+            </span>
+          </div>
+          <p className="font-display text-xl md:text-2xl font-semibold text-primary">
+            {lang === "vi"
+              ? "3 model gộp, trọng số tối ưu trên 1,816 trận out-of-sample."
+              : "Three-leg ensemble, weights tuned on 1,816 out-of-sample matches."}
+          </p>
+          <div className="grid grid-cols-3 gap-3 pt-2 border-t border-neon/20">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
+                {lang === "vi" ? "Cấu hình cũ" : "Old config"}
+              </p>
+              <p className="font-mono text-sm text-secondary">elo=0.25 · xgb=0.15</p>
+              <p className="font-mono text-xs text-muted">log-loss 0.9834 · acc 52.4%</p>
+            </div>
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-wide text-neon">
+                {lang === "vi" ? "Cấu hình mới" : "New config"}
+              </p>
+              <p className="font-mono text-sm text-neon">elo=0.20 · xgb=0.60</p>
+              <p className="font-mono text-xs text-primary">log-loss 0.9278 · acc 56.2%</p>
+            </div>
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
+                {lang === "vi" ? "Thay đổi" : "Delta"}
+              </p>
+              <p className="stat text-neon text-lg">−5.6%</p>
+              <p className="font-mono text-xs text-neon">+3.8pp {lang === "vi" ? "chính xác" : "accuracy"}</p>
+            </div>
+          </div>
+          <p className="font-mono text-[10px] text-muted leading-relaxed pt-2">
+            {lang === "vi"
+              ? "Số live log-loss sẽ cập nhật khi có đủ trận đã chấm với model mới."
+              : "Live log-loss over the new ensemble will populate as new matches finalize."}
+          </p>
+        </div>
+      </section>
+
       {/* Big trust numbers */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card">

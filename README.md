@@ -10,10 +10,17 @@
 > **xG doesn't lie. The bookies do.**
 > An opinionated 3-leg ensemble on top-5 European leagues, commitment-hashed before kickoff.
 
+[![live](https://img.shields.io/website?url=https%3A%2F%2Fpredictor.nullshift.sh&style=flat-square&label=live&up_color=E0FF32&up_message=predictor.nullshift.sh)](https://predictor.nullshift.sh)
+[![stars](https://img.shields.io/github/stars/tuantqse90/epl-prediction-lab?style=flat-square&color=E0FF32)](https://github.com/tuantqse90/epl-prediction-lab/stargazers)
+[![last commit](https://img.shields.io/github/last-commit/tuantqse90/epl-prediction-lab?style=flat-square&color=E0FF32)](https://github.com/tuantqse90/epl-prediction-lab/commits)
+[![python](https://img.shields.io/badge/python-3.12-E0FF32?style=flat-square)](https://github.com/tuantqse90/epl-prediction-lab)
+[![next](https://img.shields.io/badge/next-15-E0FF32?style=flat-square)](https://github.com/tuantqse90/epl-prediction-lab)
+
 ```
 [ LIVE ]  https://predictor.nullshift.sh
 [ PROOF ] https://predictor.nullshift.sh/proof
 [ FEED  ] https://t.me/worldcup_predictor
+[ REPO  ] https://github.com/tuantqse90/epl-prediction-lab
 ```
 
 ---
