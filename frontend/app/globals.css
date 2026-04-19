@@ -94,4 +94,29 @@
   .blog-prose td {
     @apply px-3 py-2 border-b border-border-muted text-secondary;
   }
+  /* Elite (top-8) team hero: gentle breathing glow on the team-color
+     layer. ~3.5s cycle — noticeable on a stationary page without
+     becoming a distraction while reading. */
+  .team-hero-pulse {
+    animation: team-hero-pulse 3.5s ease-in-out infinite;
+  }
+  @keyframes team-hero-pulse {
+    0%, 100% { opacity: 0.85; }
+    50%      { opacity: 1; }
+  }
+  /* Crest pulse: soft neon ring that rides on the crest's container.
+     Drop-shadow builds up then releases — a heartbeat feel. */
+  .team-crest-pulse {
+    animation: team-crest-pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes team-crest-pulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(224, 255, 50, 0.35),
+                  0 0 14px 4px rgba(224, 255, 50, 0.12);
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgba(224, 255, 50, 0.0),
+                  0 0 22px 6px rgba(224, 255, 50, 0.22);
+    }
+  }
 }

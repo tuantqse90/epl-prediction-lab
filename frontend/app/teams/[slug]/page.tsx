@@ -8,6 +8,8 @@ import SeasonTrajectoryChart from "@/components/SeasonTrajectoryChart";
 import TeamLogo from "@/components/TeamLogo";
 import { formatShortDate } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
+import AnimatedNumber from "@/components/AnimatedNumber";
+import { leagueByCode } from "@/lib/leagues";
 import { colorFor } from "@/lib/team-colors";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +44,8 @@ type TeamProfile = {
   name: string;
   short_name: string;
   season: string;
+  league_code: string | null;
+  league_rank: number | null;
   stats: {
     played: number;
     wins: number;
@@ -125,16 +129,24 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
   const lastFixture = p.recent[0];
   const lastResult = lastFixture ? fixtureResult(lastFixture) : null;
   const topScorer = p.top_scorers[0];
+  const leagueInfo = leagueByCode(p.league_code);
+  const isElite = p.league_rank != null && p.league_rank <= 8;
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 space-y-10">
       <Link href="/" className="btn-ghost text-sm">{t("common.back")}</Link>
 
-      {/* HERO */}
-      <header className="relative -mx-6 overflow-hidden rounded-2xl p-8 md:p-12 border border-border/30 bg-surface">
+      {/* HERO — elite treatment if team is in top-8 of its league */}
+      <header
+        className={
+          "relative -mx-6 overflow-hidden rounded-2xl p-8 md:p-12 border bg-surface " +
+          (isElite ? "border-neon/50 shadow-[0_0_48px_rgba(224,255,50,0.15)]" : "border-border/30")
+        }
+      >
+        {/* Animated team-color glow (subtle pulse, elite only). */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0"
+          className={"pointer-events-none absolute inset-0 " + (isElite ? "team-hero-pulse" : "")}
           style={{
             background: `radial-gradient(closest-side at 30% 30%, ${color}55, transparent 65%),
                          radial-gradient(closest-side at 90% 80%, ${color}22, transparent 70%)`,
@@ -147,11 +159,27 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
           <TeamLogo slug={p.slug} name={p.name} size={360} />
         </div>
         <div className="relative space-y-6">
-          <p className="font-mono text-xs text-muted">
-            {t("common.season")} {p.season}
-          </p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <p className="font-mono text-xs text-muted">
+              {t("common.season")} {p.season}
+            </p>
+            {leagueInfo && p.league_rank != null && (
+              <span
+                className={
+                  "font-mono text-[10px] uppercase tracking-[0.18em] rounded-full px-2 py-0.5 " +
+                  (isElite
+                    ? "bg-neon text-on-neon font-semibold"
+                    : "bg-high text-secondary")
+                }
+              >
+                {isElite ? "⭐ TOP 8 · " : ""}#{p.league_rank} {leagueInfo.emoji} {leagueInfo.short}
+              </span>
+            )}
+          </div>
           <div className="flex flex-wrap items-center gap-4 md:gap-6">
-            <TeamLogo slug={p.slug} name={p.name} size={88} />
+            <div className={isElite ? "team-crest-pulse rounded-full" : ""}>
+              <TeamLogo slug={p.slug} name={p.name} size={88} />
+            </div>
             <div className="flex flex-col gap-2 min-w-0">
               <h1 className="headline-hero">{p.name}</h1>
               <div className="flex items-center gap-3 flex-wrap">
@@ -163,21 +191,22 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
             </div>
           </div>
 
-          {/* Hero stat row */}
+          {/* Hero stat row — numbers count up on mount (client component). */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-4">
             <div>
               <p className="label">{t("team.points")}</p>
-              <p className="font-display text-5xl font-bold tabular-nums text-neon leading-none">
-                {s.points}
-              </p>
+              <AnimatedNumber
+                value={s.points}
+                className="font-display text-5xl font-bold tabular-nums text-neon leading-none"
+              />
               <p className="font-mono text-[11px] text-muted mt-1">{ppg.toFixed(2)} pts/game</p>
             </div>
             <div>
               <p className="label">{t("team.goals")}</p>
               <p className="font-display text-5xl font-bold tabular-nums leading-none">
-                {s.goals_for}
+                <AnimatedNumber value={s.goals_for} />
                 <span className="text-muted text-3xl">–</span>
-                {s.goals_against}
+                <AnimatedNumber value={s.goals_against} />
               </p>
               <p className="font-mono text-[11px] text-muted mt-1">
                 GD {s.goals_for - s.goals_against > 0 ? "+" : ""}
@@ -186,15 +215,15 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
             </div>
             <div>
               <p className="label">{t("team.xgDiff")}</p>
-              <p
+              <AnimatedNumber
+                value={xgDiff}
+                decimals={1}
+                prefix={xgDiff > 0 ? "+" : ""}
                 className={
                   "font-display text-5xl font-bold tabular-nums leading-none " +
                   (xgDiff > 0.5 ? "text-neon" : xgDiff < -0.5 ? "text-error" : "")
                 }
-              >
-                {xgDiff > 0 ? "+" : ""}
-                {xgDiff.toFixed(1)}
-              </p>
+              />
               <p className="font-mono text-[11px] text-muted mt-1">
                 xG {s.xg_for.toFixed(1)} / {s.xg_against.toFixed(1)}
               </p>

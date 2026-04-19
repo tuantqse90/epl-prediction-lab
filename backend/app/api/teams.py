@@ -50,6 +50,8 @@ class TeamProfile(BaseModel):
     name: str
     short_name: str
     season: str
+    league_code: str | None = None
+    league_rank: int | None = None      # 1-based position in league table
     stats: TeamStats
     form: list[str]                  # last 10, newest first: W/D/L
     top_scorers: list[TopScorer]
@@ -256,11 +258,76 @@ async def get_team(slug: str, request: Request, season: str = Query("2025-26")) 
         form = await _form(conn, team["id"], season)
         scorers = await _top_scorers(conn, team["id"], season)
         recent, upcoming = await _fixtures(conn, team["id"], season)
+
+        # Resolve primary league for this team (most-played in season),
+        # then compute rank among its league-mates by points (with GD,
+        # goals-for as tiebreakers) — matches how the /table page sorts.
+        league_row = await conn.fetchrow(
+            """
+            SELECT league_code, COUNT(*) AS n
+            FROM matches
+            WHERE season = $2
+              AND (home_team_id = $1 OR away_team_id = $1)
+              AND league_code IS NOT NULL
+            GROUP BY league_code
+            ORDER BY n DESC NULLS LAST
+            LIMIT 1
+            """,
+            team["id"], season,
+        )
+        league_code = league_row["league_code"] if league_row else None
+
+        league_rank: int | None = None
+        if league_code:
+            rank_row = await conn.fetchrow(
+                """
+                WITH finals AS (
+                    SELECT m.home_team_id AS team_id,
+                           CASE WHEN m.home_goals > m.away_goals THEN 3
+                                WHEN m.home_goals = m.away_goals THEN 1 ELSE 0 END AS pts,
+                           m.home_goals AS gf, m.away_goals AS ga
+                    FROM matches m
+                    WHERE m.season = $1 AND m.league_code = $2 AND m.status = 'final'
+                      AND m.home_goals IS NOT NULL
+                    UNION ALL
+                    SELECT m.away_team_id AS team_id,
+                           CASE WHEN m.away_goals > m.home_goals THEN 3
+                                WHEN m.away_goals = m.home_goals THEN 1 ELSE 0 END AS pts,
+                           m.away_goals AS gf, m.home_goals AS ga
+                    FROM matches m
+                    WHERE m.season = $1 AND m.league_code = $2 AND m.status = 'final'
+                      AND m.home_goals IS NOT NULL
+                ),
+                agg AS (
+                    SELECT team_id,
+                           SUM(pts) AS points,
+                           SUM(gf) - SUM(ga) AS gd,
+                           SUM(gf) AS gf
+                    FROM finals GROUP BY team_id
+                ),
+                ranked AS (
+                    SELECT team_id,
+                           RANK() OVER (
+                             ORDER BY points DESC NULLS LAST,
+                                      gd DESC NULLS LAST,
+                                      gf DESC NULLS LAST
+                           ) AS rnk
+                    FROM agg
+                )
+                SELECT rnk FROM ranked WHERE team_id = $3
+                """,
+                season, league_code, team["id"],
+            )
+            if rank_row:
+                league_rank = int(rank_row["rnk"])
+
     return TeamProfile(
         slug=team["slug"],
         name=team["name"],
         short_name=team["short_name"],
         season=season,
+        league_code=league_code,
+        league_rank=league_rank,
         stats=stats,
         form=form,
         top_scorers=scorers,
