@@ -877,7 +877,7 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
                 ORDER BY p.match_id, p.created_at DESC
             )
             SELECT m.id, m.kickoff_time, m.league_code, m.home_goals, m.away_goals,
-                   m.minute,
+                   m.minute, m.live_stats,
                    ht.short_name AS home_short, ht.slug AS home_slug, ht.name AS home_name,
                    at.short_name AS away_short, at.slug AS away_slug, at.name AS away_name,
                    l.p_home_win, l.p_draw, l.p_away_win
@@ -924,6 +924,91 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
         home_short = r["home_short"].replace("_", "\\_")
         away_short = r["away_short"].replace("_", "\\_")
 
+        # Scorers: pull Goal events for this match, ordered by minute.
+        async with pool.acquire() as conn:
+            goal_events = await conn.fetch(
+                """
+                SELECT minute, extra_minute, player_name, event_detail, team_slug
+                FROM match_events
+                WHERE match_id = $1 AND event_type = 'Goal'
+                  AND player_name IS NOT NULL
+                ORDER BY COALESCE(minute, 0), COALESCE(extra_minute, 0), id
+                """,
+                match_id,
+            )
+        scorer_lines: list[str] = []
+        for g in goal_events:
+            mn = g["minute"]
+            ex = g["extra_minute"]
+            minute_label = f"{mn}+{ex}'" if (mn is not None and ex) else f"{mn}'" if mn is not None else "—"
+            badge = ""
+            det = (g["event_detail"] or "").lower()
+            if det == "own goal":
+                badge = " (PL)"  # phản lưới
+            elif det == "penalty":
+                badge = " (PEN)"
+            # Mark with team short-name so "MU scored at 67'" is unambiguous
+            # in a mixed-column layout.
+            side = (
+                home_short if g["team_slug"] and g["team_slug"].startswith(r["home_slug"])
+                else away_short if g["team_slug"] and g["team_slug"].startswith(r["away_slug"])
+                else ""
+            )
+            # Fallback: rematch via explicit equality since slugs might not
+            # start-match perfectly (e.g. man-utd vs manchester-united).
+            if not side and g["team_slug"]:
+                if g["team_slug"] == r["home_slug"]:
+                    side = home_short
+                elif g["team_slug"] == r["away_slug"]:
+                    side = away_short
+            player = (g["player_name"] or "—").replace("_", "\\_")
+            scorer_lines.append(f"• _{minute_label}_ {player}{badge} ({side})")
+        scorers_block = ""
+        if scorer_lines:
+            scorers_block = "\n\n⚽ *Bàn thắng:*\n" + "\n".join(scorer_lines)
+
+        # Stats block — render only keys present in live_stats JSONB.
+        stats_block = ""
+        raw_stats = r["live_stats"]
+        if raw_stats:
+            if isinstance(raw_stats, str):
+                try:
+                    stats = json.loads(raw_stats)
+                except Exception:
+                    stats = None
+            else:
+                stats = raw_stats
+            if stats and (stats.get("home") or stats.get("away")):
+                h = stats.get("home") or {}
+                a = stats.get("away") or {}
+
+                def _row(label: str, key: str, pct: bool = False) -> str | None:
+                    hv = h.get(key)
+                    av = a.get(key)
+                    if hv is None and av is None:
+                        return None
+                    hv_fmt = f"{hv}%" if pct and hv is not None else str(hv if hv is not None else "—")
+                    av_fmt = f"{av}%" if pct and av is not None else str(av if av is not None else "—")
+                    return f"{label:<14} {hv_fmt:>5} · {av_fmt:>5}"
+
+                rows_list = [
+                    _row("Kiểm soát", "possession_pct", pct=True),
+                    _row("Cú sút", "shots_total"),
+                    _row("Trúng đích", "shots_on"),
+                    _row("Phạt góc", "corners"),
+                    _row("Phạm lỗi", "fouls"),
+                    _row("Việt vị", "offsides"),
+                    _row("Chuyền", "passes_pct", pct=True),
+                    _row("Cứu thua", "saves"),
+                ]
+                rows_list = [x for x in rows_list if x is not None]
+                if rows_list:
+                    stats_block = (
+                        f"\n\n📊 *Thống kê* ({home_short} · {away_short}):\n```\n"
+                        + "\n".join(rows_list)
+                        + "\n```"
+                    )
+
         if pick is None:
             pick_line = ""
         else:
@@ -934,12 +1019,14 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
             )
             verdict_tag = "✓ ĐÚNG" if hit else "✗ SAI"
             pick_line = (
-                f"\n⚫ Model dự đoán *{pick_label}* ({round(conf * 100)}%) — *{verdict_tag}*"
+                f"\n\n⚫ Model dự đoán *{pick_label}* ({round(conf * 100)}%) — *{verdict_tag}*"
             )
 
         text = (
             f"🏁 *KẾT THÚC* · {prefix}\n"
             f"*{home_short} {hg}-{ag} {away_short}*"
+            f"{scorers_block}"
+            f"{stats_block}"
             f"{pick_line}\n\n"
             f"[Xem phân tích](https://predictor.nullshift.sh/match/{match_id})"
         )
