@@ -53,6 +53,7 @@ NAME_MAP: dict[str, str] = {
     "RCD Espanyol": "Espanyol",
     "Rayo Vallecano de Madrid": "Rayo Vallecano",
     "Betis": "Real Betis",
+    "Oviedo": "Real Oviedo",
     "Alavés": "Alaves",
     # Bundesliga
     "FC Bayern München": "Bayern Munich",
