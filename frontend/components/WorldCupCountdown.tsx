@@ -27,7 +27,7 @@ function diff(now: number): Remaining {
 const pad = (n: number, w = 2) => String(n).padStart(w, "0");
 
 export default function WorldCupCountdown({ lang }: { lang: Lang }) {
-  const [r, setR] = useState<Remaining | null>(null);
+  const [r, setR] = useState<Remaining>(() => diff(Date.now()));
   const [cursor, setCursor] = useState(true);
 
   useEffect(() => {
@@ -41,8 +41,6 @@ export default function WorldCupCountdown({ lang }: { lang: Lang }) {
     const id = window.setInterval(() => setCursor((c) => !c), 550);
     return () => window.clearInterval(id);
   }, []);
-
-  if (!r) return null;
 
   // Progress bar: measure from tournament announcement (~1 year before kickoff)
   // so the bar fills gradually. Pure aesthetic, not load-bearing.
@@ -85,7 +83,7 @@ export default function WorldCupCountdown({ lang }: { lang: Lang }) {
 
         <span className="hidden md:inline text-muted">·</span>
 
-        <div className="flex items-baseline gap-1 tabular-nums">
+        <div className="flex items-baseline gap-1 tabular-nums" suppressHydrationWarning>
           <span className="text-neon text-lg md:text-2xl font-semibold">{r.days}</span>
           <span className="text-muted uppercase text-[10px] tracking-wider">d</span>
           <span className="text-neon text-lg md:text-2xl font-semibold ml-2">
@@ -109,7 +107,10 @@ export default function WorldCupCountdown({ lang }: { lang: Lang }) {
           {lang === "vi" ? "đến" : "until"} {kickoff}
         </span>
 
-        <span className="hidden lg:inline-flex items-center gap-2 ml-auto">
+        <span
+          className="hidden lg:inline-flex items-center gap-2 ml-auto"
+          suppressHydrationWarning
+        >
           <span className="text-muted">[</span>
           <span className="text-neon">{bar}</span>
           <span className="text-muted">]</span>
