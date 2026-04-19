@@ -63,6 +63,7 @@ class StatsOut(BaseModel):
 class RecentMatchResult(BaseModel):
     match_id: int
     kickoff_time: date
+    league_code: str | None
     home_slug: str
     home_short: str
     away_slug: str
@@ -152,7 +153,7 @@ WITH latest AS (
 )
 SELECT
     m.id AS match_id, m.kickoff_time, m.home_goals, m.away_goals,
-    m.home_xg, m.away_xg,
+    m.home_xg, m.away_xg, m.league_code,
     ht.slug AS home_slug, ht.short_name AS home_short,
     at.slug AS away_slug, at.short_name AS away_short,
     l.p_home_win, l.p_draw, l.p_away_win
@@ -365,6 +366,7 @@ async def recent(
             RecentMatchResult(
                 match_id=r["match_id"],
                 kickoff_time=r["kickoff_time"].date(),
+                league_code=r["league_code"],
                 home_slug=r["home_slug"],
                 home_short=r["home_short"],
                 away_slug=r["away_slug"],
