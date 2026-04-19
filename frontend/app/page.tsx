@@ -83,6 +83,10 @@ export default async function HomePage() {
             blog →
           </Link>
           <span className="text-muted">·</span>
+          <Link href="/faq" className="text-secondary hover:text-neon transition-colors font-mono text-xs uppercase tracking-wide">
+            faq →
+          </Link>
+          <span className="text-muted">·</span>
           <PushButton />
         </div>
       </header>

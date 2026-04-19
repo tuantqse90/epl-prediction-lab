@@ -44,6 +44,8 @@ export default async function sitemap({
       { url: `${SITE}/leagues/seriea`,       changeFrequency: "daily",  priority: 0.8, lastModified: now },
       { url: `${SITE}/leagues/bundesliga`,   changeFrequency: "daily",  priority: 0.8, lastModified: now },
       { url: `${SITE}/leagues/ligue1`,       changeFrequency: "daily",  priority: 0.8, lastModified: now },
+      { url: `${SITE}/about`,                changeFrequency: "monthly",priority: 0.5, lastModified: now },
+      { url: `${SITE}/faq`,                  changeFrequency: "monthly",priority: 0.6, lastModified: now },
     ];
   }
 
