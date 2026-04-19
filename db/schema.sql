@@ -137,6 +137,17 @@ CREATE TABLE IF NOT EXISTS match_lineups (
 );
 CREATE INDEX IF NOT EXISTS idx_lineups_match_team ON match_lineups (match_id, team_slug);
 
+CREATE TABLE IF NOT EXISTS twitter_posts (
+    id          SERIAL PRIMARY KEY,
+    match_id    INT REFERENCES matches(id) ON DELETE CASCADE,
+    post_type   TEXT NOT NULL,
+    tweet_id    TEXT NOT NULL,
+    body        TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (match_id, post_type)
+);
+CREATE INDEX IF NOT EXISTS idx_twitter_match ON twitter_posts (match_id);
+
 CREATE TABLE IF NOT EXISTS chat_messages (
     id         SERIAL PRIMARY KEY,
     session_id UUID NOT NULL,

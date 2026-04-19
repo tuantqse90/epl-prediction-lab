@@ -15,6 +15,7 @@ dependencies = [
     "pydantic-settings>=2.4",
     "litellm>=1.50",
     "pywebpush>=2.0",
+    "tweepy>=4.14",
 ]
 
 [project.optional-dependencies]

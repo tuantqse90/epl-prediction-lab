@@ -25,7 +25,10 @@
 15. Historical accuracy tracking (did our predictions work?)
 16. Backfill 3 seasons of historical data
 
-## Phase 4: (optional) NullShift ecosystem integration
+## Phase 4 (skipped): on-chain integration
 
-17. Prediction commits on-chain (Monad testnet) — proof of prediction timestamp
-18. Non-custodial prediction market (NullShift Escrow pattern)
+_Dropped 2026-04-19. We kept the SHA-256 commitment hash for free (it lives
+on every prediction row and surfaces in the UI) but decided against posting
+it to any chain — the hash is already publicly recomputable from the public
+prediction body, and a chain post adds custody/gas burden without improving
+verifiability for the typical user._
