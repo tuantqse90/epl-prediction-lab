@@ -92,10 +92,34 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 
   const p = match.prediction;
   const isLive = match.status === "live" && !!match.live;
+  const isFinal = match.status === "final"
+    && match.home_goals !== null
+    && match.away_goals !== null;
   const displayPred = isLive && match.live && p
     ? { ...p, p_home_win: match.live.p_home_win, p_draw: match.live.p_draw, p_away_win: match.live.p_away_win }
     : p;
   const top = p?.top_scorelines?.[0];
+
+  // Determine model's pick + whether it matched the actual final outcome.
+  const actualOutcome = isFinal
+    ? match.home_goals! > match.away_goals!
+      ? "H"
+      : match.home_goals! < match.away_goals!
+      ? "A"
+      : "D"
+    : null;
+  const modelPick = p
+    ? p.p_home_win >= p.p_draw && p.p_home_win >= p.p_away_win
+      ? "H"
+      : p.p_away_win >= p.p_draw
+      ? "A"
+      : "D"
+    : null;
+  const isHit = actualOutcome !== null && modelPick !== null && actualOutcome === modelPick;
+  const modelPickLabel =
+    modelPick === "H" ? match.home.short_name
+    : modelPick === "A" ? match.away.short_name
+    : (lang === "vi" ? "Hòa" : "Draw");
   const kickoff = formatKickoff(match.kickoff_time, lang);
   const statusLabel = t(`status.${match.status.toLowerCase()}`);
   const homeColor = colorFor(match.home.slug);
@@ -180,12 +204,44 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
                 </p>
               </div>
             )}
+            {isFinal && (
+              <div className={
+                "flex flex-wrap items-center justify-between gap-3 rounded-lg p-4 " +
+                (isHit
+                  ? "border border-neon/50 bg-neon/10"
+                  : "border border-border bg-high/60")
+              }>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className={
+                    "rounded-full px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] font-semibold " +
+                    (isHit ? "bg-neon text-on-neon" : "bg-high text-secondary")
+                  }>
+                    {lang === "vi" ? "Kết thúc" : "Full time"}
+                  </span>
+                  {modelPick !== null && (
+                    <span className="font-mono text-xs text-muted uppercase tracking-wide">
+                      {lang === "vi" ? "Model chọn" : "Model picked"}{" "}
+                      <span className={isHit ? "text-neon font-semibold" : "text-secondary"}>
+                        {modelPickLabel}
+                      </span>
+                      {" · "}
+                      <span className={isHit ? "text-neon" : "text-error"}>
+                        {isHit ? (lang === "vi" ? "đúng" : "hit") : (lang === "vi" ? "sai" : "miss")}
+                      </span>
+                    </span>
+                  )}
+                </div>
+                <p className="stat text-6xl md:text-7xl text-neon">
+                  {match.home_goals}–{match.away_goals}
+                </p>
+              </div>
+            )}
             <div className="flex flex-wrap items-end justify-between gap-6">
               <div>
                 <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted">
                   {t("match.predictedLabel")} · {t("match.topScore")}
                 </p>
-                <p className={`stat ${isLive ? "text-3xl text-secondary" : "text-5xl md:text-7xl text-neon"}`}>
+                <p className={`stat ${isLive || isFinal ? "text-3xl text-secondary" : "text-5xl md:text-7xl text-neon"}`}>
                   {top?.home}–{top?.away}
                 </p>
               </div>
