@@ -152,8 +152,8 @@ export default async function LastWeekendPage({
         ))}
       </nav>
 
-      <section className="card space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+      <section className="card space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <div>
             <p className="text-xs text-muted">{t("recent.summary.scored")}</p>
             <p className="stat">{w.scored}</p>
@@ -163,37 +163,21 @@ export default async function LastWeekendPage({
             <p className="stat">{w.correct}</p>
           </div>
           <div>
-            <p className="text-xs text-muted">
-              {lang === "vi" ? "Chính xác (argmax)" : "Accuracy (argmax)"}
-            </p>
+            <p className="text-xs text-muted">{t("recent.summary.accuracy")}</p>
             <p className="stat text-neon">{w.scored ? pct(w.accuracy) : "—"}</p>
-            <p className="font-mono text-[10px] text-muted mt-1">
-              {w.draws_in_window} {lang === "vi" ? "trận hòa" : "draws"}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted">
-              {lang === "vi" ? "Bỏ trận hòa" : "Excl. draws"}
-            </p>
-            <p className="stat text-neon">
-              {w.scored_excl_draws ? pct(w.accuracy_excl_draws) : "—"}
-            </p>
-            <p className="font-mono text-[10px] text-muted mt-1">
-              {lang === "vi"
-                ? `${w.scored_excl_draws} trận không hòa`
-                : `${w.scored_excl_draws} non-draws`}
-            </p>
           </div>
           <div>
             <p className="text-xs text-muted">{t("recent.summary.logloss")}</p>
             <p className="stat">{w.scored ? w.mean_log_loss.toFixed(3) : "—"}</p>
           </div>
         </div>
-        <p className="font-mono text-[11px] text-muted leading-relaxed">
-          {lang === "vi"
-            ? "Argmax (chính xác theo outcome được đoán) bị giới hạn ~75% trên lý thuyết vì ~25% trận hòa, và model rất hiếm khi chọn hòa bằng argmax (xác suất hòa thường thấp hơn cả H và A). Log-loss & Brier mới là thước đo chất lượng xác suất thật của model."
-            : "Argmax accuracy caps near 75% because ~25% of matches end in draws and argmax rarely picks D (draw probability typically sits below both H and A). Log-loss + Brier reflect true probability quality."}
-        </p>
+        {w.scored > 0 && w.draws_in_window > 0 && (
+          <p className="font-mono text-[11px] text-muted leading-relaxed">
+            {lang === "vi"
+              ? `Ghi chú: ${w.draws_in_window}/${w.scored} trận kết thúc hòa. Model hiếm khi chọn "Hòa" bằng argmax nên ~25% trận hòa bị miss sẵn — accuracy trên trận có thắng/thua là ${pct(w.accuracy_excl_draws)}. Log-loss + Brier mới phản ánh chất lượng xác suất.`
+              : `Note: ${w.draws_in_window}/${w.scored} matches ended in a draw. Argmax rarely picks D so draws are structurally missed — accuracy on decisive (non-draw) matches is ${pct(w.accuracy_excl_draws)}. Log-loss + Brier reflect true probability quality.`}
+          </p>
+        )}
       </section>
 
       {matches.length === 0 ? (
