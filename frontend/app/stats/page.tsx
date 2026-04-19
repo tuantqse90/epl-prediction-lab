@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 import RoiChart from "@/components/RoiChart";
-import { getLang, tFor } from "@/lib/i18n-server";
+import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
+import { getLeague } from "@/lib/leagues";
 
 export const dynamic = "force-dynamic";
 
@@ -41,8 +42,10 @@ type StatsOut = {
   by_confidence: CalibrationBin[];
 };
 
-async function fetchStats(season: string): Promise<StatsOut | null> {
-  const res = await fetch(`${BASE}/api/stats/calibration?season=${encodeURIComponent(season)}`, {
+async function fetchStats(season: string, league?: string): Promise<StatsOut | null> {
+  const qs = new URLSearchParams({ season });
+  if (league) qs.set("league", league);
+  const res = await fetch(`${BASE}/api/stats/calibration?${qs}`, {
     cache: "no-store",
   });
   if (!res.ok) return null;
@@ -60,7 +63,10 @@ function deltaPP(actual: number, predicted: number) {
 export default async function StatsPage() {
   const lang = await getLang();
   const t = tFor(lang);
-  const s = await fetchStats("2025-26");
+  const league = await getLeagueSlug();
+  const leagueInfo = getLeague(league);
+  const leagueParam = leagueForApi(league);
+  const s = await fetchStats("2025-26", leagueParam);
   if (!s) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-12">
@@ -77,7 +83,11 @@ export default async function StatsPage() {
       <Link href="/" className="btn-ghost text-sm">{t("common.back")}</Link>
 
       <header className="space-y-3">
-        <p className="font-mono text-xs text-muted">{t("common.season")} {s.season}</p>
+        <p className="font-mono text-xs text-muted">
+          {leagueInfo.emoji} {lang === "vi" ? leagueInfo.name_vi : leagueInfo.name_en}
+          {" · "}
+          {t("common.season")} {s.season}
+        </p>
         <h1 className="headline-section">{t("stats.title")}</h1>
         <p className="max-w-2xl text-secondary">{t("stats.subhead")}</p>
       </header>
@@ -105,7 +115,7 @@ export default async function StatsPage() {
         </div>
       </section>
 
-      <RoiChart season={s.season} threshold={0.05} lang={lang} />
+      <RoiChart season={s.season} threshold={0.05} lang={lang} league={leagueParam} />
 
       <section className="card space-y-4">
         <h2 className="font-display font-semibold uppercase tracking-tight">{t("stats.bins.title")}</h2>
