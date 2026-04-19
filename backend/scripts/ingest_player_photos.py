@@ -37,23 +37,28 @@ def _fetch(key: str, path: str) -> list[dict]:
 
 
 def _normalize(name: str) -> str:
-    """Strip diacritics, lowercase, collapse whitespace. Understat often
-    uses ASCII forms while API-Football keeps accents — normalize to
-    compare. e.g. 'Gonçalo Ramos' → 'goncalo ramos'."""
+    """Strip diacritics, lowercase, collapse whitespace, normalize
+    hyphens to spaces. Understat uses 'Mbappe-Lottin' while API-Football
+    uses 'Mbappé' (single surname) — splitting on hyphen lets either
+    side reach a matching last-word for the lastname key.
+    """
     if not name:
         return ""
     nfkd = unicodedata.normalize("NFKD", name)
     ascii_only = "".join(c for c in nfkd if not unicodedata.combining(c))
-    return " ".join(ascii_only.lower().split())
+    # Also strip apostrophes (O'Brien) and periods early
+    flat = ascii_only.lower().replace("-", " ").replace("'", "").replace("'", "")
+    return " ".join(flat.split())
 
 
 def _candidate_keys(name: str) -> list[str]:
     """All reasonable ways this player could be referenced. Used to build
-    a multi-key index so 'Erling Haaland' (Understat) matches 'E. Haaland'
-    (API-Football), 'Domingos Duarte' matches 'D. Duarte', etc.
+    a multi-key index so 'Erling Haaland' matches 'E. Haaland' and
+    'Kylian Mbappe-Lottin' matches 'K. Mbappé'.
 
-    Order doesn't matter — we insert into a map and try lookup on all
-    forms emitted from either side.
+    For compound surnames (hyphen or multiple surname tokens) we emit
+    {first-initial + each non-first token} plus each token alone. That
+    covers Mbappe-Lottin ↔ Mbappé, de Bruyne ↔ Bruyne, etc.
     """
     normalized = _normalize(name)
     if not normalized:
@@ -61,10 +66,15 @@ def _candidate_keys(name: str) -> list[str]:
     parts = normalized.replace(".", "").split()
     keys = [normalized, normalized.replace(".", "")]
     if len(parts) >= 2:
-        first, last = parts[0], parts[-1]
-        keys.append(f"{first[0]} {last}")          # 'e haaland'
-        keys.append(f"{first[0]}. {last}")         # 'e. haaland' (API form)
-        keys.append(last)                          # 'haaland' — last-name only
+        first = parts[0]
+        # Emit first-initial + each subsequent token (covers both hyphen
+        # expansion and regular first+last form).
+        for tok in parts[1:]:
+            keys.append(f"{first[0]} {tok}")        # 'k mbappe'
+            keys.append(f"{first[0]}. {tok}")       # 'k. mbappe' (API form)
+            keys.append(tok)                        # 'mbappe' — token alone
+        # Also the unmodified last-name form just in case.
+        keys.append(parts[-1])
     # de-dupe while preserving order
     seen: set[str] = set()
     unique: list[str] = []
