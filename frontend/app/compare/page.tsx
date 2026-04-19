@@ -18,7 +18,6 @@ type Stats = {
   goals_against: number;
   xg_for: number;
   xg_against: number;
-  xg_diff: number;
 };
 
 type Scorer = {
@@ -172,7 +171,11 @@ export default async function ComparePage({
             <StatRow label="Goals against" home={home.stats.goals_against} away={away.stats.goals_against} format={(n) => String(n)} higherIsBetter={false} />
             <StatRow label="xG for" home={home.stats.xg_for} away={away.stats.xg_for} />
             <StatRow label="xG against" home={home.stats.xg_against} away={away.stats.xg_against} higherIsBetter={false} />
-            <StatRow label="xG Δ" home={home.stats.xg_diff} away={away.stats.xg_diff} />
+            <StatRow
+              label="xG Δ"
+              home={home.stats.xg_for - home.stats.xg_against}
+              away={away.stats.xg_for - away.stats.xg_against}
+            />
             <StatRow
               label="Points / game"
               home={pct(home.stats.points, home.stats.played)}
@@ -196,25 +199,39 @@ export default async function ComparePage({
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card space-y-2">
           <h2 className="label">{home.short_name} · top scorers</h2>
-          <ul className="space-y-1 text-sm">
-            {home.top_scorers.slice(0, 5).map((s) => (
-              <li key={s.player_name} className="flex justify-between font-mono">
-                <span className="truncate">{s.player_name}</span>
-                <span className="tabular-nums text-neon">{s.goals} <span className="text-muted text-xs">· xG {s.xg.toFixed(1)}</span></span>
-              </li>
-            ))}
-          </ul>
+          {home.top_scorers.length === 0 ? (
+            <p className="text-muted text-sm">No player data yet.</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {home.top_scorers.slice(0, 5).map((s) => (
+                <li key={s.player_name} className="flex justify-between font-mono">
+                  <span className="truncate">{s.player_name}</span>
+                  <span className="tabular-nums text-neon">
+                    {s.goals ?? 0}{" "}
+                    <span className="text-muted text-xs">· xG {(s.xg ?? 0).toFixed(1)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div className="card space-y-2">
           <h2 className="label">{away.short_name} · top scorers</h2>
-          <ul className="space-y-1 text-sm">
-            {away.top_scorers.slice(0, 5).map((s) => (
-              <li key={s.player_name} className="flex justify-between font-mono">
-                <span className="truncate">{s.player_name}</span>
-                <span className="tabular-nums text-neon">{s.goals} <span className="text-muted text-xs">· xG {s.xg.toFixed(1)}</span></span>
-              </li>
-            ))}
-          </ul>
+          {away.top_scorers.length === 0 ? (
+            <p className="text-muted text-sm">No player data yet.</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {away.top_scorers.slice(0, 5).map((s) => (
+                <li key={s.player_name} className="flex justify-between font-mono">
+                  <span className="truncate">{s.player_name}</span>
+                  <span className="tabular-nums text-neon">
+                    {s.goals ?? 0}{" "}
+                    <span className="text-muted text-xs">· xG {(s.xg ?? 0).toFixed(1)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
     </main>

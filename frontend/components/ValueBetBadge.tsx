@@ -53,6 +53,7 @@ export function OddsPanel({ odds, lang = "vi", matchId }: { odds: OddsOut; lang?
         </h2>
         <span className="font-mono text-[10px] text-muted">{odds.source}</span>
       </div>
+      <div className="overflow-x-auto -mx-2">
       <table className="w-full font-mono text-sm">
         <thead className="text-muted">
           <tr>
@@ -93,6 +94,7 @@ export function OddsPanel({ odds, lang = "vi", matchId }: { odds: OddsOut; lang?
           })}
         </tbody>
       </table>
+      </div>
       {odds.best_edge != null && odds.best_edge >= VALUE_THRESHOLD && odds.best_outcome && (
         <p className="text-muted text-sm leading-relaxed">
           {t(lang, "odds.valueHint", {

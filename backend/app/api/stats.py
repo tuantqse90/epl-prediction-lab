@@ -8,9 +8,13 @@ from datetime import date
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 
+from app.core.cache import TTLCache
 from app.leagues import get_league
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
+
+# 5-min cache for expensive multi-season aggregation queries.
+_STATS_CACHE = TTLCache(ttl_seconds=300)
 
 
 def _resolve_league_code(league: str | None) -> str | None:
@@ -407,6 +411,9 @@ async def history(
     """Per-season accuracy across all seasons in the DB, scoped by league."""
     pool = request.app.state.pool
     league_code = _resolve_league_code(league)
+    cached = _STATS_CACHE.get(("history", league_code))
+    if cached is not None:
+        return cached
     async with pool.acquire() as conn:
         seasons = await conn.fetch(
             """
@@ -436,6 +443,7 @@ async def history(
                 baseline_home_accuracy=baseline_home / scored,
             )
         )
+    _STATS_CACHE.set(("history", league_code), out)
     return out
 
 

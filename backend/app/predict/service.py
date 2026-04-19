@@ -21,16 +21,75 @@ NEUTRAL = TeamStrength(attack=1.0, defense=1.0)
 # contribution (assists, chance creation, defensive presence).
 INJURY_ALPHA = 0.6
 
+# Weather multiplier thresholds (symmetric, applied to both teams' λ).
+WIND_THRESHOLD_KMH = 30.0
+WIND_MULTIPLIER = 0.92          # ~-8% λ in strong wind
+RAIN_THRESHOLD_MM = 2.0
+RAIN_MULTIPLIER = 0.95          # ~-5% λ in heavy rain
+
+
+async def _weather_multiplier(conn: asyncpg.Connection, match_id: int) -> float:
+    row = await conn.fetchrow(
+        "SELECT wind_kmh, precip_mm FROM match_weather WHERE match_id = $1",
+        match_id,
+    )
+    if row is None:
+        return 1.0
+    m = 1.0
+    wind = row["wind_kmh"]
+    precip = row["precip_mm"]
+    if wind is not None and wind >= WIND_THRESHOLD_KMH:
+        m *= WIND_MULTIPLIER
+    if precip is not None and precip >= RAIN_THRESHOLD_MM:
+        m *= RAIN_MULTIPLIER
+    return m
+
 
 async def _injury_impact(
-    conn: asyncpg.Connection, team_id: int, season: str
+    conn: asyncpg.Connection, team_id: int, season: str, match_id: int | None = None
 ) -> float:
     """Share of the team's season xG currently unavailable.
 
-    Matches currently-listed non-'Missing Fixture' injuries against
-    player_season_stats (slug + exact player name). Returns a value in
-    [0, 0.5] — capped to prevent a single key injury from nuking λ.
+    Prefers lineup data (when available ~60min pre-KO) because it captures
+    rested/suspended/tactically-dropped players that the injuries feed
+    misses. Falls back to the injuries table otherwise. Capped at 0.5 so a
+    single key absence never nukes λ.
     """
+    # Lineup-based path: if we have a starting XI + bench row set for this
+    # fixture, absent = every season-stats player not in that 23-ish squad.
+    if match_id is not None:
+        row = await conn.fetchrow(
+            """
+            WITH squad AS (
+                SELECT DISTINCT player_name
+                FROM match_lineups
+                WHERE match_id = $3 AND team_slug = (
+                    SELECT slug FROM teams WHERE id = $1
+                )
+            ),
+            team_xg AS (
+                SELECT COALESCE(SUM(xg), 0) AS total_xg
+                FROM player_season_stats
+                WHERE team_id = $1 AND season = $2
+            ),
+            absent AS (
+                SELECT COALESCE(SUM(p.xg), 0) AS absent_xg
+                FROM player_season_stats p
+                WHERE p.team_id = $1
+                  AND p.season = $2
+                  AND (SELECT COUNT(*) FROM squad) > 0
+                  AND p.player_name NOT IN (SELECT player_name FROM squad)
+            )
+            SELECT total_xg, absent_xg, (SELECT COUNT(*) FROM squad) AS squad_size
+            FROM team_xg, absent
+            """,
+            team_id, season, match_id,
+        )
+        if row and int(row["squad_size"] or 0) >= 10 and row["total_xg"]:
+            share = float(row["absent_xg"]) / float(row["total_xg"])
+            return max(0.0, min(0.5, share))
+        # squad too small or lineup missing → fall through to injuries feed.
+
     row = await conn.fetchrow(
         """
         WITH team_xg AS (
@@ -89,15 +148,15 @@ async def predict_and_persist(
     league_avg = float(pd.concat([df["home_goals"], df["away_goals"]]).mean())
     lam_h, lam_a = match_lambdas(home, away, league_avg_goals=league_avg)
 
-    # Injury adjustment: applied to upcoming fixtures only. Backtest + already
-    # played matches keep their historical prediction untouched. Skipped when
-    # the backtest marker is present in the model_version tag.
+    # Injury + weather adjustments: upcoming fixtures only. Backtest keeps
+    # historical λ untouched so accuracy comparisons stay fair.
     if match["status"] == "scheduled" and "backtest" not in model_version:
         async with pool.acquire() as conn:
-            home_hit = await _injury_impact(conn, match["home_team_id"], match["season"])
-            away_hit = await _injury_impact(conn, match["away_team_id"], match["season"])
-        lam_h *= max(0.5, 1.0 - INJURY_ALPHA * home_hit)
-        lam_a *= max(0.5, 1.0 - INJURY_ALPHA * away_hit)
+            home_hit = await _injury_impact(conn, match["home_team_id"], match["season"], match_id)
+            away_hit = await _injury_impact(conn, match["away_team_id"], match["season"], match_id)
+            weather_m = await _weather_multiplier(conn, match_id)
+        lam_h *= max(0.5, 1.0 - INJURY_ALPHA * home_hit) * weather_m
+        lam_a *= max(0.5, 1.0 - INJURY_ALPHA * away_hit) * weather_m
 
     result = predict_match(lam_h, lam_a, rho=rho, temperature=temperature)
     tagged_version = f"{model_version}:rho={rho}:T={temperature}"

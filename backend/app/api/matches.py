@@ -338,7 +338,7 @@ async def match_injury_impact(match_id: int, request: Request) -> InjuryImpact:
             raise HTTPException(404, f"match {match_id} not found")
 
         async def _team(team_id: int, team_slug: str) -> TeamInjuryImpact:
-            share = await _injury_impact(conn, team_id, pair["season"])
+            share = await _injury_impact(conn, team_id, pair["season"], match_id)
             multiplier = max(0.5, 1.0 - INJURY_ALPHA * share)
             absent = await conn.fetch(
                 """

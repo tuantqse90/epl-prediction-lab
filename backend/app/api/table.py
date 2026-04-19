@@ -5,9 +5,15 @@ from __future__ import annotations
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 
+from app.core.cache import TTLCache
 from app.leagues import get_league
 
 router = APIRouter(prefix="/api/table", tags=["table"])
+
+# Standings only shift after a match becomes final — daily-ish churn is
+# fine. 5-min cache avoids re-running the heavy per-match aggregation on
+# every page load.
+_CACHE = TTLCache(ttl_seconds=300)
 
 
 class TableRow(BaseModel):
@@ -92,6 +98,9 @@ async def get_table(
             league_code = get_league(league).code
         except KeyError:
             league_code = None
+    cached = _CACHE.get(("table", season, league_code))
+    if cached is not None:
+        return cached
     async with pool.acquire() as conn:
         rows = await conn.fetch(_TABLE_QUERY, season, league_code)
     out: list[TableRow] = []
@@ -117,4 +126,5 @@ async def get_table(
                 xg_diff=round(xgf - xga, 2),
             )
         )
+    _CACHE.set(("table", season, league_code), out)
     return out

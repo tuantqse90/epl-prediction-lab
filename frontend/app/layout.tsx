@@ -42,6 +42,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const lang = await getLang();
   return (
     <html lang={lang}>
+      <head>
+        {process.env.NEXT_PUBLIC_PLAUSIBLE_HOST && process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN && (
+          <script
+            defer
+            data-domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN}
+            src={`${process.env.NEXT_PUBLIC_PLAUSIBLE_HOST}/js/script.js`}
+          />
+        )}
+      </head>
       <body className="min-h-screen bg-surface text-primary">
         <LangProvider lang={lang}>
           <SiteHeader lang={lang} />
