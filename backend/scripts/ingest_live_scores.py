@@ -63,6 +63,8 @@ NAME_MAP: dict[str, str] = {
     "FC Köln": "FC Cologne",
     "1. FC Heidenheim": "FC Heidenheim",
     "1. FSV Mainz 05": "Mainz 05",
+    "FSV Mainz 05": "Mainz 05",
+    "1899 Hoffenheim": "Hoffenheim",
     "FC St. Pauli": "St. Pauli",
     "1. FC Union Berlin": "Union Berlin",
     "VfL Wolfsburg": "Wolfsburg",
