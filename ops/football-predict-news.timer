@@ -1,0 +1,12 @@
+[Unit]
+Description=EPL Prediction Lab — news aggregator every 2 hours
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=2h
+Unit=football-predict-news.service
+AccuracySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
