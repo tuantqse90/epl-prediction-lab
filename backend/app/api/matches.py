@@ -8,9 +8,14 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from app import queries
+from app.core.cache import TTLCache
 from app.schemas import MatchOut
 
 router = APIRouter(prefix="/api/matches", tags=["matches"])
+
+# Bootstrap CI is ~300ms; 10-min cache per match keeps UI snappy without
+# going stale faster than the hourly predict cron could refresh it anyway.
+_CI_CACHE = TTLCache(ttl_seconds=600)
 
 
 class H2HMatch(BaseModel):
@@ -54,6 +59,16 @@ class HalfTimeOut(BaseModel):
     top_scorelines: list[tuple[int, int, float]]
     # HT/FT 9-cell grid flattened into an array of dicts for JSON friendliness.
     htft: list[dict]  # [{"ht": "H", "ft": "H", "p": 0.37}, ...]
+
+
+class ConfidenceInterval(BaseModel):
+    p_home_low: float
+    p_home_high: float
+    p_draw_low: float
+    p_draw_high: float
+    p_away_low: float
+    p_away_high: float
+    n_samples: int
 
 
 class MarketsOut(BaseModel):
@@ -311,6 +326,56 @@ async def match_lineups(match_id: int, request: Request) -> MatchLineups:
         )
 
     return MatchLineups(home=_build(pair["home_slug"]), away=_build(pair["away_slug"]))
+
+
+@router.get("/{match_id}/ci", response_model=ConfidenceInterval | None)
+async def match_ci(match_id: int, request: Request) -> ConfidenceInterval | None:
+    """1-sigma bootstrap CI on (p_home, p_draw, p_away).
+
+    Runs 30 bootstrap resamples of the team history on demand. ~0.3s uncached;
+    negligible for per-page loads. Cached 10 minutes.
+    """
+    import pandas as pd
+    from app.models.ci import bootstrap_1x2_ci
+    from app import queries
+
+    pool = request.app.state.pool
+    cached = _CI_CACHE.get(("ci", match_id))
+    if cached is not None:
+        return cached
+
+    match = await queries.get_match(pool, match_id)
+    if match is None:
+        raise HTTPException(404, f"match {match_id} not found")
+
+    league_code = match["league_code"] or None
+    df = await queries.fetch_finished_matches_df(pool, league_code=league_code)
+    if df.empty:
+        return None
+    league_avg = float(pd.concat([df["home_goals"], df["away_goals"]]).mean())
+
+    ci = bootstrap_1x2_ci(
+        df,
+        match["home_name"], match["away_name"],
+        as_of=match["kickoff_time"],
+        league_avg_goals=league_avg,
+        rho=-0.15,
+        n_samples=30, last_n=12, temperature=1.35,
+        seed=match_id,  # deterministic across calls for stable UX
+    )
+    if ci.n_samples == 0:
+        return None
+    out = ConfidenceInterval(
+        p_home_low=round(ci.p_home_low, 4),
+        p_home_high=round(ci.p_home_high, 4),
+        p_draw_low=round(ci.p_draw_low, 4),
+        p_draw_high=round(ci.p_draw_high, 4),
+        p_away_low=round(ci.p_away_low, 4),
+        p_away_high=round(ci.p_away_high, 4),
+        n_samples=ci.n_samples,
+    )
+    _CI_CACHE.set(("ci", match_id), out)
+    return out
 
 
 @router.get("/{match_id}/halftime", response_model=HalfTimeOut | None)

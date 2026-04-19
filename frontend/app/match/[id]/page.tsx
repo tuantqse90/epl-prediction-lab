@@ -11,6 +11,7 @@ import HalfTimePanel from "@/components/HalfTimePanel";
 import TipsterSubmit from "@/components/TipsterSubmit";
 import XgMomentum from "@/components/XgMomentum";
 import LineupsPanel from "@/components/LineupsPanel";
+import MatchTabs from "@/components/MatchTabs";
 import LiveBadge from "@/components/LiveBadge";
 import LivePoller from "@/components/LivePoller";
 import MatchEventsList from "@/components/MatchEventsList";
@@ -24,7 +25,7 @@ import ShareButtons from "@/components/ShareButtons";
 import TeamLogo from "@/components/TeamLogo";
 import TerminalBlock from "@/components/TerminalBlock";
 import { OddsPanel } from "@/components/ValueBetBadge";
-import { getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getMarkets, getMatch, getScorerOdds, getWeather } from "@/lib/api";
+import { getCI, getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getMarkets, getMatch, getScorerOdds, getWeather } from "@/lib/api";
 import { formatKickoff } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
 import { leagueByCode } from "@/lib/leagues";
@@ -84,6 +85,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const weather = await getWeather(matchId).catch(() => null);
   const markets = await getMarkets(matchId).catch(() => null);
   const halfTime = await getHalfTime(matchId).catch(() => null);
+  const ci = match.status === "scheduled" ? await getCI(matchId).catch(() => null) : null;
 
   const p = match.prediction;
   const isLive = match.status === "live" && !!match.live;
@@ -198,100 +200,154 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
               <div>
                 <p className="text-xs text-muted">{t("detail.home")}</p>
                 <p className="stat">{pct(displayPred!.p_home_win)}</p>
+                {ci && (
+                  <p className="font-mono text-[10px] text-muted mt-1">
+                    {pct(ci.p_home_low)}–{pct(ci.p_home_high)}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-muted">{t("detail.draw")}</p>
                 <p className="stat">{pct(displayPred!.p_draw)}</p>
+                {ci && (
+                  <p className="font-mono text-[10px] text-muted mt-1">
+                    {pct(ci.p_draw_low)}–{pct(ci.p_draw_high)}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-muted">{t("detail.away")}</p>
                 <p className="stat">{pct(displayPred!.p_away_win)}</p>
+                {ci && (
+                  <p className="font-mono text-[10px] text-muted mt-1">
+                    {pct(ci.p_away_low)}–{pct(ci.p_away_high)}
+                  </p>
+                )}
               </div>
             </div>
+            {ci && (
+              <p className="font-mono text-[11px] text-muted text-center">
+                {lang === "vi" ? "Khoảng tin cậy 68%" : "68% confidence range"} · bootstrap n={ci.n_samples}
+              </p>
+            )}
           </div>
         </section>
       ) : (
         <section className="card text-muted">{t("detail.pendingPost", { id: match.id })}</section>
       )}
 
-      {match.events && match.events.length > 0 && (
-        <MatchEventsList events={match.events} lang={lang} homeSlug={match.home.slug} />
-      )}
-
-      <LineupsPanel
-        lineups={lineups}
-        homeName={match.home.name}
-        awayName={match.away.name}
-        lang={lang}
+      <MatchTabs
+        defaultTab="preview"
+        tabs={[
+          {
+            id: "preview",
+            label: lang === "vi" ? "Tổng quan" : "Preview",
+            node: (
+              <>
+                {match.events && match.events.length > 0 && (
+                  <MatchEventsList events={match.events} lang={lang} homeSlug={match.home.slug} />
+                )}
+                <LineupsPanel
+                  lineups={lineups}
+                  homeName={match.home.name}
+                  awayName={match.away.name}
+                  lang={lang}
+                />
+                {injuryImpact && (
+                  <InjuryImpactBadge
+                    impact={injuryImpact}
+                    lang={lang}
+                    homeShort={match.home.short_name}
+                    awayShort={match.away.short_name}
+                  />
+                )}
+                <InjuriesPanel
+                  injuries={injuries}
+                  homeShort={match.home.short_name}
+                  awayShort={match.away.short_name}
+                  lang={lang}
+                />
+                {weather && <WeatherPanel weather={weather} lang={lang} />}
+                <XgMomentum
+                  homeSlug={match.home.slug}
+                  homeShort={match.home.short_name}
+                  awaySlug={match.away.slug}
+                  awayShort={match.away.short_name}
+                  season={match.season}
+                  lang={lang}
+                />
+                <ScorerOddsPanel rows={scorerOdds} lang={lang} />
+              </>
+            ),
+          },
+          {
+            id: "markets",
+            label: lang === "vi" ? "Thị trường" : "Markets",
+            node: (
+              <>
+                {halfTime && (
+                  <HalfTimePanel
+                    data={halfTime}
+                    homeShort={match.home.short_name}
+                    awayShort={match.away.short_name}
+                    lang={lang}
+                  />
+                )}
+                {markets && <MarketsPanel markets={markets} lang={lang} />}
+                {match.odds && (
+                  <OddsPanel
+                    odds={match.odds}
+                    lang={lang}
+                    matchId={match.id}
+                    prediction={match.prediction}
+                  />
+                )}
+                {p && (
+                  <ScoreMatrix
+                    prediction={p}
+                    lang={lang}
+                    homeShort={match.home.short_name}
+                    awayShort={match.away.short_name}
+                  />
+                )}
+              </>
+            ),
+          },
+          {
+            id: "analysis",
+            label: lang === "vi" ? "Phân tích" : "Analysis",
+            node: (
+              <>
+                {p?.reasoning && <TerminalBlock title={t("detail.analysis")}>{p.reasoning}</TerminalBlock>}
+                <H2HPanel
+                  rows={h2h}
+                  homeShort={match.home.short_name}
+                  awayShort={match.away.short_name}
+                  homeSlug={match.home.slug}
+                  lang={lang}
+                />
+                {p && <CommitmentBadge prediction={p} lang={lang} />}
+              </>
+            ),
+          },
+          {
+            id: "community",
+            label: lang === "vi" ? "Cộng đồng" : "Community",
+            node: (
+              <>
+                {match.status === "scheduled" && (
+                  <TipsterSubmit
+                    matchId={match.id}
+                    homeShort={match.home.short_name}
+                    awayShort={match.away.short_name}
+                  />
+                )}
+                <ChatWidget matchId={match.id} />
+              </>
+            ),
+          },
+        ]}
       />
-
-      {injuryImpact && (
-        <InjuryImpactBadge
-          impact={injuryImpact}
-          lang={lang}
-          homeShort={match.home.short_name}
-          awayShort={match.away.short_name}
-        />
-      )}
-
-      {weather && <WeatherPanel weather={weather} lang={lang} />}
-
-      <ScorerOddsPanel rows={scorerOdds} lang={lang} />
-
-      <InjuriesPanel
-        injuries={injuries}
-        homeShort={match.home.short_name}
-        awayShort={match.away.short_name}
-        lang={lang}
-      />
-
-      <H2HPanel
-        rows={h2h}
-        homeShort={match.home.short_name}
-        awayShort={match.away.short_name}
-        homeSlug={match.home.slug}
-        lang={lang}
-      />
-
-      <XgMomentum
-        homeSlug={match.home.slug}
-        homeShort={match.home.short_name}
-        awaySlug={match.away.slug}
-        awayShort={match.away.short_name}
-        season={match.season}
-        lang={lang}
-      />
-
-      {halfTime && (
-        <HalfTimePanel
-          data={halfTime}
-          homeShort={match.home.short_name}
-          awayShort={match.away.short_name}
-          lang={lang}
-        />
-      )}
-      {markets && <MarketsPanel markets={markets} lang={lang} />}
-      {match.odds && <OddsPanel odds={match.odds} lang={lang} matchId={match.id} prediction={match.prediction} />}
-      {p && (
-        <ScoreMatrix
-          prediction={p}
-          lang={lang}
-          homeShort={match.home.short_name}
-          awayShort={match.away.short_name}
-        />
-      )}
-      {p?.reasoning && <TerminalBlock title={t("detail.analysis")}>{p.reasoning}</TerminalBlock>}
-      {p && <CommitmentBadge prediction={p} lang={lang} />}
-
-      {match.status === "scheduled" && (
-        <TipsterSubmit
-          matchId={match.id}
-          homeShort={match.home.short_name}
-          awayShort={match.away.short_name}
-        />
-      )}
-
-      <ChatWidget matchId={match.id} />
     </main>
   );
 }

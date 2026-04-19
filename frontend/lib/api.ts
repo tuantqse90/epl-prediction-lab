@@ -163,6 +163,22 @@ export async function getHalfTime(matchId: number): Promise<HalfTimePredictions 
   return (await res.json()) as HalfTimePredictions | null;
 }
 
+export type PredictionCI = {
+  p_home_low: number;
+  p_home_high: number;
+  p_draw_low: number;
+  p_draw_high: number;
+  p_away_low: number;
+  p_away_high: number;
+  n_samples: number;
+};
+
+export async function getCI(matchId: number): Promise<PredictionCI | null> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/ci`, { cache: "no-store" });
+  if (!res.ok) return null;
+  return (await res.json()) as PredictionCI | null;
+}
+
 export async function fetchSuggestedPrompts(matchId: number): Promise<string[]> {
   const res = await fetch(`${BASE}/api/chat/suggest/${matchId}`, { cache: "no-store" });
   if (!res.ok) return [];
