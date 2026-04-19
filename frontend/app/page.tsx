@@ -7,6 +7,7 @@ import ProofStrip from "@/components/ProofStrip";
 import PushButton from "@/components/PushButton";
 import QuickPicks from "@/components/QuickPicks";
 import TelegramCTA from "@/components/TelegramCTA";
+import WorldCupCountdown from "@/components/WorldCupCountdown";
 import { listMatches } from "@/lib/api";
 import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
 import type { MatchOut } from "@/lib/types";
@@ -56,6 +57,7 @@ export default async function HomePage() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-12 space-y-10">
       {hasLive && <LivePoller />}
+      <WorldCupCountdown lang={lang} />
       <header className="space-y-4">
         <h1 className="headline-hero">{t("dash.headline")}</h1>
         <p className="max-w-2xl text-secondary text-base md:text-lg">{t("dash.subhead")}</p>

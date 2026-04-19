@@ -25,11 +25,11 @@ NEUTRAL = TeamStrength(attack=1.0, defense=1.0)
 # Weights are applied via two sequential convex combinations in
 # predict_match: first Poisson+Elo, then the result blended with XGB.
 ELO_WEIGHT = 0.25
-# 0.15 is the conservative setting: backtest showed XGBoost alone is roughly
-# tied with raw Poisson on log-loss (limited multi-league training data
-# until more seasons accumulate). 30% was too aggressive — the diversity
-# benefit of the independent signal still justifies a small blend.
-XGB_WEIGHT = 0.15
+# 0.30 is optimal per walk-forward tune on 1,816 out-of-sample matches
+# (2024-25 + 2025-26 across top-5 leagues), vs the old 0.15 conservative
+# setting. Log-loss dropped 0.9834 → 0.9633 (-2.0%), accuracy 52.4 → 54.2%.
+# See scripts/tune_ensemble.py.
+XGB_WEIGHT = 0.30
 _XGB_MODEL_CACHE = {"model": None, "loaded": False}
 
 
