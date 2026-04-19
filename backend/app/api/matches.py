@@ -635,3 +635,110 @@ async def match_scorers(
 
     out.sort(key=lambda s: s.p_anytime, reverse=True)
     return out[:limit]
+
+
+class OddsBookRow(BaseModel):
+    book: str                 # lowercase key e.g. "bet365", "pinnacle"
+    odds_home: float
+    odds_draw: float
+    odds_away: float
+    fair_home: float          # probability derived by devig
+    fair_draw: float
+    fair_away: float
+    edge_home: float | None = None   # model_prob − fair_prob, per outcome
+    edge_draw: float | None = None
+    edge_away: float | None = None
+    captured_at: str
+
+
+class OddsComparisonOut(BaseModel):
+    match_id: int
+    updated_at: str | None
+    books: list[OddsBookRow]
+    best_home_book: str | None        # which book offers the highest home price
+    best_home_odds: float | None
+    best_draw_book: str | None
+    best_draw_odds: float | None
+    best_away_book: str | None
+    best_away_odds: float | None
+
+
+@router.get("/{match_id}/odds-comparison", response_model=OddsComparisonOut)
+async def match_odds_comparison(match_id: int, request: Request) -> OddsComparisonOut:
+    """Per-bookmaker 1X2 odds comparison. Picks the best price per outcome
+    across every book in our DB for this match, and surfaces each book's
+    devigged fair probs + edge vs the model."""
+    from app.ingest.odds import fair_probs
+
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        books = await conn.fetch(
+            """
+            SELECT source, odds_home, odds_draw, odds_away, captured_at
+            FROM match_odds
+            WHERE match_id = $1
+              AND source LIKE 'odds-api:%'
+            ORDER BY source
+            """,
+            match_id,
+        )
+        pred = await conn.fetchrow(
+            """
+            SELECT p_home_win, p_draw, p_away_win
+            FROM predictions WHERE match_id = $1
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            match_id,
+        )
+
+    rows: list[OddsBookRow] = []
+    best_home_book = best_draw_book = best_away_book = None
+    best_home_odds = best_draw_odds = best_away_odds = 0.0
+    latest_capture: str | None = None
+
+    for b in books:
+        fair = fair_probs(b["odds_home"], b["odds_draw"], b["odds_away"])
+        if fair is None:
+            continue
+        fh, fd, fa = fair
+        eh = (pred["p_home_win"] - fh) if pred else None
+        ed = (pred["p_draw"] - fd) if pred else None
+        ea = (pred["p_away_win"] - fa) if pred else None
+        book_key = b["source"].removeprefix("odds-api:")
+        cap = b["captured_at"].isoformat() if b["captured_at"] else ""
+        if latest_capture is None or (cap and cap > latest_capture):
+            latest_capture = cap
+
+        rows.append(OddsBookRow(
+            book=book_key,
+            odds_home=float(b["odds_home"]), odds_draw=float(b["odds_draw"]), odds_away=float(b["odds_away"]),
+            fair_home=fh, fair_draw=fd, fair_away=fa,
+            edge_home=eh, edge_draw=ed, edge_away=ea,
+            captured_at=cap,
+        ))
+
+        if b["odds_home"] > best_home_odds:
+            best_home_odds, best_home_book = float(b["odds_home"]), book_key
+        if b["odds_draw"] > best_draw_odds:
+            best_draw_odds, best_draw_book = float(b["odds_draw"]), book_key
+        if b["odds_away"] > best_away_odds:
+            best_away_odds, best_away_book = float(b["odds_away"]), book_key
+
+    # Sort books by descending model edge on whichever outcome the model
+    # picked — highest-edge book first. If no prediction, alphabetical.
+    if pred and rows:
+        model_pick = max(
+            [("home", pred["p_home_win"]), ("draw", pred["p_draw"]), ("away", pred["p_away_win"])],
+            key=lambda t: t[1],
+        )[0]
+        edge_attr = {"home": "edge_home", "draw": "edge_draw", "away": "edge_away"}[model_pick]
+        rows.sort(key=lambda r: getattr(r, edge_attr) or -1, reverse=True)
+
+    return OddsComparisonOut(
+        match_id=match_id,
+        updated_at=latest_capture,
+        books=rows,
+        best_home_book=best_home_book, best_home_odds=best_home_odds or None,
+        best_draw_book=best_draw_book, best_draw_odds=best_draw_odds or None,
+        best_away_book=best_away_book, best_away_odds=best_away_odds or None,
+    )

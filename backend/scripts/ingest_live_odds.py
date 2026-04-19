@@ -93,28 +93,68 @@ def _aggregate(event: dict) -> dict | None:
     }
 
 
+def _book_rows(event: dict) -> list[tuple[str, float, float, float]]:
+    """One (book_key, home, draw, away) tuple per bookmaker in the event."""
+    home, away = event["home_team"], event["away_team"]
+    out: list[tuple[str, float, float, float]] = []
+    for bk in event.get("bookmakers", []):
+        key = bk.get("key") or bk.get("title") or ""
+        if not key:
+            continue
+        h = d = a = None
+        for mkt in bk.get("markets", []):
+            if mkt.get("key") != "h2h":
+                continue
+            for o in mkt.get("outcomes", []):
+                price = o.get("price")
+                name = o.get("name")
+                if not price or price <= 1.0:
+                    continue
+                if name == home:
+                    h = price
+                elif name == away:
+                    a = price
+                elif name == "Draw":
+                    d = price
+        if h and d and a:
+            out.append((key, float(h), float(d), float(a)))
+    return out
+
+
 def events_to_rows(events: list[dict], season: str) -> list[OddsRow]:
+    """Emit both the per-bookmaker rows (source='odds-api:<book_key>') and
+    the pooled-average row (source='the-odds-api:avg', legacy) so the old
+    aggregate-only code path keeps working while the comparison panel can
+    query each book individually."""
     rows: list[OddsRow] = []
     for e in events:
-        agg = _aggregate(e)
-        if agg is None:
-            continue
         try:
             ts = pd.to_datetime(e["commence_time"])
         except Exception:
             continue
-        rows.append(
-            OddsRow(
-                season=season,
-                date=ts,
-                home_name=_canon(e["home_team"]),
-                away_name=_canon(e["away_team"]),
+        home_c = _canon(e["home_team"])
+        away_c = _canon(e["away_team"])
+
+        # Per-bookmaker rows.
+        for book_key, h, d, a in _book_rows(e):
+            rows.append(OddsRow(
+                season=season, date=ts,
+                home_name=home_c, away_name=away_c,
+                odds_home=h, odds_draw=d, odds_away=a,
+                source=f"odds-api:{book_key}",
+            ))
+
+        # Legacy pooled-average row.
+        agg = _aggregate(e)
+        if agg is not None:
+            rows.append(OddsRow(
+                season=season, date=ts,
+                home_name=home_c, away_name=away_c,
                 odds_home=float(agg["home"]),
                 odds_draw=float(agg["draw"]),
                 odds_away=float(agg["away"]),
                 source="the-odds-api:avg",
-            )
-        )
+            ))
     return rows
 
 

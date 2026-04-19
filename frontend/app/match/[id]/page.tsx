@@ -12,6 +12,7 @@ import TipsterSubmit from "@/components/TipsterSubmit";
 import XgMomentum from "@/components/XgMomentum";
 import LineupsPanel from "@/components/LineupsPanel";
 import LiveStatsPanel from "@/components/LiveStatsPanel";
+import OddsComparisonPanel from "@/components/OddsComparisonPanel";
 import MatchTabs from "@/components/MatchTabs";
 import LiveBadge from "@/components/LiveBadge";
 import LivePoller from "@/components/LivePoller";
@@ -351,6 +352,12 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
                     prediction={match.prediction}
                   />
                 )}
+                <OddsComparisonPanel
+                  matchId={match.id}
+                  homeShort={match.home.short_name}
+                  awayShort={match.away.short_name}
+                  lang={lang}
+                />
                 {p && (
                   <ScoreMatrix
                     prediction={p}
