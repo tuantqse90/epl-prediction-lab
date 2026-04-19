@@ -186,7 +186,12 @@ export default async function LastWeekendPage({
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {matches.map((m) => {
             const dateStr = formatDateOnly(m.kickoff_time, lang);
-            const predicted = outcomeLetter(lang, m.predicted_outcome);
+            const pickedTeam =
+              m.predicted_outcome === "H"
+                ? m.home_short
+                : m.predicted_outcome === "A"
+                ? m.away_short
+                : lang === "vi" ? "Hòa" : "Draw";
             const matchLeague = leagueByCode(m.league_code);
             return (
               <Link
@@ -236,12 +241,26 @@ export default async function LastWeekendPage({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between text-sm border-t border-border-muted pt-2">
                   <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                    {t("match.predictedLabel")} · {t("recent.predicted")}
+                    {lang === "vi" ? "Model chọn" : "Model's pick"}
                   </span>
-                  <span className={m.hit ? "text-neon" : "text-secondary"}>
-                    {predicted} · {pct(m.confidence)}
+                  <span className="font-mono text-xs">
+                    <span className={m.hit ? "text-neon font-semibold" : "text-secondary font-semibold"}>
+                      {pickedTeam}
+                    </span>
+                    <span className={m.hit ? "text-neon/70" : "text-muted"}>
+                      {" · "}{pct(m.confidence)}
+                    </span>
+                    <span className="text-muted ml-2">
+                      → {m.home_goals}-{m.away_goals}
+                      {" "}
+                      <span className={m.hit ? "text-neon" : "text-error"}>
+                        {m.hit
+                          ? (lang === "vi" ? "✓" : "✓")
+                          : (lang === "vi" ? "✗" : "✗")}
+                      </span>
+                    </span>
                   </span>
                 </div>
                 {m.recap && (
