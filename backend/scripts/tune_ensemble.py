@@ -212,7 +212,7 @@ async def _build_samples(
         ))
 
         if (i + 1) % 200 == 0:
-            print(f"[tune]  … {i + 1}/{len(rows)} matches processed")
+            print(f"[tune]  … {i + 1}/{len(rows)} matches processed", flush=True)
 
     print(f"[tune] built {len(samples)} samples (skipped {skipped}).")
     return samples
@@ -237,6 +237,23 @@ async def run(seasons: list[str], elo_grid: list[float], xgb_grid: list[float]) 
 
     results = [_score_config(samples, e, x) for e in elo_grid for x in xgb_grid]
     results.sort(key=lambda r: r["log_loss"])
+
+    # Also dump to a file in case stdout gets swallowed by docker exec buffering.
+    try:
+        out_path = Path("/tmp/tune_results.txt")
+        with out_path.open("w") as f:
+            f.write(f"seasons={seasons}  n_samples={len(samples)}\n")
+            f.write(f"elo available: {has_elo}/{len(samples)} · xgb available: {has_xgb}/{len(samples)}\n\n")
+            f.write(f"{'elo':>6}  {'xgb':>6}  {'n':>5}  {'accuracy':>10}  {'log-loss':>10}\n")
+            f.write("-" * 60 + "\n")
+            for r in results:
+                f.write(
+                    f"{r['elo_weight']:>6.2f}  {r['xgb_weight']:>6.2f}  {r['n']:>5}  "
+                    f"{r['accuracy'] * 100:>9.2f}%  {r['log_loss']:.4f}\n"
+                )
+        print(f"[tune] wrote {out_path}", flush=True)
+    except Exception as e:
+        print(f"[tune] couldn't write results file: {e}", flush=True)
 
     print()
     print("=== RESULTS (sorted by log-loss ascending) ===")
