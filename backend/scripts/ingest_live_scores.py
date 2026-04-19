@@ -379,6 +379,27 @@ def _telegram_post(token: str, chat_id: str, text: str) -> dict:
         return json.loads(resp.read())
 
 
+def _telegram_edit(token: str, chat_id: str, message_id: int, text: str) -> dict:
+    """Edit an already-posted message. Used to enrich an instant goal post
+    with the scorer's name once /fixtures/events resolves (~1s later)."""
+    import urllib.parse
+
+    url = f"https://api.telegram.org/bot{token}/editMessageText"
+    body = urllib.parse.urlencode({
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": text,
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": "true",
+    }).encode()
+    req = urllib.request.Request(
+        url, data=body,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read())
+
+
 async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
     teams = f["teams"]
     fixture = f["fixture"]
@@ -513,13 +534,30 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
         )
         token = os.environ.get("TELEGRAM_BOT_TOKEN")
         chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+        posted_message_id: int | None = None
         if token and chat_id:
             try:
                 result = _telegram_post(token, chat_id, text)
-                if not result.get("ok"):
+                if result.get("ok"):
+                    posted_message_id = int(result["result"]["message_id"])
+                else:
                     print(f"[live-scores] instant goal tg api error for {match_row['id']}: {result}")
             except Exception as e:
                 print(f"[live-scores] instant goal tg failed for {match_row['id']}: {type(e).__name__}: {e}")
+
+        # Stash so the subsequent /fixtures/events enrichment can edit the
+        # same message with the scorer's name — no second Telegram message
+        # needed, we just update the first one in place.
+        if posted_message_id is not None:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    UPDATE matches
+                    SET last_goal_message_id = $2, last_goal_score = $3
+                    WHERE id = $1
+                    """,
+                    match_row["id"], posted_message_id, score_key,
+                )
         try:
             from app.api.push import dispatch_goal
             await dispatch_goal(
@@ -546,11 +584,9 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
         events = _fetch_events(api_key, int(fixture_id))
         new_ids = await _upsert_events(pool, match_row["id"], events, home, away)
         if new_ids:
-            # Mark newly-upserted Goal events as notified so the legacy
-            # _notify_goal_events path (which did the enriched player-name
-            # Telegram) never fires. The instant notify above already sent
-            # the message — the events here just populate the frontend's
-            # events panel.
+            # Mark newly-upserted Goal events as notified — the instant
+            # notify above already posted the message, so the legacy
+            # _notify_goal_events path should never fire for these.
             async with pool.acquire() as conn:
                 await conn.execute(
                     """
@@ -562,7 +598,140 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
                     """,
                     new_ids,
                 )
+
+            # Enrichment: if we have a pending instant-goal message on this
+            # match, edit it to include the scorer. Picks the newest Goal
+            # event we just inserted as the scorer (events come back ordered
+            # by time, so the last one is the most recent goal).
+            await _enrich_goal_message_with_scorer(
+                pool, match_row["id"], new_ids, home, away, int(hg), int(ag),
+            )
     return True
+
+
+async def _enrich_goal_message_with_scorer(
+    pool: asyncpg.Pool,
+    match_id: int,
+    new_event_ids: list[int],
+    home_name: str,
+    away_name: str,
+    hg: int,
+    ag: int,
+) -> None:
+    """Edit the instant-goal Telegram message to include the scorer's name.
+
+    Called right after /fixtures/events resolves. Finds the pending message
+    id stashed on matches.last_goal_message_id, pulls the newest Goal event
+    among the just-inserted rows, and rewrites the Telegram post with
+    '⚽ Scorer  67'  Home 2-1 Away' formatting.
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if not (token and chat_id):
+        return
+
+    score_key = f"{hg}-{ag}"
+    async with pool.acquire() as conn:
+        # Find the newest Goal event among the ones we just inserted.
+        scorer_row = await conn.fetchrow(
+            """
+            SELECT e.player_name, e.assist_name, e.minute, e.extra_minute,
+                   e.team_slug, e.event_detail
+            FROM match_events e
+            WHERE e.id = ANY($1::int[])
+              AND e.event_type = 'Goal'
+            ORDER BY COALESCE(e.minute, 0) DESC,
+                     COALESCE(e.extra_minute, 0) DESC,
+                     e.id DESC
+            LIMIT 1
+            """,
+            new_event_ids,
+        )
+        # Pull the pending message id + team display data in one shot.
+        meta = await conn.fetchrow(
+            """
+            SELECT m.last_goal_message_id, m.last_goal_score, m.league_code,
+                   ht.short_name AS home_short, ht.slug AS home_slug,
+                   at.short_name AS away_short, at.slug AS away_slug
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            WHERE m.id = $1
+            """,
+            match_id,
+        )
+
+    if meta is None or not meta["last_goal_message_id"]:
+        return
+    if meta["last_goal_score"] != score_key:
+        # Message on file is for a different score — another goal already
+        # arrived before enrichment. Skip this edit; the newer instant post
+        # will have its own enrichment cycle.
+        return
+    if scorer_row is None or not scorer_row["player_name"]:
+        return
+
+    player = scorer_row["player_name"].replace("_", "\\_")
+    own_goal = (scorer_row["event_detail"] or "").lower() == "own goal"
+    penalty = (scorer_row["event_detail"] or "").lower() == "penalty"
+    min_raw = scorer_row["minute"]
+    extra = scorer_row["extra_minute"]
+    if min_raw is not None and extra:
+        minute_label = f"{min_raw}+{extra}'"
+    elif min_raw is not None:
+        minute_label = f"{min_raw}'"
+    else:
+        minute_label = "—"
+
+    badge = ""
+    if own_goal:
+        badge = " (phản lưới)"
+    elif penalty:
+        badge = " (phạt đền)"
+
+    assist_line = ""
+    if scorer_row["assist_name"] and not own_goal:
+        assist_line = f"\n🅰️ Kiến tạo: {scorer_row['assist_name'].replace('_', chr(92)+'_')}"
+
+    prefix = _league_prefix(meta["league_code"])
+    home_short = meta["home_short"].replace("_", "\\_")
+    away_short = meta["away_short"].replace("_", "\\_")
+
+    # Figure out which team scored from the event's team_slug.
+    if scorer_row["team_slug"] == meta["home_slug"]:
+        scoring = home_short
+    elif scorer_row["team_slug"] == meta["away_slug"]:
+        scoring = away_short
+    else:
+        scoring = "⚽"
+
+    new_text = (
+        f"⚽ *{scoring}* — {player}{badge}  _{minute_label}_\n"
+        f"{prefix} · *{home_short} {hg}-{ag} {away_short}*"
+        f"{assist_line}\n"
+        f"[Xem live](https://predictor.nullshift.sh/match/{match_id})"
+    )
+
+    try:
+        result = _telegram_edit(
+            token, chat_id, int(meta["last_goal_message_id"]), new_text,
+        )
+        if not result.get("ok"):
+            # Telegram refuses edits with identical body; also a 48h window.
+            # Both acceptable no-ops — log and move on.
+            desc = result.get("description", "?")
+            if "not modified" not in desc.lower():
+                print(f"[live-scores] enrich edit tg error for {match_id}: {desc}")
+    except Exception as e:
+        print(f"[live-scores] enrich edit failed for {match_id}: {type(e).__name__}: {e}")
+
+    # Clear the pending message id so a later non-goal event (card, sub) on
+    # the same match doesn't accidentally try to edit this post again.
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE matches SET last_goal_message_id = NULL, last_goal_score = NULL WHERE id = $1",
+            match_id,
+        )
 
 
 async def _notify_full_time(pool: asyncpg.Pool) -> int:
