@@ -1,0 +1,10 @@
+[Unit]
+Description=EPL Prediction Lab — lineups ingest (API-Football)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/football-predict
+ExecStart=/bin/bash /opt/football-predict/ops/lineups.sh
+User=root

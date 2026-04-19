@@ -15,6 +15,51 @@ from app.onchain.commitment import commitment_hash
 
 NEUTRAL = TeamStrength(attack=1.0, defense=1.0)
 
+# How hard an injury-adjusted xG shortfall bites the team's λ. 0.6 means
+# losing 20% of team-xG to current absentees knocks λ down by 12%. Chosen
+# conservatively — xG share imperfectly measures a player's true scoring
+# contribution (assists, chance creation, defensive presence).
+INJURY_ALPHA = 0.6
+
+
+async def _injury_impact(
+    conn: asyncpg.Connection, team_id: int, season: str
+) -> float:
+    """Share of the team's season xG currently unavailable.
+
+    Matches currently-listed non-'Missing Fixture' injuries against
+    player_season_stats (slug + exact player name). Returns a value in
+    [0, 0.5] — capped to prevent a single key injury from nuking λ.
+    """
+    row = await conn.fetchrow(
+        """
+        WITH team_xg AS (
+            SELECT COALESCE(SUM(xg), 0) AS total_xg
+            FROM player_season_stats
+            WHERE team_id = $1 AND season = $2
+        ),
+        injured AS (
+            SELECT COALESCE(SUM(p.xg), 0) AS injured_xg
+            FROM player_injuries pi
+            JOIN teams t      ON t.id = $1 AND pi.team_slug = t.slug
+            JOIN player_season_stats p
+                 ON p.team_id = t.id
+                AND p.season = $2
+                AND p.player_name = pi.player_name
+            WHERE pi.season = $2
+              AND pi.last_seen_at >= NOW() - INTERVAL '3 days'
+              AND pi.status_label <> 'Missing Fixture'
+        )
+        SELECT team_xg.total_xg, injured.injured_xg
+        FROM team_xg, injured
+        """,
+        team_id, season,
+    )
+    if row is None or not row["total_xg"]:
+        return 0.0
+    share = float(row["injured_xg"]) / float(row["total_xg"])
+    return max(0.0, min(0.5, share))
+
 
 async def predict_and_persist(
     pool: asyncpg.Pool,
@@ -43,6 +88,16 @@ async def predict_and_persist(
 
     league_avg = float(pd.concat([df["home_goals"], df["away_goals"]]).mean())
     lam_h, lam_a = match_lambdas(home, away, league_avg_goals=league_avg)
+
+    # Injury adjustment: applied to upcoming fixtures only. Backtest + already
+    # played matches keep their historical prediction untouched. Skipped when
+    # the backtest marker is present in the model_version tag.
+    if match["status"] == "scheduled" and "backtest" not in model_version:
+        async with pool.acquire() as conn:
+            home_hit = await _injury_impact(conn, match["home_team_id"], match["season"])
+            away_hit = await _injury_impact(conn, match["away_team_id"], match["season"])
+        lam_h *= max(0.5, 1.0 - INJURY_ALPHA * home_hit)
+        lam_a *= max(0.5, 1.0 - INJURY_ALPHA * away_hit)
 
     result = predict_match(lam_h, lam_a, rho=rho, temperature=temperature)
     tagged_version = f"{model_version}:rho={rho}:T={temperature}"

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
@@ -35,6 +37,36 @@ class Injury(BaseModel):
 class MatchInjuries(BaseModel):
     home: list[Injury]
     away: list[Injury]
+
+
+class ScorerOdds(BaseModel):
+    player_name: str
+    team_slug: str
+    team_short: str
+    position: str | None
+    season_xg: float
+    season_games: int
+    expected_goals: float    # xG contribution for this match
+    p_anytime: float         # probability of scoring ≥ 1 goal
+
+
+class LineupPlayer(BaseModel):
+    player_name: str
+    player_number: int | None
+    position: str | None
+    is_starting: bool
+
+
+class TeamLineup(BaseModel):
+    team_slug: str
+    formation: str | None
+    starting: list[LineupPlayer]
+    bench: list[LineupPlayer]
+
+
+class MatchLineups(BaseModel):
+    home: TeamLineup | None
+    away: TeamLineup | None
 
 
 @router.get("", response_model=list[MatchOut])
@@ -179,3 +211,154 @@ async def match_injuries(match_id: int, request: Request) -> MatchInjuries:
         else:
             away_list.append(item)
     return MatchInjuries(home=home_list, away=away_list)
+
+
+@router.get("/{match_id}/lineups", response_model=MatchLineups)
+async def match_lineups(match_id: int, request: Request) -> MatchLineups:
+    """Starting XI + bench per team (populated ~60min before kickoff)."""
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        pair = await conn.fetchrow(
+            """
+            SELECT ht.slug AS home_slug, at.slug AS away_slug
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            WHERE m.id = $1
+            """,
+            match_id,
+        )
+        if pair is None:
+            raise HTTPException(404, f"match {match_id} not found")
+
+        rows = await conn.fetch(
+            """
+            SELECT team_slug, player_name, player_number, position,
+                   is_starting, formation
+            FROM match_lineups
+            WHERE match_id = $1
+            ORDER BY team_slug, is_starting DESC, player_number NULLS LAST
+            """,
+            match_id,
+        )
+
+    def _build(team_slug: str) -> TeamLineup | None:
+        subset = [r for r in rows if r["team_slug"] == team_slug]
+        if not subset:
+            return None
+        formation = next((r["formation"] for r in subset if r["formation"]), None)
+        starting = [
+            LineupPlayer(
+                player_name=r["player_name"],
+                player_number=r["player_number"],
+                position=r["position"],
+                is_starting=True,
+            )
+            for r in subset if r["is_starting"]
+        ]
+        bench = [
+            LineupPlayer(
+                player_name=r["player_name"],
+                player_number=r["player_number"],
+                position=r["position"],
+                is_starting=False,
+            )
+            for r in subset if not r["is_starting"]
+        ]
+        return TeamLineup(
+            team_slug=team_slug, formation=formation, starting=starting, bench=bench,
+        )
+
+    return MatchLineups(home=_build(pair["home_slug"]), away=_build(pair["away_slug"]))
+
+
+@router.get("/{match_id}/scorers", response_model=list[ScorerOdds])
+async def match_scorers(
+    match_id: int,
+    request: Request,
+    limit: int = Query(12, ge=1, le=30),
+) -> list[ScorerOdds]:
+    """Per-player anytime-goalscorer probability for this match.
+
+    Formula: each player's share of their team's season xG is scaled by the
+    team's expected goals for this match (from the latest prediction).
+    Assumes player participates — for pre-team-sheet matches this is still
+    a useful ranking of who's most likely to score if on the pitch.
+    """
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        match_row = await conn.fetchrow(
+            """
+            SELECT m.id, m.season,
+                   ht.id AS home_team_id, ht.slug AS home_slug, ht.short_name AS home_short,
+                   at.id AS away_team_id, at.slug AS away_slug, at.short_name AS away_short,
+                   p.expected_home_goals, p.expected_away_goals
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            LEFT JOIN LATERAL (
+                SELECT expected_home_goals, expected_away_goals
+                FROM predictions
+                WHERE match_id = m.id
+                ORDER BY created_at DESC
+                LIMIT 1
+            ) p ON TRUE
+            WHERE m.id = $1
+            """,
+            match_id,
+        )
+        if match_row is None:
+            raise HTTPException(404, f"match {match_id} not found")
+        if match_row["expected_home_goals"] is None:
+            return []
+
+        players = await conn.fetch(
+            """
+            SELECT p.player_name, p.position, p.xg, p.games, p.goals,
+                   t.id AS team_id, t.slug AS team_slug, t.short_name AS team_short
+            FROM player_season_stats p
+            JOIN teams t ON t.id = p.team_id
+            WHERE p.season = $1
+              AND t.id = ANY($2::int[])
+              AND p.xg IS NOT NULL
+              AND p.games IS NOT NULL
+              AND p.games > 0
+            """,
+            match_row["season"],
+            [match_row["home_team_id"], match_row["away_team_id"]],
+        )
+
+    # Aggregate per-team total xG to compute each player's share.
+    by_team: dict[int, float] = {}
+    for p in players:
+        by_team[p["team_id"]] = by_team.get(p["team_id"], 0.0) + float(p["xg"] or 0)
+
+    lam_home = float(match_row["expected_home_goals"])
+    lam_away = float(match_row["expected_away_goals"])
+
+    out: list[ScorerOdds] = []
+    for p in players:
+        team_total = by_team.get(p["team_id"], 0.0)
+        if team_total <= 0:
+            continue
+        team_lambda = lam_home if p["team_id"] == match_row["home_team_id"] else lam_away
+        share = float(p["xg"] or 0) / team_total
+        match_xg = share * team_lambda
+        if match_xg <= 0:
+            continue
+        p_any = 1.0 - math.exp(-match_xg)
+        out.append(
+            ScorerOdds(
+                player_name=p["player_name"],
+                team_slug=p["team_slug"],
+                team_short=p["team_short"],
+                position=p["position"],
+                season_xg=round(float(p["xg"] or 0), 2),
+                season_games=int(p["games"] or 0),
+                expected_goals=round(match_xg, 3),
+                p_anytime=round(p_any, 4),
+            )
+        )
+
+    out.sort(key=lambda s: s.p_anytime, reverse=True)
+    return out[:limit]

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import FollowStar from "@/components/FollowStar";
 import SeasonTrajectoryChart from "@/components/SeasonTrajectoryChart";
 import TeamLogo from "@/components/TeamLogo";
 import { formatShortDate } from "@/lib/date";
@@ -120,6 +121,7 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
           <h1 className="flex flex-wrap items-center gap-4">
             <TeamLogo slug={p.slug} name={p.name} size={72} />
             <span className="headline-hero">{p.name}</span>
+            <FollowStar slug={p.slug} label={p.name} />
           </h1>
         </div>
       </header>

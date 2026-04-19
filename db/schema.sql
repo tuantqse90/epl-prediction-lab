@@ -121,6 +121,21 @@ CREATE TABLE IF NOT EXISTS player_injuries (
 CREATE INDEX IF NOT EXISTS idx_injuries_team_season ON player_injuries (team_slug, season);
 CREATE INDEX IF NOT EXISTS idx_injuries_league_fresh ON player_injuries (league_code, last_seen_at);
 
+CREATE TABLE IF NOT EXISTS match_lineups (
+    id            SERIAL PRIMARY KEY,
+    match_id      INT REFERENCES matches(id) ON DELETE CASCADE,
+    team_slug     TEXT NOT NULL,
+    player_name   TEXT NOT NULL,
+    player_number INT,
+    position      TEXT,
+    grid          TEXT,
+    is_starting   BOOLEAN NOT NULL DEFAULT TRUE,
+    formation     TEXT,
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (match_id, team_slug, player_name)
+);
+CREATE INDEX IF NOT EXISTS idx_lineups_match_team ON match_lineups (match_id, team_slug);
+
 CREATE TABLE IF NOT EXISTS chat_messages (
     id         SERIAL PRIMARY KEY,
     session_id UUID NOT NULL,

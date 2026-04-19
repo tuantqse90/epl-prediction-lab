@@ -1,3 +1,4 @@
+import FavoritesSection from "@/components/FavoritesSection";
 import LivePoller from "@/components/LivePoller";
 import MatchCard from "@/components/MatchCard";
 import QuickPicks from "@/components/QuickPicks";
@@ -65,6 +66,7 @@ export default async function HomePage() {
         <div className="card text-secondary">{t("dash.empty")}</div>
       )}
 
+      {matches.length > 0 && <FavoritesSection matches={matches} />}
       {matches.length > 0 && <QuickPicks matches={matches} lang={lang} />}
 
       {acc && acc.scored > 0 && (

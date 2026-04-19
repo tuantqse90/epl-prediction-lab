@@ -62,6 +62,45 @@ export async function getInjuries(matchId: number): Promise<MatchInjuries> {
   return (await res.json()) as MatchInjuries;
 }
 
+export type LineupPlayer = {
+  player_name: string;
+  player_number: number | null;
+  position: string | null;
+  is_starting: boolean;
+};
+
+export type TeamLineup = {
+  team_slug: string;
+  formation: string | null;
+  starting: LineupPlayer[];
+  bench: LineupPlayer[];
+};
+
+export type MatchLineups = { home: TeamLineup | null; away: TeamLineup | null };
+
+export async function getLineups(matchId: number): Promise<MatchLineups> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/lineups`, { cache: "no-store" });
+  if (!res.ok) return { home: null, away: null };
+  return (await res.json()) as MatchLineups;
+}
+
+export type ScorerOdds = {
+  player_name: string;
+  team_slug: string;
+  team_short: string;
+  position: string | null;
+  season_xg: number;
+  season_games: number;
+  expected_goals: number;
+  p_anytime: number;
+};
+
+export async function getScorerOdds(matchId: number, limit = 12): Promise<ScorerOdds[]> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/scorers?limit=${limit}`, { cache: "no-store" });
+  if (!res.ok) return [];
+  return (await res.json()) as ScorerOdds[];
+}
+
 export async function fetchSuggestedPrompts(matchId: number): Promise<string[]> {
   const res = await fetch(`${BASE}/api/chat/suggest/${matchId}`, { cache: "no-store" });
   if (!res.ok) return [];

@@ -2,6 +2,38 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-19 09:45 +07 — Lineups + scorer odds + injury-adjusted λ + share + JSON-LD + favorites + push-to-bare-repo
+
+**Lineups**: new `match_lineups` table + `ingest_lineups.py` (resolves `api_football_fixture_id` via `/fixtures?date=` per (league,day), then `/fixtures/lineups?fixture=<id>`). Systemd timer every 15m inside 3h pre-kickoff window. `/api/matches/{id}/lineups` + `<LineupsPanel>` on match detail.
+
+**Player scorer odds**: `/api/matches/{id}/scorers` computes P(anytime goalscorer) from `share × team_λ → 1 − exp(−match_xg)`. Ranked bar chart on match detail.
+
+**Injury-adjusted λ**: `predict/service` shrinks each team's λ by `INJURY_ALPHA=0.6 × injured_xg_share` (capped at 0.5). Upcoming fixtures only; backtest untouched.
+
+**Share buttons** (Copy/Telegram/X/native) + **JSON-LD SportsEvent** on match detail.
+
+**Favorites**: localStorage `<FollowStar>` on team profile; `<FavoritesSection>` on home surfaces fixtures involving followed sides.
+
+**Push-to-bare-repo deploy**: `/srv/git/football-predict.git` + `post-receive` hook. `git push vps main` replaces rsync as primary deploy path. SSH key auth via ed25519.
+
+**Sitemap split per league** via `generateSitemaps` (6 buckets: static + 5 leagues).
+
+65 tests still pass.
+
+## 2026-04-19 08:30 +07 — Ship 8 polish items: H2H, standings, injuries, OG, history, ROI, admin, mobile
+
+**Match detail** gains `<H2HPanel>`, `<InjuriesPanel>`, and a fixed Next 15 OG image with league badge prefix.
+
+**Pages added**: `/admin` (quota + ingest freshness + per-league counts), `/history` (per-season accuracy bars), `/roi` (edge-threshold selector + P&L chart).
+
+**League scoping** extended to `/api/table`, `/api/stats/roi`, new `/api/stats/history`. Mobile: `SiteHeader` sticky + backdrop-blur; `headline-hero` scales from `text-4xl`.
+
+Migration 007 (player_injuries) applied; first seed 12,935 rows across 5 leagues.
+
+## 2026-04-19 07:15 +07 — 10s live cadence + skip-events-when-unchanged
+
+Systemd live timer 1min → **10s**. `ingest_live_scores` only hits `/fixtures/events` when score or status changed (via CTE-UPDATE pattern). LivePoller FE 30s → 10s (free, reads self-hosted API). Lag 3–4min → **~25–30s**. Peak matchday ≈ 3650 calls/day vs 7500 Ultra budget.
+
 ## 2026-04-18 21:32 +07 — Team-color accents + trajectory chart + countdown + tz fix
 
 **TZ fix**: new `lib/date.ts` with `formatKickoff/ShortDate/DateOnly(iso, lang)` — explicit `timeZone: Asia/Ho_Chi_Minh` for VI, `Europe/London` for EN. Replaced every ad-hoc `toLocaleString` across MatchCard / match detail / team page / last-weekend. No more SSR/client hydration drift or browser-TZ guessing. VN audience now sees VN wall-clock; EN sees kickoff local.

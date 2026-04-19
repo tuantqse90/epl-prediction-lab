@@ -1,0 +1,11 @@
+[Unit]
+Description=EPL Prediction Lab — poll lineups every 15 min
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Unit=football-predict-lineups.service
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
