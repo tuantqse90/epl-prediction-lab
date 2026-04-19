@@ -22,6 +22,11 @@ run python scripts/ingest_news.py || true
 # Injuries refresh (cheap, 5 calls/day)
 run python scripts/ingest_injuries.py --season "$SEASON" || true
 
+# Player photos via API-Football topscorers endpoint — 10 calls/day,
+# keeps the homepage Star Players strip fresh with new transfers /
+# new top-scorer rosters.
+run python scripts/ingest_player_photos.py --season "$SEASON" || true
+
 # Weather forecast for matches in the next 48h (open-meteo, no key)
 run python scripts/ingest_weather.py --window-minutes 2880 || true
 
