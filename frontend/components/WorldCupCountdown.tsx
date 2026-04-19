@@ -165,39 +165,84 @@ export default function WorldCupCountdown({ lang }: { lang: Lang }) {
       aria-label="World Cup 2026 countdown"
       className="relative overflow-hidden rounded-2xl border border-neon/40 bg-black"
     >
-      {/* Texture layer: radial glow top-right. */}
+      {/* Layer 1: stadium-pitch stripes (alternating dark greens) evokes a
+          turf backdrop without photo assets. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-70"
+        className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(closest-side at 80% 0%, rgba(224,255,50,0.22), transparent 55%), " +
-            "radial-gradient(closest-side at 0% 100%, rgba(224,255,50,0.10), transparent 55%)",
+            "repeating-linear-gradient(90deg, rgba(20,40,15,0.55) 0 60px, rgba(8,16,5,0.55) 60px 120px)",
         }}
       />
-      {/* Texture layer: 45° diagonal stripes using repeating-linear-gradient. */}
+      {/* Layer 2: neon goal-net diagonal mesh. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.08]"
+        className="pointer-events-none absolute inset-0 opacity-[0.09]"
         style={{
           backgroundImage:
-            "repeating-linear-gradient(45deg, #E0FF32 0 1px, transparent 1px 14px)",
+            "repeating-linear-gradient(45deg, #E0FF32 0 1px, transparent 1px 14px), " +
+            "repeating-linear-gradient(-45deg, #E0FF32 0 1px, transparent 1px 14px)",
         }}
       />
-      {/* Texture layer: soft grid. */}
+      {/* Layer 3: radial glow from top-right (stadium floodlight). */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.07]"
+        className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage:
-            "linear-gradient(to right, rgba(224,255,50,0.8) 1px, transparent 1px), " +
-            "linear-gradient(to bottom, rgba(224,255,50,0.8) 1px, transparent 1px)",
-          backgroundSize: "36px 36px",
+          background:
+            "radial-gradient(closest-side at 85% -10%, rgba(224,255,50,0.32), transparent 55%), " +
+            "radial-gradient(closest-side at -5% 110%, rgba(224,255,50,0.15), transparent 55%)",
         }}
       />
+      {/* Layer 4: inline trophy silhouette, right side desktop only. Abstract
+          cup shape — two handles, body, stem, wide base — to feel tournament-y
+          without copying the actual FIFA World Cup trophy. */}
+      <svg
+        aria-hidden
+        viewBox="0 0 160 220"
+        className="pointer-events-none absolute -right-4 top-1/2 -translate-y-1/2 h-[220px] w-[160px] opacity-25 hidden lg:block"
+        fill="none"
+        stroke="#E0FF32"
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      >
+        {/* cup body */}
+        <path d="M50 30 H110 V70 Q110 120 80 130 Q50 120 50 70 Z" />
+        {/* left handle */}
+        <path d="M50 50 Q30 55 30 75 Q30 95 50 95" />
+        {/* right handle */}
+        <path d="M110 50 Q130 55 130 75 Q130 95 110 95" />
+        {/* stem */}
+        <path d="M80 130 V155" />
+        {/* base platform */}
+        <path d="M55 155 H105 V170 H55 Z" />
+        {/* base steps */}
+        <path d="M45 170 H115 V180 H45 Z" />
+        <path d="M35 180 H125 V195 H35 Z" />
+        {/* six tiny stars floating */}
+        <g strokeWidth="1.5" opacity="0.9">
+          <circle cx="25" cy="25" r="1.5" fill="#E0FF32" />
+          <circle cx="135" cy="35" r="1.5" fill="#E0FF32" />
+          <circle cx="15" cy="100" r="1.5" fill="#E0FF32" />
+          <circle cx="145" cy="110" r="1.5" fill="#E0FF32" />
+          <circle cx="30" cy="170" r="1.5" fill="#E0FF32" />
+          <circle cx="130" cy="180" r="1.5" fill="#E0FF32" />
+        </g>
+      </svg>
+      {/* Layer 5: host-flag ribbon on the left, desktop only. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 hidden xl:flex flex-col gap-3 text-5xl opacity-30"
+      >
+        <span>🇲🇽</span>
+        <span>🇺🇸</span>
+        <span>🇨🇦</span>
+      </div>
 
       <div className="relative px-5 py-7 md:px-10 md:py-10 space-y-6">
-        {/* Top row: live tag + hosts */}
+        {/* Top row: live tag + flags + kickoff line */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-neon">
             <span className="relative inline-flex h-2 w-2">
@@ -205,8 +250,7 @@ export default function WorldCupCountdown({ lang }: { lang: Lang }) {
               <span className="relative inline-flex h-2 w-2 rounded-full bg-neon" />
             </span>
             <span>{c.tag}</span>
-            <span className="text-muted">·</span>
-            <span className="text-muted">{c.hosts}</span>
+            <span className="ml-2 text-xl leading-none" aria-hidden>🇲🇽 🇺🇸 🇨🇦</span>
           </div>
           <span className="font-mono text-[10px] text-muted uppercase tracking-wide">
             FIFA · {c.when}
@@ -222,6 +266,9 @@ export default function WorldCupCountdown({ lang }: { lang: Lang }) {
             </h2>
             <p className="font-mono text-xs md:text-sm uppercase tracking-[0.2em] text-secondary">
               {c.where}
+            </p>
+            <p className="font-mono text-[11px] md:text-xs text-neon/60">
+              ⚽ {c.hosts}
             </p>
             <p className="font-mono text-[11px] md:text-xs text-muted">
               <span className="text-neon/70">{c.until}</span>  ·  {c.toKickoff}
