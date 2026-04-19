@@ -419,6 +419,69 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
     )
     status_changed = match_row["prev_status"] != db_status
 
+    # Instant goal notification — fires the moment we see the score change,
+    # BEFORE the /fixtures/events roundtrip (which adds ~1s and only
+    # contributes player/assist names). Player-level detail still populates
+    # the frontend via the subsequent events upsert; the Telegram side just
+    # gets "X scored, it's now 2-1 at 67'" in real time. Idempotent via the
+    # prev score check — if another process already posted, the score
+    # won't change again on this tick.
+    if score_changed:
+        prev_hg = match_row["prev_hg"] or 0
+        prev_ag = match_row["prev_ag"] or 0
+        scored_home = int(hg) > prev_hg
+        scored_away = int(ag) > prev_ag
+        minute_label = f"{elapsed}'" if elapsed is not None else "—"
+        prefix = _league_prefix((fixture.get("league") or {}).get("name"))
+        home_escaped = home.replace("_", "\\_")
+        away_escaped = away.replace("_", "\\_")
+        # Prefer away-first if only away scored; sometimes both increment
+        # (catch-up on post-VAR adjustments) — rare, show generic.
+        if scored_home and not scored_away:
+            lead = f"⚽ *{home_escaped}* ghi bàn!"
+        elif scored_away and not scored_home:
+            lead = f"⚽ *{away_escaped}* ghi bàn!"
+        else:
+            lead = "⚽ *Có bàn thắng!*"
+        text = (
+            f"{lead}  _{minute_label}_\n"
+            f"{prefix} · *{home_escaped} {int(hg)}-{int(ag)} {away_escaped}*\n"
+            f"[Xem live](https://predictor.nullshift.sh/match/{match_row['id']})"
+        )
+        token = os.environ.get("TELEGRAM_BOT_TOKEN")
+        chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+        if token and chat_id:
+            try:
+                _telegram_post(token, chat_id, text)
+            except Exception as e:
+                print(f"[live-scores] instant goal tg failed for {match_row['id']}: {type(e).__name__}")
+        try:
+            from app.api.push import dispatch_goal
+            # Pull slugs once for push subscription filter.
+            async with pool.acquire() as conn:
+                slugs_row = await conn.fetchrow(
+                    """
+                    SELECT ht.slug AS home_slug, at.slug AS away_slug
+                    FROM matches m
+                    JOIN teams ht ON ht.id = m.home_team_id
+                    JOIN teams at ON at.id = m.away_team_id
+                    WHERE m.id = $1
+                    """,
+                    match_row["id"],
+                )
+            if slugs_row:
+                await dispatch_goal(
+                    pool,
+                    [slugs_row["home_slug"], slugs_row["away_slug"]],
+                    {
+                        "title": f"⚽ {home_escaped} {int(hg)}-{int(ag)} {away_escaped}",
+                        "body": f"{minute_label}",
+                        "url": f"https://predictor.nullshift.sh/match/{match_row['id']}",
+                    },
+                )
+        except Exception as e:
+            print(f"[live-scores] instant goal push failed: {type(e).__name__}")
+
     # Only hit /fixtures/events when something interesting changed. Most
     # polling cycles (90%+) see a static scoreline — skipping events there
     # lets us poll aggressively without blowing API-Football quota.
@@ -431,12 +494,22 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
         events = _fetch_events(api_key, int(fixture_id))
         new_ids = await _upsert_events(pool, match_row["id"], events, home, away)
         if new_ids:
-            await _notify_goal_events(
-                pool, match_row["id"], new_ids,
-                home_short=home, away_short=away,
-                home_goals=int(hg), away_goals=int(ag),
-                minute=int(elapsed) if elapsed is not None else 0,
-            )
+            # Mark newly-upserted Goal events as notified so the legacy
+            # _notify_goal_events path (which did the enriched player-name
+            # Telegram) never fires. The instant notify above already sent
+            # the message — the events here just populate the frontend's
+            # events panel.
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    UPDATE match_events
+                    SET notified_at = NOW()
+                    WHERE id = ANY($1::int[])
+                      AND event_type = 'Goal'
+                      AND notified_at IS NULL
+                    """,
+                    new_ids,
+                )
     return True
 
 
