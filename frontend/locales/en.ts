@@ -161,6 +161,13 @@ const en = {
   "events.goals": "Goals",
   "events.cards": "Cards",
   "events.subs": "Substitutions",
+
+  // H2H panel
+  "h2h.title": "Last {n} meetings",
+  "h2h.empty": "No prior meetings in the DB.",
+  "h2h.homeWins": "{team} wins",
+  "h2h.awayWins": "{team} wins",
+  "h2h.draws": "Draws",
 };
 
 export default en;

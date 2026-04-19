@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 
 import ChatWidget from "@/components/ChatWidget";
 import CommitmentBadge from "@/components/CommitmentBadge";
+import H2HPanel from "@/components/H2HPanel";
+import InjuriesPanel from "@/components/InjuriesPanel";
 import LiveBadge from "@/components/LiveBadge";
 import LivePoller from "@/components/LivePoller";
 import MatchEventsList from "@/components/MatchEventsList";
@@ -12,7 +14,7 @@ import ScoreMatrix from "@/components/ScoreMatrix";
 import TeamLogo from "@/components/TeamLogo";
 import TerminalBlock from "@/components/TerminalBlock";
 import { OddsPanel } from "@/components/ValueBetBadge";
-import { getMatch } from "@/lib/api";
+import { getH2H, getInjuries, getMatch } from "@/lib/api";
 import { formatKickoff } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
 import { leagueByCode } from "@/lib/leagues";
@@ -64,6 +66,8 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   } catch {
     notFound();
   }
+  const h2h = await getH2H(matchId, 5).catch(() => []);
+  const injuries = await getInjuries(matchId).catch(() => ({ home: [], away: [] }));
 
   const p = match.prediction;
   const isLive = match.status === "live" && !!match.live;
@@ -185,6 +189,21 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
       {match.events && match.events.length > 0 && (
         <MatchEventsList events={match.events} lang={lang} homeSlug={match.home.slug} />
       )}
+
+      <InjuriesPanel
+        injuries={injuries}
+        homeShort={match.home.short_name}
+        awayShort={match.away.short_name}
+        lang={lang}
+      />
+
+      <H2HPanel
+        rows={h2h}
+        homeShort={match.home.short_name}
+        awayShort={match.away.short_name}
+        homeSlug={match.home.slug}
+        lang={lang}
+      />
 
       {match.odds && <OddsPanel odds={match.odds} lang={lang} />}
       {p && (

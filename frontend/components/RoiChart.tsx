@@ -13,11 +13,10 @@ type RoiData = {
 
 const BASE = process.env.SERVER_API_URL ?? "http://localhost:8000";
 
-async function fetchRoi(season: string, threshold: number): Promise<RoiData | null> {
-  const res = await fetch(
-    `${BASE}/api/stats/roi?season=${encodeURIComponent(season)}&threshold=${threshold}`,
-    { cache: "no-store" },
-  );
+async function fetchRoi(season: string, threshold: number, league?: string): Promise<RoiData | null> {
+  const qs = new URLSearchParams({ season, threshold: String(threshold) });
+  if (league) qs.set("league", league);
+  const res = await fetch(`${BASE}/api/stats/roi?${qs}`, { cache: "no-store" });
   if (!res.ok) return null;
   return res.json();
 }
@@ -25,14 +24,16 @@ async function fetchRoi(season: string, threshold: number): Promise<RoiData | nu
 export default async function RoiChart({
   season,
   threshold = 0.05,
+  league,
   lang,
 }: {
   season: string;
   threshold?: number;
+  league?: string;
   lang: Lang;
 }) {
   const t = tFor(lang);
-  const d = await fetchRoi(season, threshold);
+  const d = await fetchRoi(season, threshold, league);
   if (!d || d.points.length < 2) {
     return (
       <section className="card space-y-2">

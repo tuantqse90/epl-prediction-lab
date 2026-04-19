@@ -106,6 +106,21 @@ CREATE TABLE IF NOT EXISTS player_season_stats (
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS player_injuries (
+    id            SERIAL PRIMARY KEY,
+    team_slug     TEXT NOT NULL,
+    player_name   TEXT NOT NULL,
+    reason        TEXT,
+    status_label  TEXT,
+    league_code   TEXT,
+    season        TEXT NOT NULL,
+    first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_seen_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (team_slug, player_name, season, reason)
+);
+CREATE INDEX IF NOT EXISTS idx_injuries_team_season ON player_injuries (team_slug, season);
+CREATE INDEX IF NOT EXISTS idx_injuries_league_fresh ON player_injuries (league_code, last_seen_at);
+
 CREATE TABLE IF NOT EXISTS chat_messages (
     id         SERIAL PRIMARY KEY,
     session_id UUID NOT NULL,

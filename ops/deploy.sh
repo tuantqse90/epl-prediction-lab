@@ -33,8 +33,9 @@ if ! command -v sshpass >/dev/null; then
 fi
 
 SSHPASS="$VPS_SSHPASS"; export SSHPASS
-SSH="sshpass -e ssh -p $VPS_PORT -o StrictHostKeyChecking=accept-new"
-RSH="sshpass -e ssh -p $VPS_PORT -o StrictHostKeyChecking=accept-new"
+SSH_OPTS="-p $VPS_PORT -o StrictHostKeyChecking=accept-new -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1"
+SSH="sshpass -e ssh $SSH_OPTS"
+RSH="sshpass -e ssh $SSH_OPTS"
 
 echo "--- rsync → $VPS_USER@$VPS_HOST:$REMOTE_DIR ---"
 COMMON_EXCLUDES=(

@@ -9,6 +9,7 @@ export default async function SiteHeader({ lang }: { lang: Lang }) {
   const t = tFor(lang);
   const league = await getLeagueSlug();
   return (
+    <header className="sticky top-0 z-40 border-b border-border/40 bg-surface/85 backdrop-blur supports-[backdrop-filter]:bg-surface/70">
     <nav className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4 text-sm">
       <Link href="/" className="font-display font-semibold uppercase tracking-tight shrink-0">
         Prediction Lab
@@ -33,5 +34,6 @@ export default async function SiteHeader({ lang }: { lang: Lang }) {
         <LangToggle />
       </div>
     </nav>
+    </header>
   );
 }

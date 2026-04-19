@@ -1,7 +1,9 @@
 import { ImageResponse } from "next/og";
 
 import { getMatch } from "@/lib/api";
+import { leagueByCode } from "@/lib/leagues";
 
+export const alt = "EPL Prediction Lab — match prediction";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const runtime = "nodejs";
@@ -20,16 +22,22 @@ function kickoffStr(iso: string) {
   });
 }
 
-export default async function MatchOpenGraphImage({ params }: { params: { id: string } }) {
+export default async function MatchOpenGraphImage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
   let match;
   try {
-    match = await getMatch(Number(params.id));
+    match = await getMatch(Number(id));
   } catch {
     return fallback("EPL Prediction Lab");
   }
 
   const p = match.prediction;
   const topScore = p?.top_scorelines?.[0];
+  const league = leagueByCode(match.league_code);
 
   return new ImageResponse(
     (
@@ -47,7 +55,7 @@ export default async function MatchOpenGraphImage({ params }: { params: { id: st
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 28, color: "#778899", letterSpacing: 2, textTransform: "uppercase" }}>
-            EPL Prediction Lab
+            {league ? `${league.emoji} ${league.short}` : "Prediction Lab"}
           </span>
           <span style={{ fontSize: 24, color: "#E0FF32", letterSpacing: 2, textTransform: "uppercase" }}>
             {match.status}

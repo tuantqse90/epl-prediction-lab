@@ -163,6 +163,13 @@ const vi: typeof en = {
   "events.goals": "Bàn thắng",
   "events.cards": "Thẻ phạt",
   "events.subs": "Thay người",
+
+  // H2H panel
+  "h2h.title": "{n} lần gặp gần nhất",
+  "h2h.empty": "Chưa có lần gặp nào trong DB.",
+  "h2h.homeWins": "{team} thắng",
+  "h2h.awayWins": "{team} thắng",
+  "h2h.draws": "Hòa",
 };
 
 export default vi;

@@ -21,7 +21,7 @@
 
 @layer components {
   .headline-hero {
-    @apply font-display font-bold uppercase leading-[0.95] tracking-tightest text-5xl md:text-7xl;
+    @apply font-display font-bold uppercase leading-[0.95] tracking-tightest text-4xl sm:text-5xl md:text-7xl break-words;
   }
   .headline-section {
     @apply font-display font-semibold uppercase tracking-tighter text-3xl md:text-4xl;

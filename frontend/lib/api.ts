@@ -27,6 +27,41 @@ export async function getMatch(matchId: number) {
   return (await res.json()) as MatchOut;
 }
 
+export type H2HMatch = {
+  match_id: number;
+  kickoff_date: string;
+  season: string;
+  league_code: string | null;
+  home_slug: string;
+  home_short: string;
+  home_goals: number;
+  away_slug: string;
+  away_short: string;
+  away_goals: number;
+};
+
+export async function getH2H(matchId: number, limit = 5): Promise<H2HMatch[]> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/h2h?limit=${limit}`, { cache: "no-store" });
+  if (!res.ok) return [];
+  return (await res.json()) as H2HMatch[];
+}
+
+export type Injury = {
+  team_slug: string;
+  player_name: string;
+  reason: string | null;
+  status_label: string | null;
+  last_seen_at: string;
+};
+
+export type MatchInjuries = { home: Injury[]; away: Injury[] };
+
+export async function getInjuries(matchId: number): Promise<MatchInjuries> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/injuries`, { cache: "no-store" });
+  if (!res.ok) return { home: [], away: [] };
+  return (await res.json()) as MatchInjuries;
+}
+
 export async function fetchSuggestedPrompts(matchId: number): Promise<string[]> {
   const res = await fetch(`${BASE}/api/chat/suggest/${matchId}`, { cache: "no-store" });
   if (!res.ok) return [];

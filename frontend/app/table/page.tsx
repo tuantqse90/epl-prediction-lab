@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 import TeamLogo from "@/components/TeamLogo";
-import { getLang, tFor } from "@/lib/i18n-server";
+import { getLang, getLeagueSlug, tFor } from "@/lib/i18n-server";
+import { getLeague } from "@/lib/leagues";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +26,10 @@ type TableRow = {
   xg_diff: number;
 };
 
-async function fetchTable(season: string): Promise<TableRow[]> {
-  const res = await fetch(`${BASE}/api/table?season=${encodeURIComponent(season)}`, {
-    cache: "no-store",
-  });
+async function fetchTable(season: string, league?: string): Promise<TableRow[]> {
+  const qs = new URLSearchParams({ season });
+  if (league) qs.set("league", league);
+  const res = await fetch(`${BASE}/api/table?${qs}`, { cache: "no-store" });
   if (!res.ok) return [];
   return res.json();
 }
@@ -41,9 +42,12 @@ function deltaClass(diff: number) {
 
 export default async function TablePage() {
   const season = "2025-26";
-  const rows = await fetchTable(season);
   const lang = await getLang();
+  const league = await getLeagueSlug();
+  const leagueInfo = getLeague(league);
+  const rows = await fetchTable(season, league);
   const t = tFor(lang);
+  const leagueLabel = lang === "vi" ? leagueInfo.name_vi : leagueInfo.name_en;
 
   const columns = [
     t("table.col.rank"),
@@ -65,7 +69,9 @@ export default async function TablePage() {
       <Link href="/" className="btn-ghost text-sm">{t("common.back")}</Link>
 
       <header className="space-y-3">
-        <p className="font-mono text-xs text-muted">{t("common.season")} {season}</p>
+        <p className="font-mono text-xs text-muted">
+          {leagueInfo.emoji} {leagueLabel} · {t("common.season")} {season}
+        </p>
         <h1 className="headline-section">{t("table.title")}</h1>
         <p className="text-secondary max-w-2xl">{t("table.subhead")}</p>
       </header>

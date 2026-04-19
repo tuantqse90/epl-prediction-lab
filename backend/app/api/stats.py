@@ -134,6 +134,7 @@ JOIN latest l ON l.match_id = m.id
 JOIN match_odds o ON o.match_id = m.id
 WHERE m.status = 'final' AND m.season = $1
   AND m.home_goals IS NOT NULL
+  AND ($2::text IS NULL OR m.league_code = $2)
 ORDER BY m.kickoff_time ASC
 """
 
@@ -389,18 +390,69 @@ async def recent(
     )
 
 
+class HistorySeason(BaseModel):
+    season: str
+    scored: int
+    correct: int
+    accuracy: float
+    mean_log_loss: float
+    baseline_home_accuracy: float
+
+
+@router.get("/history", response_model=list[HistorySeason])
+async def history(
+    request: Request,
+    league: str | None = Query(None),
+) -> list[HistorySeason]:
+    """Per-season accuracy across all seasons in the DB, scoped by league."""
+    pool = request.app.state.pool
+    league_code = _resolve_league_code(league)
+    async with pool.acquire() as conn:
+        seasons = await conn.fetch(
+            """
+            SELECT DISTINCT season
+            FROM matches
+            WHERE status = 'final'
+              AND ($1::text IS NULL OR league_code = $1)
+            ORDER BY season ASC
+            """,
+            league_code,
+        )
+
+    out: list[HistorySeason] = []
+    for row in seasons:
+        season = row["season"]
+        rows = await _fetch_scored(pool, season, league_code)
+        scored, correct, baseline_home, ll_sum, _ = _aggregate(rows)
+        if scored == 0:
+            continue
+        out.append(
+            HistorySeason(
+                season=season,
+                scored=scored,
+                correct=correct,
+                accuracy=correct / scored,
+                mean_log_loss=ll_sum / scored,
+                baseline_home_accuracy=baseline_home / scored,
+            )
+        )
+    return out
+
+
 @router.get("/roi", response_model=RoiOut)
 async def roi(
     request: Request,
     season: str = Query("2025-26"),
     threshold: float = Query(0.05, ge=0.0, le=0.5),
+    league: str | None = Query(None),
 ) -> RoiOut:
     """Cumulative 1-unit flat-stake P&L across every ≥threshold edge bet."""
     from app.ingest.odds import fair_probs
 
     pool = request.app.state.pool
+    league_code = _resolve_league_code(league)
     async with pool.acquire() as conn:
-        rows = await conn.fetch(_ROI_QUERY, season)
+        rows = await conn.fetch(_ROI_QUERY, season, league_code)
 
     by_date: dict[date, dict[str, float]] = {}
     total_pnl = 0.0

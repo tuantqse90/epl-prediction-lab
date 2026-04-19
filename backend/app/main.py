@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api import admin as admin_router
 from app.api import chat as chat_router
 from app.api import matches as matches_router
 from app.api import predictions as predictions_router
@@ -28,6 +29,7 @@ app.include_router(chat_router.router)
 app.include_router(table_router.router)
 app.include_router(stats_router.router)
 app.include_router(teams_router.router)
+app.include_router(admin_router.router)
 
 
 @app.get("/health")

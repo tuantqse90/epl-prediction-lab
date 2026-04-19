@@ -24,9 +24,10 @@ for lg in $LEAGUES; do
   run python scripts/ingest_odds.py    --season "$SEASON" --league "$lg" || true
 done
 
-# live odds + backtest + predict + telegram are league-agnostic: they iterate
-# internally over LEAGUES / match.league_code, so a single pass covers all 5.
+# live odds + injuries + backtest + predict + telegram are league-agnostic:
+# each iterates internally over LEAGUES / match.league_code.
 run python scripts/ingest_live_odds.py   --season "$SEASON" || true
+run python scripts/ingest_injuries.py    --season "$SEASON" || true
 run python scripts/backtest.py            --season "$SEASON"
 run python scripts/post_telegram_recap.py --days 7 || true
 run python scripts/predict_upcoming.py    --horizon-days "$HORIZON_DAYS" --with-reasoning

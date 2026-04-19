@@ -1,9 +1,11 @@
-"""GET /api/table — EPL season table with xG-based columns side-by-side."""
+"""GET /api/table — league season table with xG-based columns side-by-side."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
+
+from app.leagues import get_league
 
 router = APIRouter(prefix="/api/table", tags=["table"])
 
@@ -58,6 +60,7 @@ WITH per_match AS (
       AND m.season = $1
       AND m.home_goals IS NOT NULL
       AND m.away_goals IS NOT NULL
+      AND ($2::text IS NULL OR m.league_code = $2)
 )
 SELECT
     slug, name, short_name,
@@ -79,11 +82,18 @@ ORDER BY points DESC, (SUM(gf) - SUM(ga)) DESC, SUM(gf) DESC
 @router.get("", response_model=list[TableRow])
 async def get_table(
     request: Request,
-    season: str = Query("2025-26", description="EPL season, e.g. 2025-26"),
+    season: str = Query("2025-26", description="season, e.g. 2025-26"),
+    league: str | None = Query(None, description="league slug or code (epl, laliga, …)"),
 ) -> list[TableRow]:
     pool = request.app.state.pool
+    league_code: str | None = None
+    if league:
+        try:
+            league_code = get_league(league).code
+        except KeyError:
+            league_code = None
     async with pool.acquire() as conn:
-        rows = await conn.fetch(_TABLE_QUERY, season)
+        rows = await conn.fetch(_TABLE_QUERY, season, league_code)
     out: list[TableRow] = []
     for i, r in enumerate(rows, start=1):
         gf, ga = int(r["goals_for"]), int(r["goals_against"])
