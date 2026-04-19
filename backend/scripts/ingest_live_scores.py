@@ -575,6 +575,12 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
         and not is_first_reading
         and (scored_home or scored_away)
     )
+    # `meta` becomes non-None only when dedupe accepted the score for a
+    # *new* Telegram post; the subsequent block uses that to send the
+    # message. But we MUST continue to the /fixtures/events fetch below
+    # regardless — otherwise skipped duplicate-notifications would also
+    # skip updating match_events, leaving the events panel missing goals.
+    meta = None
     if should_notify_goal:
         # Atomic dedupe: append the current score to notified_scores and
         # return non-NULL ONLY if it wasn't already there. Guards against
@@ -599,9 +605,8 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
                 """,
                 match_row["id"], score_key,
             )
-        if meta is None:
-            # Already notified for this exact score on a prior tick.
-            return True
+
+    if meta is not None:
 
         minute_label = f"{elapsed}'" if elapsed is not None else "—"
         prefix = _league_prefix(meta["league_code"])
