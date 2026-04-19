@@ -22,6 +22,7 @@ type ScorerOut = {
   xa: number;
   key_passes: number;
   goals_minus_xg: number;
+  photo_url: string | null;
 };
 
 async function fetchScorers(season: string, sort: string, league?: string): Promise<ScorerOut[]> {
@@ -102,7 +103,24 @@ export default async function ScorersPage({
               {rows.map((r) => (
                 <tr key={`${r.team_slug}-${r.player_name}`} className="border-b border-border-muted hover:bg-high">
                   <td className="px-3 py-2 text-muted tabular-nums">{r.rank}</td>
-                  <td className="px-3 py-2 text-primary">{r.player_name}</td>
+                  <td className="px-3 py-2 text-primary">
+                    <div className="inline-flex items-center gap-2">
+                      {r.photo_url ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={r.photo_url}
+                          alt=""
+                          loading="lazy"
+                          className="h-7 w-7 rounded-full object-cover border border-border"
+                        />
+                      ) : (
+                        <span className="h-7 w-7 rounded-full bg-high border border-border inline-flex items-center justify-center text-[10px] text-secondary">
+                          {r.player_name[0]?.toUpperCase() ?? "?"}
+                        </span>
+                      )}
+                      {r.player_name}
+                    </div>
+                  </td>
                   <td className="px-3 py-2">
                     <Link href={`/teams/${r.team_slug}`} className="inline-flex items-center gap-2 hover:text-neon">
                       <TeamLogo slug={r.team_slug} name={r.team_name} size={18} />

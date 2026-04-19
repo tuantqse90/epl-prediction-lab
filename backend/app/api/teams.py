@@ -29,6 +29,7 @@ class TopScorer(BaseModel):
     xg: float
     assists: int
     xa: float
+    photo_url: str | None = None
 
 
 class FixtureBrief(BaseModel):
@@ -135,7 +136,7 @@ async def _form(conn, team_id: int, season: str) -> list[str]:
 async def _top_scorers(conn, team_id: int, season: str, n: int = 5) -> list[TopScorer]:
     rows = await conn.fetch(
         """
-        SELECT player_name, position, goals, xg, assists, xa
+        SELECT player_name, position, goals, xg, assists, xa, photo_url
         FROM player_season_stats
         WHERE team_id = $1 AND season = $2
         ORDER BY goals DESC NULLS LAST, xg DESC NULLS LAST
@@ -151,6 +152,7 @@ async def _top_scorers(conn, team_id: int, season: str, n: int = 5) -> list[TopS
             xg=round(float(r["xg"] or 0), 2),
             assists=r["assists"] or 0,
             xa=round(float(r["xa"] or 0), 2),
+            photo_url=r["photo_url"],
         )
         for r in rows
     ]

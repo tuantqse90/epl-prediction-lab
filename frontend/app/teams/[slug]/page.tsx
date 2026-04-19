@@ -21,6 +21,7 @@ type TopScorer = {
   xg: number;
   assists: number;
   xa: number;
+  photo_url: string | null;
 };
 
 type FixtureBrief = {
@@ -295,6 +296,23 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
             }}
           />
           <div className="relative flex items-center gap-6 flex-wrap">
+            {topScorer.photo_url ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={topScorer.photo_url}
+                alt={topScorer.player_name}
+                loading="lazy"
+                className="h-28 w-28 rounded-full object-cover border-4 border-neon/40 shadow-[0_0_24px_rgba(224,255,50,0.25)] shrink-0"
+              />
+            ) : (
+              <div className="h-28 w-28 rounded-full bg-high border-4 border-border flex items-center justify-center font-display text-3xl text-secondary shrink-0">
+                {topScorer.player_name
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((p) => p[0]?.toUpperCase() ?? "")
+                  .join("")}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="label mb-2">Top scorer</p>
               <Link
@@ -360,7 +378,23 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
                   <tr key={sc.player_name} className="border-b border-border-muted hover:bg-high">
                     <td className="px-3 py-2 text-muted">{i + 2}</td>
                     <td className="px-3 py-2 text-primary">
-                      <Link href={`/players/${playerSlug(sc.player_name)}`} className="hover:text-neon">
+                      <Link
+                        href={`/players/${playerSlug(sc.player_name)}`}
+                        className="inline-flex items-center gap-2 hover:text-neon"
+                      >
+                        {sc.photo_url ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={sc.photo_url}
+                            alt=""
+                            loading="lazy"
+                            className="h-7 w-7 rounded-full object-cover border border-border"
+                          />
+                        ) : (
+                          <span className="h-7 w-7 rounded-full bg-high border border-border inline-flex items-center justify-center text-[10px] text-secondary">
+                            {sc.player_name[0]?.toUpperCase() ?? "?"}
+                          </span>
+                        )}
                         {sc.player_name}
                       </Link>
                     </td>
