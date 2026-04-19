@@ -104,6 +104,7 @@ async def list_matches(
     *,
     upcoming_only: bool = True,
     limit: int = 20,
+    offset: int = 0,
     league_code: str | None = None,
 ) -> list[asyncpg.Record]:
     conds: list[str] = []
@@ -122,7 +123,13 @@ async def list_matches(
     else:
         order = "m.kickoff_time DESC"
     args.append(limit)
-    query = f"{_MATCH_WITH_LATEST_PREDICTION} {where} ORDER BY {order} LIMIT ${len(args)}"
+    limit_placeholder = f"${len(args)}"
+    args.append(offset)
+    offset_placeholder = f"${len(args)}"
+    query = (
+        f"{_MATCH_WITH_LATEST_PREDICTION} {where} ORDER BY {order} "
+        f"LIMIT {limit_placeholder} OFFSET {offset_placeholder}"
+    )
     async with pool.acquire() as conn:
         return await conn.fetch(query, *args)
 

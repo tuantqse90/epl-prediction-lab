@@ -9,11 +9,12 @@ const BASE =
     : process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export async function listMatches(
-  opts: { upcomingOnly?: boolean; limit?: number; league?: string } = {},
+  opts: { upcomingOnly?: boolean; limit?: number; offset?: number; league?: string } = {},
 ) {
   const params = new URLSearchParams();
   if (opts.upcomingOnly !== undefined) params.set("upcoming_only", String(opts.upcomingOnly));
   if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  if (opts.offset !== undefined) params.set("offset", String(opts.offset));
   if (opts.league) params.set("league", opts.league);
   const url = `${BASE}/api/matches?${params.toString()}`;
   const res = await fetch(url, { cache: "no-store" });

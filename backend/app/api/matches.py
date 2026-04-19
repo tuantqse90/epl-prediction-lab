@@ -130,6 +130,7 @@ async def list_matches(
     request: Request,
     upcoming_only: bool = Query(True, description="Only matches with kickoff in the future"),
     limit: int = Query(20, ge=1, le=200),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
     league: str | None = Query(None, description="league slug or code (e.g. epl, laliga)"),
 ) -> list[MatchOut]:
     from app.leagues import get_league
@@ -138,6 +139,7 @@ async def list_matches(
         request.app.state.pool,
         upcoming_only=upcoming_only,
         limit=limit,
+        offset=offset,
         league_code=league_code,
     )
     return [MatchOut.model_validate(queries.record_to_match_dict(r)) for r in rows]

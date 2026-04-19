@@ -39,16 +39,35 @@ async function fetchAccuracy(league?: string): Promise<Accuracy | null> {
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+const PAGE_SIZE = 24;
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ p?: string }>;
+}) {
   const lang = await getLang();
   const league = await getLeagueSlug();
   const t = tFor(lang);
+  const sp = await searchParams;
+  const page = Math.max(1, Number(sp.p ?? "1") || 1);
+  const offset = (page - 1) * PAGE_SIZE;
 
   const leagueParam = leagueForApi(league);
   let matches: MatchOut[] = [];
+  let hasNext = false;
   let error: string | null = null;
   try {
-    matches = await listMatches({ upcomingOnly: true, limit: 20, league: leagueParam });
+    // Fetch PAGE_SIZE + 1 to cheaply detect whether a next page exists
+    // without a separate COUNT(*) round-trip.
+    const res = await listMatches({
+      upcomingOnly: true,
+      limit: PAGE_SIZE + 1,
+      offset,
+      league: leagueParam,
+    });
+    hasNext = res.length > PAGE_SIZE;
+    matches = res.slice(0, PAGE_SIZE);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
@@ -137,6 +156,41 @@ export default async function HomePage() {
           <MatchCard key={m.id} match={m} lang={lang} />
         ))}
       </section>
+
+      {(page > 1 || hasNext) && (
+        <nav
+          aria-label="Match pagination"
+          className="flex items-center justify-between gap-3 font-mono text-xs"
+        >
+          <div>
+            {page > 1 ? (
+              <Link
+                href={page === 2 ? "/" : `/?p=${page - 1}`}
+                className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 uppercase tracking-wide text-secondary hover:border-neon hover:text-neon transition-colors"
+              >
+                ← {lang === "vi" ? "Trang trước" : "Previous"}
+              </Link>
+            ) : (
+              <span />
+            )}
+          </div>
+          <span className="text-muted tabular-nums">
+            {lang === "vi" ? "Trang" : "Page"} {page}
+            {" · "}
+            {matches.length} {lang === "vi" ? "trận" : "matches"}
+          </span>
+          <div>
+            {hasNext && (
+              <Link
+                href={`/?p=${page + 1}`}
+                className="inline-flex items-center gap-2 rounded-full bg-neon px-4 py-2 uppercase tracking-wide text-on-neon font-semibold hover:opacity-90 transition-opacity"
+              >
+                {lang === "vi" ? "Trang sau" : "Next"} →
+              </Link>
+            )}
+          </div>
+        </nav>
+      )}
     </main>
   );
 }
