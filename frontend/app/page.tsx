@@ -3,7 +3,7 @@ import LivePoller from "@/components/LivePoller";
 import MatchCard from "@/components/MatchCard";
 import QuickPicks from "@/components/QuickPicks";
 import { listMatches } from "@/lib/api";
-import { getLang, getLeagueSlug, tFor } from "@/lib/i18n-server";
+import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
 import type { MatchOut } from "@/lib/types";
 
 const BASE = process.env.SERVER_API_URL ?? "http://localhost:8000";
@@ -37,14 +37,15 @@ export default async function HomePage() {
   const league = await getLeagueSlug();
   const t = tFor(lang);
 
+  const leagueParam = leagueForApi(league);
   let matches: MatchOut[] = [];
   let error: string | null = null;
   try {
-    matches = await listMatches({ upcomingOnly: true, limit: 20, league });
+    matches = await listMatches({ upcomingOnly: true, limit: 20, league: leagueParam });
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
-  const acc = await fetchAccuracy(league);
+  const acc = await fetchAccuracy(leagueParam);
   const hasLive = matches.some((m) => m.status === "live");
 
   return (

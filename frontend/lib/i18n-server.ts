@@ -16,6 +16,11 @@ export async function getLeagueSlug(): Promise<LeagueSlug> {
   return DEFAULT_LEAGUE;
 }
 
+/** Pass-through to API requests — "all" becomes undefined. */
+export function leagueForApi(slug: LeagueSlug): string | undefined {
+  return slug === "all" ? undefined : slug;
+}
+
 export function tFor(lang: Lang) {
   return (key: string, vars?: Record<string, string | number>) => tRaw(lang, key, vars);
 }

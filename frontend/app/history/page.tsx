@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { getLang, getLeagueSlug, tFor } from "@/lib/i18n-server";
+import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
 import { getLeague } from "@/lib/leagues";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +16,9 @@ type HistorySeason = {
   baseline_home_accuracy: number;
 };
 
-async function fetchHistory(league: string): Promise<HistorySeason[]> {
-  const res = await fetch(`${BASE}/api/stats/history?league=${league}`, { cache: "no-store" });
+async function fetchHistory(league?: string): Promise<HistorySeason[]> {
+  const qs = league ? `?league=${encodeURIComponent(league)}` : "";
+  const res = await fetch(`${BASE}/api/stats/history${qs}`, { cache: "no-store" });
   if (!res.ok) return [];
   return res.json();
 }
@@ -31,7 +32,7 @@ export default async function HistoryPage() {
   const t = tFor(lang);
   const league = await getLeagueSlug();
   const leagueInfo = getLeague(league);
-  const rows = await fetchHistory(league);
+  const rows = await fetchHistory(leagueForApi(league));
   const leagueLabel = lang === "vi" ? leagueInfo.name_vi : leagueInfo.name_en;
 
   if (rows.length === 0) {

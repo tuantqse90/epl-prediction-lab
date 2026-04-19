@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import RoiChart from "@/components/RoiChart";
-import { getLang, getLeagueSlug, tFor } from "@/lib/i18n-server";
+import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
 import { getLeague } from "@/lib/leagues";
 
 export const dynamic = "force-dynamic";
@@ -56,7 +56,7 @@ export default async function RoiPage({
         ))}
       </nav>
 
-      <RoiChart season={season} threshold={active} league={league} lang={lang} />
+      <RoiChart season={season} threshold={active} league={leagueForApi(league)} lang={lang} />
     </main>
   );
 }

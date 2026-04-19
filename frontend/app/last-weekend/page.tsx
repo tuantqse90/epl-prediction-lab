@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import TeamLogo from "@/components/TeamLogo";
 import { formatDateOnly } from "@/lib/date";
-import { getLang, getLeagueSlug, tFor } from "@/lib/i18n-server";
+import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +59,7 @@ export default async function LastWeekendPage() {
   const lang = await getLang();
   const league = await getLeagueSlug();
   const t = tFor(lang);
-  const w = await fetchRecent(days, league);
+  const w = await fetchRecent(days, leagueForApi(league));
 
   if (!w) {
     return (

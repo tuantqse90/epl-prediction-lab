@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import TeamLogo from "@/components/TeamLogo";
-import { getLang, getLeagueSlug, tFor } from "@/lib/i18n-server";
+import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +50,7 @@ export default async function ScorersPage({
   const league = await getLeagueSlug();
   const t = tFor(lang);
 
-  const rows = await fetchScorers(season, sort, league);
+  const rows = await fetchScorers(season, sort, leagueForApi(league));
 
   const sorts: Array<{ key: string; label: string }> = [
     { key: "goals", label: t("scorers.sortGoals") },

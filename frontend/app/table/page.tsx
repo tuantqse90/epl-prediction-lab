@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import TeamLogo from "@/components/TeamLogo";
-import { getLang, getLeagueSlug, tFor } from "@/lib/i18n-server";
+import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
 import { getLeague } from "@/lib/leagues";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +45,7 @@ export default async function TablePage() {
   const lang = await getLang();
   const league = await getLeagueSlug();
   const leagueInfo = getLeague(league);
-  const rows = await fetchTable(season, league);
+  const rows = await fetchTable(season, leagueForApi(league));
   const t = tFor(lang);
   const leagueLabel = lang === "vi" ? leagueInfo.name_vi : leagueInfo.name_en;
 
