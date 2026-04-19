@@ -122,6 +122,8 @@ class ScorerOut(BaseModel):
     xa: float
     key_passes: int
     goals_minus_xg: float
+    photo_url: str | None = None
+    league_code: str | None = None
 
 
 
@@ -736,8 +738,12 @@ async def scorers(
     }[sort]
     query = f"""
     SELECT p.player_name, p.position, p.goals, p.xg, p.npxg, p.assists, p.xa,
-           p.key_passes, p.games,
-           t.slug AS team_slug, t.name AS team_name, t.short_name AS team_short
+           p.key_passes, p.games, p.photo_url,
+           t.slug AS team_slug, t.name AS team_name, t.short_name AS team_short,
+           (SELECT league_code FROM matches m
+            WHERE (m.home_team_id = p.team_id OR m.away_team_id = p.team_id)
+              AND m.season = $1
+            LIMIT 1) AS league_code
     FROM player_season_stats p
     JOIN teams t ON t.id = p.team_id
     WHERE p.season = $1
@@ -773,6 +779,8 @@ async def scorers(
                 xa=round(float(r["xa"] or 0.0), 2),
                 key_passes=int(r["key_passes"] or 0),
                 goals_minus_xg=round(goals - xg, 2),
+                photo_url=r["photo_url"],
+                league_code=r["league_code"],
             )
         )
     return out

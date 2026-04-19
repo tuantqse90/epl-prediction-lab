@@ -7,6 +7,7 @@ import ProofStrip from "@/components/ProofStrip";
 import PushButton from "@/components/PushButton";
 import QuickPicks from "@/components/QuickPicks";
 import RecentResults from "@/components/RecentResults";
+import StarPlayersStrip from "@/components/StarPlayersStrip";
 import TelegramCTA from "@/components/TelegramCTA";
 import WorldCupCountdown from "@/components/WorldCupCountdown";
 import { listMatches } from "@/lib/api";
@@ -123,6 +124,8 @@ export default async function HomePage({
       )}
 
       <ProofStrip league={leagueParam} lang={lang} />
+
+      <StarPlayersStrip league={leagueParam} lang={lang} />
 
       <RecentResults league={leagueParam} lang={lang} />
 
