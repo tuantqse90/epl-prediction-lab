@@ -328,58 +328,65 @@ async def match_lineups(match_id: int, request: Request) -> MatchLineups:
     return MatchLineups(home=_build(pair["home_slug"]), away=_build(pair["away_slug"]))
 
 
-@router.get("/{match_id}/ci", response_model=ConfidenceInterval | None)
-async def match_ci(match_id: int, request: Request) -> ConfidenceInterval | None:
-    """1-sigma bootstrap CI on (p_home, p_draw, p_away).
-
-    Runs 30 bootstrap resamples of the team history on demand. ~0.3s uncached;
-    negligible for per-page loads. Cached 10 minutes.
-    """
+async def _compute_ci(
+    pool, match_id: int,
+) -> "ConfidenceInterval | None":
+    """Shared bootstrap-CI calc used by both the HTTP endpoint and the
+    post-predict warmup. Writes into _CI_CACHE on success so subsequent
+    reads return instantly."""
     import pandas as pd
-    from app.models.ci import bootstrap_1x2_ci
-    from app import queries
+    from app import queries as _queries
+    from app.models.ci import bootstrap_1x2_ci as _boot
 
-    pool = request.app.state.pool
     cached = _CI_CACHE.get(("ci", match_id))
     if cached is not None:
         return cached
 
-    match = await queries.get_match(pool, match_id)
+    match = await _queries.get_match(pool, match_id)
     if match is None:
-        raise HTTPException(404, f"match {match_id} not found")
+        return None
 
     league_code = match["league_code"] or None
-    df = await queries.fetch_finished_matches_df(pool, league_code=league_code)
+    df = await _queries.fetch_finished_matches_df(pool, league_code=league_code)
     if df.empty:
         return None
     league_avg = float(pd.concat([df["home_goals"], df["away_goals"]]).mean())
 
-    # 15 samples halves compute time (~3.6s → ~1.8s cold start). The
-    # resulting percentiles are slightly noisier but still bracket the
-    # point estimate in the same band. If traffic grows enough to warrant
-    # it, move CI computation to a warmup job that fills _CI_CACHE after
-    # every predict_and_persist.
-    ci = bootstrap_1x2_ci(
+    ci_raw = _boot(
         df,
         match["home_name"], match["away_name"],
         as_of=match["kickoff_time"],
         league_avg_goals=league_avg,
         rho=-0.15,
         n_samples=15, last_n=12, temperature=1.35,
-        seed=match_id,  # deterministic across calls for stable UX
+        seed=match_id,
     )
-    if ci.n_samples == 0:
+    if ci_raw.n_samples == 0:
         return None
     out = ConfidenceInterval(
-        p_home_low=round(ci.p_home_low, 4),
-        p_home_high=round(ci.p_home_high, 4),
-        p_draw_low=round(ci.p_draw_low, 4),
-        p_draw_high=round(ci.p_draw_high, 4),
-        p_away_low=round(ci.p_away_low, 4),
-        p_away_high=round(ci.p_away_high, 4),
-        n_samples=ci.n_samples,
+        p_home_low=round(ci_raw.p_home_low, 4),
+        p_home_high=round(ci_raw.p_home_high, 4),
+        p_draw_low=round(ci_raw.p_draw_low, 4),
+        p_draw_high=round(ci_raw.p_draw_high, 4),
+        p_away_low=round(ci_raw.p_away_low, 4),
+        p_away_high=round(ci_raw.p_away_high, 4),
+        n_samples=ci_raw.n_samples,
     )
     _CI_CACHE.set(("ci", match_id), out)
+    return out
+
+
+@router.get("/{match_id}/ci", response_model=ConfidenceInterval | None)
+async def match_ci(match_id: int, request: Request) -> ConfidenceInterval | None:
+    """1-sigma bootstrap CI on (p_home, p_draw, p_away). 10-min cache.
+
+    Cold-path triggers on first hit; pre-warmed from predict/service after
+    every new prediction so real users rarely hit cold.
+    """
+    pool = request.app.state.pool
+    out = await _compute_ci(pool, match_id)
+    if out is None:
+        raise HTTPException(404, f"CI unavailable for match {match_id}")
     return out
 
 

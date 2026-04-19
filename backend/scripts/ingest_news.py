@@ -38,10 +38,13 @@ class Feed:
 
 
 FEEDS: list[Feed] = [
-    Feed("bbc",      "https://feeds.bbci.co.uk/sport/football/rss.xml"),
-    Feed("guardian", "https://www.theguardian.com/football/rss"),
-    Feed("espn",     "https://www.espn.com/espn/rss/soccer/news"),
-    Feed("goal",     "https://www.goal.com/feeds/news?fmt=rss"),
+    Feed("bbc",         "https://feeds.bbci.co.uk/sport/football/rss.xml"),
+    Feed("guardian",    "https://www.theguardian.com/football/rss"),
+    Feed("espn",        "https://www.espn.com/espn/rss/soccer/news"),
+    # Goal.com RSS 404'd Apr-2026; Sky Sports + Independent cover the
+    # same beat with stable feeds.
+    Feed("sky",         "https://www.skysports.com/rss/12040"),
+    Feed("independent", "https://www.independent.co.uk/sport/football/rss"),
 ]
 
 _STRIP_TAGS = re.compile(r"<[^>]+>")

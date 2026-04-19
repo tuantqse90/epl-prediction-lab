@@ -25,7 +25,8 @@ import ShareButtons from "@/components/ShareButtons";
 import TeamLogo from "@/components/TeamLogo";
 import TerminalBlock from "@/components/TerminalBlock";
 import { OddsPanel } from "@/components/ValueBetBadge";
-import { getCI, getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getMarkets, getMatch, getScorerOdds, getWeather } from "@/lib/api";
+import { getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getMarkets, getMatch, getScorerOdds, getWeather } from "@/lib/api";
+import ConfidenceBand from "@/components/ConfidenceBand";
 import { formatKickoff } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
 import { leagueByCode } from "@/lib/leagues";
@@ -85,7 +86,9 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const weather = await getWeather(matchId).catch(() => null);
   const markets = await getMarkets(matchId).catch(() => null);
   const halfTime = await getHalfTime(matchId).catch(() => null);
-  const ci = match.status === "scheduled" ? await getCI(matchId).catch(() => null) : null;
+  // Bootstrap CI is fetched client-side so the match-detail render path
+  // doesn't block on the 1.8-s cold bootstrap. See <ConfidenceBand/>.
+  const showCI = match.status === "scheduled";
 
   const p = match.prediction;
   const isLive = match.status === "live" && !!match.live;
@@ -200,36 +203,17 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
               <div>
                 <p className="text-xs text-muted">{t("detail.home")}</p>
                 <p className="stat">{pct(displayPred!.p_home_win)}</p>
-                {ci && (
-                  <p className="font-mono text-[10px] text-muted mt-1">
-                    {pct(ci.p_home_low)}–{pct(ci.p_home_high)}
-                  </p>
-                )}
               </div>
               <div>
                 <p className="text-xs text-muted">{t("detail.draw")}</p>
                 <p className="stat">{pct(displayPred!.p_draw)}</p>
-                {ci && (
-                  <p className="font-mono text-[10px] text-muted mt-1">
-                    {pct(ci.p_draw_low)}–{pct(ci.p_draw_high)}
-                  </p>
-                )}
               </div>
               <div>
                 <p className="text-xs text-muted">{t("detail.away")}</p>
                 <p className="stat">{pct(displayPred!.p_away_win)}</p>
-                {ci && (
-                  <p className="font-mono text-[10px] text-muted mt-1">
-                    {pct(ci.p_away_low)}–{pct(ci.p_away_high)}
-                  </p>
-                )}
               </div>
             </div>
-            {ci && (
-              <p className="font-mono text-[11px] text-muted text-center">
-                {lang === "vi" ? "Khoảng tin cậy 68%" : "68% confidence range"} · bootstrap n={ci.n_samples}
-              </p>
-            )}
+            {showCI && <ConfidenceBand matchId={match.id} lang={lang} />}
           </div>
         </section>
       ) : (

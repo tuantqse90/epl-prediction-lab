@@ -247,6 +247,21 @@ async def predict_and_persist(
     pred_id = await queries.insert_prediction(
         pool, match_id, result, tagged_version, commitment_hash=digest
     )
+
+    # Fire-and-forget: warm the bootstrap CI cache in the background so the
+    # first visitor to /match/:id never waits for the 1.8-s cold path.
+    # predict_and_persist is typically called from a cron or predict_upcoming
+    # loop, so by the time a real user hits the page the CI is already
+    # cached. Failures here are harmless — the endpoint still computes on
+    # demand if the cache miss.
+    if match["status"] == "scheduled":
+        try:
+            import asyncio
+            from app.api.matches import _compute_ci
+            asyncio.create_task(_compute_ci(pool, match_id))
+        except Exception:
+            pass
+
     return pred_id, result
 
 
