@@ -25,7 +25,7 @@ const en = {
 
   // match card / status
   "status.scheduled": "Upcoming",
-  "status.final": "Final",
+  "status.final": "Full time",
   "status.live": "Live",
   "match.topScore": "Predicted final score",
   "match.liveScore": "Live score",

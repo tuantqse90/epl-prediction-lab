@@ -41,6 +41,7 @@ export type OddsOut = {
 
 export type LiveOut = {
   minute: number;
+  live_period: string | null; // '1H' | 'HT' | '2H' | 'FT' | 'AET' | 'PEN'
   live_updated_at: string | null;
   p_home_win: number;
   p_draw: number;

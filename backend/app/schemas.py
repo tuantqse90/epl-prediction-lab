@@ -50,6 +50,7 @@ class OddsOut(BaseModel):
 
 class LiveOut(BaseModel):
     minute: int
+    live_period: str | None = None     # '1H' | 'HT' | '2H' | 'FT' | 'AET' | 'PEN'
     live_updated_at: datetime | None = None
     p_home_win: float
     p_draw: float

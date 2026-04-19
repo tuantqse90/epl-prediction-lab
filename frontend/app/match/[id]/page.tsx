@@ -150,7 +150,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             {isLive && match.live && match.home_goals !== null && match.away_goals !== null && (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-error/40 bg-error/10 p-4">
                 <div className="flex items-center gap-3">
-                  <LiveBadge minute={match.live.minute} lang={lang} />
+                  <LiveBadge minute={match.live.minute} period={match.live.live_period} lang={lang} />
                   <span className="font-mono text-xs uppercase tracking-[0.12em] text-error">
                     {t("match.liveScore")}
                   </span>

@@ -27,7 +27,7 @@ const vi: typeof en = {
 
   // match card / status
   "status.scheduled": "Sắp diễn ra",
-  "status.final": "Đã kết thúc",
+  "status.final": "Hết trận",
   "status.live": "Đang đá",
   "match.topScore": "Tỷ số dự đoán",
   "match.liveScore": "Tỷ số trực tiếp",

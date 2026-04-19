@@ -51,7 +51,7 @@ export default function MatchCard({ match, lang }: { match: MatchOut; lang: Lang
           {isUpcoming && <KickoffCountdown iso={match.kickoff_time} lang={lang} />}
         </div>
         {isLive && match.live ? (
-          <LiveBadge minute={match.live.minute} lang={lang} />
+          <LiveBadge minute={match.live.minute} period={match.live.live_period} lang={lang} />
         ) : (
           <span className="rounded-full bg-high px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-secondary">
             {statusLabel}

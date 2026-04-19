@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS matches (
     away_ppda     FLOAT,
     status          TEXT,
     minute          INT,
+    live_period     TEXT,  -- API-Football short: '1H' | 'HT' | '2H' | 'FT' | 'AET' | 'PEN'
     live_updated_at TIMESTAMPTZ,
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
