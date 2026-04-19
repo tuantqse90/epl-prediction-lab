@@ -47,6 +47,18 @@ class WeatherOut(BaseModel):
     fetched_at: str | None
 
 
+class MarketsOut(BaseModel):
+    prob_over_0_5: float
+    prob_over_1_5: float
+    prob_over_2_5: float
+    prob_over_3_5: float
+    prob_btts: float
+    prob_home_clean_sheet: float
+    prob_away_clean_sheet: float
+    lam_home: float
+    lam_away: float
+
+
 class ScorerOdds(BaseModel):
     player_name: str
     team_slug: str
@@ -290,6 +302,48 @@ async def match_lineups(match_id: int, request: Request) -> MatchLineups:
         )
 
     return MatchLineups(home=_build(pair["home_slug"]), away=_build(pair["away_slug"]))
+
+
+@router.get("/{match_id}/markets", response_model=MarketsOut | None)
+async def match_markets(match_id: int, request: Request) -> MarketsOut | None:
+    """Derived O/U + BTTS + clean-sheet probabilities from the latest prediction.
+
+    Reuses the pre-computed λ stored in predictions to rebuild the scoreline
+    matrix — no DB re-ingest, ~0.5ms per call.
+    """
+    from app.models.markets import markets_from_matrix
+    from app.models.poisson import apply_dixon_coles, poisson_score_matrix
+
+    pool = request.app.state.pool
+    row = await pool.fetchrow(
+        """
+        SELECT p.expected_home_goals, p.expected_away_goals
+        FROM predictions p
+        WHERE p.match_id = $1
+        ORDER BY p.created_at DESC
+        LIMIT 1
+        """,
+        match_id,
+    )
+    if row is None or row["expected_home_goals"] is None:
+        return None
+    lam_h = float(row["expected_home_goals"])
+    lam_a = float(row["expected_away_goals"])
+    rho = -0.15  # matches the value used in predict_upcoming; stable across runs
+    base = poisson_score_matrix(lam_h, lam_a, max_goals=5)
+    adjusted = apply_dixon_coles(base, lam_h, lam_a, rho)
+    m = markets_from_matrix(adjusted)
+    return MarketsOut(
+        prob_over_0_5=m.prob_over_0_5,
+        prob_over_1_5=m.prob_over_1_5,
+        prob_over_2_5=m.prob_over_2_5,
+        prob_over_3_5=m.prob_over_3_5,
+        prob_btts=m.prob_btts,
+        prob_home_clean_sheet=m.prob_home_clean_sheet,
+        prob_away_clean_sheet=m.prob_away_clean_sheet,
+        lam_home=lam_h,
+        lam_away=lam_a,
+    )
 
 
 @router.get("/{match_id}/weather", response_model=WeatherOut | None)

@@ -131,6 +131,24 @@ export async function getWeather(matchId: number): Promise<Weather | null> {
   return body;
 }
 
+export type Markets = {
+  prob_over_0_5: number;
+  prob_over_1_5: number;
+  prob_over_2_5: number;
+  prob_over_3_5: number;
+  prob_btts: number;
+  prob_home_clean_sheet: number;
+  prob_away_clean_sheet: number;
+  lam_home: number;
+  lam_away: number;
+};
+
+export async function getMarkets(matchId: number): Promise<Markets | null> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/markets`, { cache: "no-store" });
+  if (!res.ok) return null;
+  return (await res.json()) as Markets | null;
+}
+
 export async function fetchSuggestedPrompts(matchId: number): Promise<string[]> {
   const res = await fetch(`${BASE}/api/chat/suggest/${matchId}`, { cache: "no-store" });
   if (!res.ok) return [];

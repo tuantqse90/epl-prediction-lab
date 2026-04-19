@@ -9,11 +9,18 @@ import asyncpg
 import pandas as pd
 
 from app import queries
+from app.models.elo import compute_ratings, elo_to_3way
 from app.models.features import TeamStrength, compute_team_strengths, match_lambdas
 from app.models.poisson import MatchPrediction, predict_match
 from app.onchain.commitment import commitment_hash
 
 NEUTRAL = TeamStrength(attack=1.0, defense=1.0)
+
+# Ensemble weight — 0.25 means the final 1X2 is 75% Poisson + 25% Elo.
+# Elo gives us an independent signal that's less sensitive to xG noise
+# (a team that won 1-0 on a fluke shouldn't get the same λ bump as one
+# that won on 2.5 xG — Elo just cares about the result).
+ELO_WEIGHT = 0.25
 
 # How hard an injury-adjusted xG shortfall bites the team's λ. 0.6 means
 # losing 20% of team-xG to current absentees knocks λ down by 12%. Chosen
@@ -158,8 +165,23 @@ async def predict_and_persist(
         lam_h *= max(0.5, 1.0 - INJURY_ALPHA * home_hit) * weather_m
         lam_a *= max(0.5, 1.0 - INJURY_ALPHA * away_hit) * weather_m
 
-    result = predict_match(lam_h, lam_a, rho=rho, temperature=temperature)
-    tagged_version = f"{model_version}:rho={rho}:T={temperature}"
+    # Elo side of the ensemble: walk the same filtered finished-match df up
+    # to this kickoff, derive current ratings, convert to 3-way probs.
+    prior_finals = df[df["date"] < match["kickoff_time"]]
+    ratings = compute_ratings(prior_finals)
+    elo_home = ratings.get(match["home_name"])
+    elo_away = ratings.get(match["away_name"])
+    elo_triple: tuple[float, float, float] | None = None
+    if elo_home is not None and elo_away is not None:
+        triple = elo_to_3way(elo_home, elo_away)
+        elo_triple = (triple.p_home_win, triple.p_draw, triple.p_away_win)
+
+    result = predict_match(
+        lam_h, lam_a, rho=rho, temperature=temperature,
+        elo_probs=elo_triple,
+        elo_weight=ELO_WEIGHT if elo_triple is not None else 0.0,
+    )
+    tagged_version = f"{model_version}:rho={rho}:T={temperature}:elo={ELO_WEIGHT}"
     digest = commitment_hash(
         prediction=result,
         match_id=match_id,

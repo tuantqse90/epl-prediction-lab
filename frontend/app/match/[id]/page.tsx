@@ -11,6 +11,7 @@ import LineupsPanel from "@/components/LineupsPanel";
 import LiveBadge from "@/components/LiveBadge";
 import LivePoller from "@/components/LivePoller";
 import MatchEventsList from "@/components/MatchEventsList";
+import MarketsPanel from "@/components/MarketsPanel";
 import MatchJsonLd from "@/components/MatchJsonLd";
 import ScorerOddsPanel from "@/components/ScorerOddsPanel";
 import WeatherPanel from "@/components/WeatherPanel";
@@ -20,7 +21,7 @@ import ShareButtons from "@/components/ShareButtons";
 import TeamLogo from "@/components/TeamLogo";
 import TerminalBlock from "@/components/TerminalBlock";
 import { OddsPanel } from "@/components/ValueBetBadge";
-import { getH2H, getInjuries, getInjuryImpact, getLineups, getMatch, getScorerOdds, getWeather } from "@/lib/api";
+import { getH2H, getInjuries, getInjuryImpact, getLineups, getMarkets, getMatch, getScorerOdds, getWeather } from "@/lib/api";
 import { formatKickoff } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
 import { leagueByCode } from "@/lib/leagues";
@@ -78,6 +79,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const scorerOdds = await getScorerOdds(matchId, 12).catch(() => []);
   const injuryImpact = await getInjuryImpact(matchId).catch(() => null);
   const weather = await getWeather(matchId).catch(() => null);
+  const markets = await getMarkets(matchId).catch(() => null);
 
   const p = match.prediction;
   const isLive = match.status === "live" && !!match.live;
@@ -242,7 +244,8 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
         lang={lang}
       />
 
-      {match.odds && <OddsPanel odds={match.odds} lang={lang} matchId={match.id} />}
+      {markets && <MarketsPanel markets={markets} lang={lang} />}
+      {match.odds && <OddsPanel odds={match.odds} lang={lang} matchId={match.id} prediction={match.prediction} />}
       {p && (
         <ScoreMatrix
           prediction={p}

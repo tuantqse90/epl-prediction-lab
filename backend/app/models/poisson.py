@@ -204,16 +204,31 @@ def predict_match(
     max_goals: int = 5,
     top_n: int = 5,
     temperature: float = 1.0,
+    elo_probs: tuple[float, float, float] | None = None,
+    elo_weight: float = 0.0,
 ) -> MatchPrediction:
-    """Full Dixon-Coles prediction from two team-strength-derived rates.
+    """Full Dixon-Coles prediction with optional Elo-ensemble blend.
 
-    Applies optional temperature scaling to the 1X2 triple only — scoreline
-    matrix and top_scorelines stay in their raw Poisson+DC form so the
-    ordering of likely scorelines is unaffected.
+    If `elo_probs` is provided (a 3-way triple already summing to 1) and
+    `elo_weight > 0`, the final 1X2 is a convex blend of the Poisson-derived
+    triple and the Elo-derived triple. The scoreline matrix and `top_scorelines`
+    stay pure Poisson so the most-likely scoreline list keeps its natural
+    ordering — Elo is a 1X2-only signal.
     """
     base = poisson_score_matrix(lam_home, lam_away, max_goals=max_goals)
     adjusted = apply_dixon_coles(base, lam_home, lam_away, rho)
     p_h, p_d, p_a = collapse_1x2(adjusted)
+
+    if elo_probs is not None and elo_weight > 0.0:
+        w = min(1.0, max(0.0, elo_weight))
+        eh, ed, ea = elo_probs
+        p_h = (1.0 - w) * p_h + w * eh
+        p_d = (1.0 - w) * p_d + w * ed
+        p_a = (1.0 - w) * p_a + w * ea
+        # Re-normalize in case of floating-point drift.
+        z = p_h + p_d + p_a
+        p_h, p_d, p_a = p_h / z, p_d / z, p_a / z
+
     p_h, p_d, p_a = temperature_scale_1x2(p_h, p_d, p_a, temperature=temperature)
     return MatchPrediction(
         p_home_win=p_h,

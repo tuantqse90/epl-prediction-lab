@@ -1,7 +1,15 @@
 import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
-import type { OddsOut } from "@/lib/types";
+import type { OddsOut, PredictionOut } from "@/lib/types";
 import AddToBetslip from "./AddToBetslip";
+
+// Fractional Kelly (capped at 25%). Returns share of bankroll.
+function kelly(prob: number, odds: number, cap = 0.25): number {
+  if (prob <= 0 || odds <= 1) return 0;
+  const edge = prob * odds - 1;
+  if (edge <= 0) return 0;
+  return Math.min(cap, edge / (odds - 1));
+}
 
 export const VALUE_THRESHOLD = 0.05;
 
@@ -33,7 +41,17 @@ export function ValueBetBadge({ odds, lang = "vi" }: { odds: OddsOut; lang?: Lan
   );
 }
 
-export function OddsPanel({ odds, lang = "vi", matchId }: { odds: OddsOut; lang?: Lang; matchId?: number }) {
+export function OddsPanel({
+  odds,
+  lang = "vi",
+  matchId,
+  prediction,
+}: {
+  odds: OddsOut;
+  lang?: Lang;
+  matchId?: number;
+  prediction?: PredictionOut | null;
+}) {
   const rows: Array<{
     key: "H" | "D" | "A";
     label: string;
@@ -61,6 +79,7 @@ export function OddsPanel({ odds, lang = "vi", matchId }: { odds: OddsOut; lang?
             <th className="label px-2 py-1 text-right">{t(lang, "odds.odds")}</th>
             <th className="label px-2 py-1 text-right">{t(lang, "odds.fair")}</th>
             <th className="label px-2 py-1 text-right">{t(lang, "odds.edge")}</th>
+            {prediction && <th className="label px-2 py-1 text-right">Kelly</th>}
             {matchId != null && <th className="label px-2 py-1 text-right"></th>}
           </tr>
         </thead>
@@ -84,6 +103,18 @@ export function OddsPanel({ odds, lang = "vi", matchId }: { odds: OddsOut; lang?
                 <td className={`px-2 py-2 tabular-nums text-right ${edgeClass}`}>
                   {hasEdge ? pp(r.edge!) : "—"}
                 </td>
+                {prediction && (() => {
+                  const modelProb =
+                    r.key === "H" ? prediction.p_home_win
+                    : r.key === "D" ? prediction.p_draw
+                    : prediction.p_away_win;
+                  const k = kelly(modelProb, r.odd);
+                  return (
+                    <td className={`px-2 py-2 tabular-nums text-right ${k > 0 ? "text-neon" : "text-muted"}`}>
+                      {k > 0 ? `${(k * 100).toFixed(1)}%` : "—"}
+                    </td>
+                  );
+                })()}
                 {matchId != null && (
                   <td className="px-2 py-2 text-right">
                     <AddToBetslip matchId={matchId} outcome={r.key} odds={r.odd} />
