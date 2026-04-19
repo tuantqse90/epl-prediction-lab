@@ -47,6 +47,34 @@ def _normalize(name: str) -> str:
     return " ".join(ascii_only.lower().split())
 
 
+def _candidate_keys(name: str) -> list[str]:
+    """All reasonable ways this player could be referenced. Used to build
+    a multi-key index so 'Erling Haaland' (Understat) matches 'E. Haaland'
+    (API-Football), 'Domingos Duarte' matches 'D. Duarte', etc.
+
+    Order doesn't matter — we insert into a map and try lookup on all
+    forms emitted from either side.
+    """
+    normalized = _normalize(name)
+    if not normalized:
+        return []
+    parts = normalized.replace(".", "").split()
+    keys = [normalized, normalized.replace(".", "")]
+    if len(parts) >= 2:
+        first, last = parts[0], parts[-1]
+        keys.append(f"{first[0]} {last}")          # 'e haaland'
+        keys.append(f"{first[0]}. {last}")         # 'e. haaland' (API form)
+        keys.append(last)                          # 'haaland' — last-name only
+    # de-dupe while preserving order
+    seen: set[str] = set()
+    unique: list[str] = []
+    for k in keys:
+        if k and k not in seen:
+            seen.add(k)
+            unique.append(k)
+    return unique
+
+
 async def run(season: str) -> None:
     key = os.environ.get("API_FOOTBALL_KEY")
     if not key:
@@ -66,17 +94,19 @@ async def run(season: str) -> None:
                 """,
                 season,
             )
-        # Build (normalized_name, team_goals) → {db_id, db_name} index.
+        # Build multi-key index so 'Erling Haaland' (our) resolves on
+        # lookup of 'e. haaland' / 'haaland' (API-Football). Every DB row
+        # is inserted under every candidate key it emits.
         by_norm: dict[str, list[dict]] = {}
         for r in our_rows:
-            key_norm = _normalize(r["player_name"])
-            if key_norm:
-                by_norm.setdefault(key_norm, []).append({
-                    "id": r["id"],
-                    "team_id": r["team_id"],
-                    "goals": r["goals"] or 0,
-                    "name": r["player_name"],
-                })
+            entry = {
+                "id": r["id"],
+                "team_id": r["team_id"],
+                "goals": r["goals"] or 0,
+                "name": r["player_name"],
+            }
+            for k in _candidate_keys(r["player_name"]):
+                by_norm.setdefault(k, []).append(entry)
 
         total_matched = 0
         total_unmatched = 0
@@ -92,7 +122,13 @@ async def run(season: str) -> None:
                 pid = player.get("id")
                 if not pname or not photo:
                     continue
-                candidates = by_norm.get(_normalize(pname), [])
+                # Try every candidate-key form this API name could be
+                # referenced by, in preference order. Stop at first hit.
+                candidates: list[dict] = []
+                for k in _candidate_keys(pname):
+                    if k in by_norm:
+                        candidates = by_norm[k]
+                        break
                 if not candidates:
                     total_unmatched += 1
                     continue
