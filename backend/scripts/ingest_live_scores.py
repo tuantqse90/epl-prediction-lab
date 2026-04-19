@@ -466,27 +466,37 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
         and (scored_home or scored_away)
     )
     if should_notify_goal:
-        # Pull the canonical league code + short names from our DB — not
-        # from the API payload — so every notification uses the same
-        # league prefix and short-form team labels as the rest of the UI.
+        # Atomic dedupe: append the current score to notified_scores and
+        # return non-NULL ONLY if it wasn't already there. Guards against
+        # (a) two ingest ticks racing, (b) API-Football momentarily
+        # returning stale/flap data (0→1→0→1), and (c) a restart where
+        # in-memory score_changed state is lost. One row per unique score
+        # per match, ever.
+        score_key = f"{int(hg)}-{int(ag)}"
         async with pool.acquire() as conn:
             meta = await conn.fetchrow(
                 """
-                SELECT m.league_code,
-                       ht.short_name AS home_short, ht.slug AS home_slug,
-                       at.short_name AS away_short, at.slug AS away_slug
-                FROM matches m
-                JOIN teams ht ON ht.id = m.home_team_id
-                JOIN teams at ON at.id = m.away_team_id
+                UPDATE matches m
+                SET notified_scores = array_append(m.notified_scores, $2)
+                FROM teams ht, teams at
                 WHERE m.id = $1
+                  AND ht.id = m.home_team_id
+                  AND at.id = m.away_team_id
+                  AND NOT ($2 = ANY(m.notified_scores))
+                RETURNING m.league_code,
+                          ht.short_name AS home_short, ht.slug AS home_slug,
+                          at.short_name AS away_short, at.slug AS away_slug
                 """,
-                match_row["id"],
+                match_row["id"], score_key,
             )
+        if meta is None:
+            # Already notified for this exact score on a prior tick.
+            return True
 
         minute_label = f"{elapsed}'" if elapsed is not None else "—"
-        prefix = _league_prefix(meta["league_code"] if meta else None)
-        home_short = (meta["home_short"] if meta else home).replace("_", "\\_")
-        away_short = (meta["away_short"] if meta else away).replace("_", "\\_")
+        prefix = _league_prefix(meta["league_code"])
+        home_short = meta["home_short"].replace("_", "\\_")
+        away_short = meta["away_short"].replace("_", "\\_")
 
         if scored_home and scored_away:
             # Extremely rare edge case (2-goal jump from missed update).
@@ -510,20 +520,19 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
                     print(f"[live-scores] instant goal tg api error for {match_row['id']}: {result}")
             except Exception as e:
                 print(f"[live-scores] instant goal tg failed for {match_row['id']}: {type(e).__name__}: {e}")
-        if meta:
-            try:
-                from app.api.push import dispatch_goal
-                await dispatch_goal(
-                    pool,
-                    [meta["home_slug"], meta["away_slug"]],
-                    {
-                        "title": f"⚽ {home_short} {int(hg)}-{int(ag)} {away_short}",
-                        "body": f"{minute_label}",
-                        "url": f"https://predictor.nullshift.sh/match/{match_row['id']}",
-                    },
-                )
-            except Exception as e:
-                print(f"[live-scores] instant goal push failed: {type(e).__name__}: {e}")
+        try:
+            from app.api.push import dispatch_goal
+            await dispatch_goal(
+                pool,
+                [meta["home_slug"], meta["away_slug"]],
+                {
+                    "title": f"⚽ {home_short} {int(hg)}-{int(ag)} {away_short}",
+                    "body": f"{minute_label}",
+                    "url": f"https://predictor.nullshift.sh/match/{match_row['id']}",
+                },
+            )
+        except Exception as e:
+            print(f"[live-scores] instant goal push failed: {type(e).__name__}: {e}")
 
     # Only hit /fixtures/events when something interesting changed. Most
     # polling cycles (90%+) see a static scoreline — skipping events there
