@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import TeamLogo from "@/components/TeamLogo";
-import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
-import { getLeague } from "@/lib/leagues";
+import { getLang, getLeagueSlug, tFor } from "@/lib/i18n-server";
+import { getLeague, REAL_LEAGUES, type League } from "@/lib/leagues";
 
 export const dynamic = "force-dynamic";
 
@@ -40,12 +40,80 @@ function deltaClass(diff: number) {
   return "text-muted";
 }
 
+function LeagueTable({
+  league,
+  rows,
+  columns,
+  lang,
+}: {
+  league: League;
+  rows: TableRow[];
+  columns: string[];
+  lang: "vi" | "en" | "th" | "zh" | "ko";
+}) {
+  if (rows.length === 0) return null;
+  const label = lang === "vi" ? league.name_vi : league.name_en;
+  return (
+    <section className="space-y-3">
+      <div className="flex items-baseline justify-between flex-wrap gap-2">
+        <h2 className="font-display text-xl md:text-2xl font-semibold uppercase tracking-tight">
+          <span className="mr-2">{league.emoji}</span>
+          {label}
+        </h2>
+        <Link
+          href={`/leagues/${league.slug}`}
+          className="font-mono text-[11px] uppercase tracking-wide text-secondary hover:text-neon transition-colors"
+        >
+          {lang === "vi" ? "Xem giải →" : "League page →"}
+        </Link>
+      </div>
+      <div className="card p-0 overflow-x-auto">
+        <table className="w-full font-mono text-sm">
+          <thead className="text-muted">
+            <tr className="border-b border-border">
+              {columns.map((h) => (
+                <th key={h} className="label px-3 py-3 text-left font-medium">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.slug} className="border-b border-border-muted hover:bg-high">
+                <td className="px-3 py-2 text-muted tabular-nums">{r.rank}</td>
+                <td className="px-3 py-2 text-primary">
+                  <Link href={`/teams/${r.slug}`} className="inline-flex items-center gap-2 hover:text-neon">
+                    <TeamLogo slug={r.slug} name={r.name} size={20} />
+                    {r.name}
+                  </Link>
+                </td>
+                <td className="px-3 py-2 tabular-nums">{r.played}</td>
+                <td className="px-3 py-2 tabular-nums">{r.wins}</td>
+                <td className="px-3 py-2 tabular-nums">{r.draws}</td>
+                <td className="px-3 py-2 tabular-nums">{r.losses}</td>
+                <td className="px-3 py-2 tabular-nums">{r.goals_for}</td>
+                <td className="px-3 py-2 tabular-nums">{r.goals_against}</td>
+                <td className={`px-3 py-2 tabular-nums ${deltaClass(r.goal_diff)}`}>
+                  {r.goal_diff > 0 ? `+${r.goal_diff}` : r.goal_diff}
+                </td>
+                <td className="px-3 py-2 tabular-nums text-secondary">{r.xg_for.toFixed(1)}</td>
+                <td className="px-3 py-2 tabular-nums text-secondary">{r.xg_against.toFixed(1)}</td>
+                <td className={`px-3 py-2 tabular-nums ${deltaClass(r.xg_diff)}`}>
+                  {r.xg_diff > 0 ? `+${r.xg_diff.toFixed(1)}` : r.xg_diff.toFixed(1)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export default async function TablePage() {
   const season = "2025-26";
   const lang = await getLang();
   const league = await getLeagueSlug();
   const leagueInfo = getLeague(league);
-  const rows = await fetchTable(season, leagueForApi(league));
   const t = tFor(lang);
   const leagueLabel = lang === "vi" ? leagueInfo.name_vi : leagueInfo.name_en;
 
@@ -63,6 +131,48 @@ export default async function TablePage() {
     t("table.col.xga"),
     t("table.col.xgd"),
   ];
+
+  // "all" → render one table per real league, stacked. A single merged
+  // table across leagues is statistically nonsense (different opponents,
+  // different fixture counts) so we refuse to render it that way.
+  if (league === "all") {
+    const groups = await Promise.all(
+      REAL_LEAGUES.map(async (lg) => ({
+        league: lg,
+        rows: await fetchTable(season, lg.slug),
+      })),
+    );
+    return (
+      <main className="mx-auto max-w-6xl px-6 py-12 space-y-10">
+        <Link href="/" className="btn-ghost text-sm">{t("common.back")}</Link>
+        <header className="space-y-3">
+          <p className="font-mono text-xs text-muted">
+            🌍 {lang === "vi" ? "Tất cả giải" : "All leagues"} · {t("common.season")} {season}
+          </p>
+          <h1 className="headline-section">{t("table.title")}</h1>
+          <p className="text-secondary max-w-2xl">{t("table.subhead")}</p>
+        </header>
+        {groups.every((g) => g.rows.length === 0) ? (
+          <div className="card text-muted">{t("table.empty", { season })}</div>
+        ) : (
+          groups
+            .filter((g) => g.rows.length > 0)
+            .map((g) => (
+              <LeagueTable
+                key={g.league.slug}
+                league={g.league}
+                rows={g.rows}
+                columns={columns}
+                lang={lang}
+              />
+            ))
+        )}
+      </main>
+    );
+  }
+
+  // Specific league — single table.
+  const rows = await fetchTable(season, league);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12 space-y-8">
