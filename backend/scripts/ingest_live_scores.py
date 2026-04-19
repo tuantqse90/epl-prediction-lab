@@ -580,18 +580,13 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
 async def _flip_stuck_live_to_final(pool: asyncpg.Pool) -> int:
     """Cleanup: matches stuck at status='live' after API-Football dropped them.
 
-    API-Football removes a fixture from `/fixtures?live=all` the moment the
-    referee blows full-time. If that response never carries the FT transition
-    (e.g. the ingest timer skipped the one cycle it would've caught the
-    change), our DB row stays at status='live' forever. Visible symptom: UI
-    shows "LIVE 90'" on a match that ended hours ago.
-
-    We flip to 'final' any row where:
-      * status='live'
-      * live_updated_at is older than 90s (9 missed 10s ingest cycles)
-      * kickoff_time was more than 105 min ago (90 play + 15 HT; safe
-        against half-time network blips)
-    Score + minute are preserved — only status flips.
+    Two triggers for flipping to 'final':
+      (a) minute ≥ 90 AND live_period ∈ {2H, ET, P} AND stale > 60s — the
+          ref blew FT and API-Football dropped the fixture from the live
+          feed. Catches almost every match within ~1 minute of the whistle.
+      (b) stale > 90s AND kickoff > 95 min ago — fallback for matches whose
+          minute field never made it to 90 (feed glitch, early abandonment).
+    Score and minute are preserved; only status flips.
     """
     async with pool.acquire() as conn:
         n = await conn.fetchval(
@@ -600,17 +595,126 @@ async def _flip_stuck_live_to_final(pool: asyncpg.Pool) -> int:
                 UPDATE matches
                 SET status = 'final', live_updated_at = NOW()
                 WHERE status = 'live'
-                  AND (live_updated_at IS NULL
-                       OR live_updated_at < NOW() - INTERVAL '90 seconds')
-                  AND kickoff_time < NOW() - INTERVAL '105 minutes'
                   AND home_goals IS NOT NULL
                   AND away_goals IS NOT NULL
+                  AND (
+                    -- (a) minute hit 90 during a second-half / ET / pens period
+                    (
+                      minute IS NOT NULL AND minute >= 90
+                      AND live_period IN ('2H', 'ET', 'P')
+                      AND (live_updated_at IS NULL
+                           OR live_updated_at < NOW() - INTERVAL '60 seconds')
+                    )
+                    OR
+                    -- (b) kickoff long enough ago that it must have ended
+                    (
+                      kickoff_time < NOW() - INTERVAL '95 minutes'
+                      AND (live_updated_at IS NULL
+                           OR live_updated_at < NOW() - INTERVAL '90 seconds')
+                    )
+                  )
                 RETURNING 1
             )
             SELECT COUNT(*) FROM flipped
             """,
         )
     return int(n or 0)
+
+
+async def _notify_halftime(pool: asyncpg.Pool) -> int:
+    """Post a Telegram HT message for live matches with live_period='HT'.
+
+    Runs on every ingest tick; idempotent via matches.ht_notified_at.
+    Score + current model probs shown (live-mode probs carried through
+    the standard live-update path).
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            WITH latest AS (
+                SELECT DISTINCT ON (p.match_id)
+                    p.match_id, p.p_home_win, p.p_draw, p.p_away_win
+                FROM predictions p
+                ORDER BY p.match_id, p.created_at DESC
+            )
+            SELECT m.id, m.league_code, m.home_goals, m.away_goals,
+                   ht.short_name AS home_short, ht.slug AS home_slug,
+                   at.short_name AS away_short, at.slug AS away_slug,
+                   l.p_home_win, l.p_draw, l.p_away_win
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            LEFT JOIN latest l ON l.match_id = m.id
+            WHERE m.status = 'live'
+              AND m.live_period = 'HT'
+              AND m.ht_notified_at IS NULL
+              AND m.home_goals IS NOT NULL
+              AND m.kickoff_time > NOW() - INTERVAL '3 hours'
+            LIMIT 20
+            """,
+        )
+
+    if not rows:
+        return 0
+
+    notified = 0
+    for r in rows:
+        match_id = r["id"]
+        hg, ag = int(r["home_goals"]), int(r["away_goals"])
+        home_short = r["home_short"].replace("_", "\\_")
+        away_short = r["away_short"].replace("_", "\\_")
+        prefix = _league_prefix(r.get("league_code"))
+
+        probs_line = ""
+        if r["p_home_win"] is not None:
+            ph = round(float(r["p_home_win"]) * 100)
+            pd_ = round(float(r["p_draw"]) * 100)
+            pa = round(float(r["p_away_win"]) * 100)
+            probs_line = f"\n⚫ Model hiện tại: {home_short} {ph}% · Hòa {pd_}% · {away_short} {pa}%"
+
+        text = (
+            f"⏸️ *HALF TIME* · {prefix}\n"
+            f"*{home_short} {hg}-{ag} {away_short}*"
+            f"{probs_line}\n\n"
+            f"[Xem live tại đây](https://predictor.nullshift.sh/match/{match_id})"
+        )
+
+        posted_ok = True
+        if token and chat_id:
+            try:
+                result = _telegram_post(token, chat_id, text)
+                posted_ok = bool(result.get("ok"))
+                if not posted_ok:
+                    print(f"[live-scores] HT telegram api error for {match_id}: {result}")
+            except Exception as e:
+                posted_ok = False
+                print(f"[live-scores] HT telegram failed for {match_id}: {type(e).__name__}: {e}")
+
+        try:
+            from app.api.push import dispatch_goal
+            await dispatch_goal(
+                pool,
+                [r["home_slug"], r["away_slug"]],
+                {
+                    "title": f"⏸️ HT · {home_short} {hg}-{ag} {away_short}",
+                    "body": "Hết hiệp 1",
+                    "url": f"https://predictor.nullshift.sh/match/{match_id}",
+                },
+            )
+        except Exception as e:
+            print(f"[live-scores] HT push failed for {match_id}: {type(e).__name__}: {e}")
+
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE matches SET ht_notified_at = NOW() WHERE id = $1", match_id,
+            )
+        if posted_ok:
+            notified += 1
+
+    return notified
 
 
 async def run() -> None:
@@ -639,6 +743,10 @@ async def run() -> None:
         flipped = await _flip_stuck_live_to_final(pool)
         if flipped:
             print(f"[live-scores] flipped {flipped} stale live rows → final")
+
+        ht_posts = await _notify_halftime(pool)
+        if ht_posts:
+            print(f"[live-scores] posted {ht_posts} half-time notifications")
 
         ft_posts = await _notify_full_time(pool)
         if ft_posts:
