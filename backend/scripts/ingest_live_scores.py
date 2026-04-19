@@ -440,6 +440,143 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
     return True
 
 
+async def _notify_full_time(pool: asyncpg.Pool) -> int:
+    """Post a Telegram (+ push) summary for any match that just went final
+    but we haven't notified about yet. Idempotent via matches.ft_notified_at.
+
+    The message carries: final score + model pick + hit/miss + deep link.
+    Only matches that kicked off in the last 6h are eligible so we don't
+    spam-backfill after a DB migration or long outage.
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            WITH latest AS (
+                SELECT DISTINCT ON (p.match_id)
+                    p.match_id, p.p_home_win, p.p_draw, p.p_away_win
+                FROM predictions p
+                ORDER BY p.match_id, p.created_at DESC
+            )
+            SELECT m.id, m.kickoff_time, m.league_code, m.home_goals, m.away_goals,
+                   m.minute,
+                   ht.short_name AS home_short, ht.slug AS home_slug, ht.name AS home_name,
+                   at.short_name AS away_short, at.slug AS away_slug, at.name AS away_name,
+                   l.p_home_win, l.p_draw, l.p_away_win
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            LEFT JOIN latest l ON l.match_id = m.id
+            WHERE m.status = 'final'
+              AND m.home_goals IS NOT NULL
+              AND m.away_goals IS NOT NULL
+              AND m.ft_notified_at IS NULL
+              AND m.kickoff_time > NOW() - INTERVAL '6 hours'
+            ORDER BY m.kickoff_time ASC
+            LIMIT 20
+            """,
+        )
+
+    if not rows:
+        return 0
+
+    notified = 0
+    for r in rows:
+        match_id = r["id"]
+
+        # Compute model pick / hit (tolerant of missing prediction rows).
+        if r["p_home_win"] is None:
+            pick = None
+            hit = None
+            conf = 0.0
+        else:
+            probs = {
+                "H": float(r["p_home_win"]),
+                "D": float(r["p_draw"]),
+                "A": float(r["p_away_win"]),
+            }
+            pick = max(probs, key=probs.get)
+            conf = probs[pick]
+
+        hg, ag = int(r["home_goals"]), int(r["away_goals"])
+        actual = "H" if hg > ag else "A" if ag > hg else "D"
+        hit = pick is not None and pick == actual
+
+        prefix = _league_prefix(r.get("league_code"))
+        home_short = r["home_short"].replace("_", "\\_")
+        away_short = r["away_short"].replace("_", "\\_")
+
+        if pick is None:
+            pick_line = ""
+        else:
+            pick_label = (
+                home_short if pick == "H"
+                else away_short if pick == "A"
+                else "Hòa"
+            )
+            verdict_tag = "✓ ĐÚNG" if hit else "✗ SAI"
+            pick_line = (
+                f"\n⚫ Model dự đoán *{pick_label}* ({round(conf * 100)}%) — *{verdict_tag}*"
+            )
+
+        text = (
+            f"🏁 *FULL TIME* · {prefix}\n"
+            f"*{home_short} {hg}-{ag} {away_short}*"
+            f"{pick_line}\n\n"
+            f"[Xem phân tích](https://predictor.nullshift.sh/match/{match_id})"
+        )
+
+        posted_ok = True
+        if token and chat_id:
+            try:
+                result = _telegram_post(token, chat_id, text)
+                posted_ok = bool(result.get("ok"))
+                if not posted_ok:
+                    print(f"[live-scores] FT telegram api error for {match_id}: {result}")
+            except Exception as e:
+                posted_ok = False
+                print(f"[live-scores] FT telegram failed for {match_id}: {type(e).__name__}: {e}")
+        else:
+            # No creds set — don't block the DB flag; treat as 'notified' so
+            # we don't loop forever trying to post.
+            pass
+
+        # Web push (best-effort, independent of Telegram).
+        try:
+            from app.api.push import dispatch_goal
+            if hit is True:
+                body = f"Đúng kèo! {home_short} {hg}-{ag} {away_short}"
+            elif hit is False:
+                body = f"Miss kèo. {home_short} {hg}-{ag} {away_short}"
+            else:
+                body = f"{home_short} {hg}-{ag} {away_short}"
+            await dispatch_goal(
+                pool,
+                [r["home_slug"], r["away_slug"]],
+                {
+                    "title": f"🏁 FT · {home_short} {hg}-{ag} {away_short}",
+                    "body": body,
+                    "url": f"https://predictor.nullshift.sh/match/{match_id}",
+                },
+            )
+        except Exception as e:
+            print(f"[live-scores] FT push failed for {match_id}: {type(e).__name__}: {e}")
+
+        # Always mark notified — even if telegram failed — so we don't spam
+        # retry on every 10s tick. Missed FT posts are acceptable; duplicate
+        # posts are not.
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE matches SET ft_notified_at = NOW() WHERE id = $1", match_id,
+            )
+        if posted_ok:
+            notified += 1
+
+    return notified
+
+
 async def _flip_stuck_live_to_final(pool: asyncpg.Pool) -> int:
     """Cleanup: matches stuck at status='live' after API-Football dropped them.
 
@@ -502,6 +639,10 @@ async def run() -> None:
         flipped = await _flip_stuck_live_to_final(pool)
         if flipped:
             print(f"[live-scores] flipped {flipped} stale live rows → final")
+
+        ft_posts = await _notify_full_time(pool)
+        if ft_posts:
+            print(f"[live-scores] posted {ft_posts} full-time notifications")
     finally:
         await pool.close()
 
