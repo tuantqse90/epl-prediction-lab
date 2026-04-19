@@ -962,10 +962,10 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
                 elif g["team_slug"] == r["away_slug"]:
                     side = away_short
             player = (g["player_name"] or "—").replace("_", "\\_")
-            scorer_lines.append(f"• _{minute_label}_ {player}{badge} ({side})")
+            scorer_lines.append(f"┃ _{minute_label:>5}_  *{side or '—'}*  {player}{badge}")
         scorers_block = ""
         if scorer_lines:
-            scorers_block = "\n\n⚽ *Bàn thắng:*\n" + "\n".join(scorer_lines)
+            scorers_block = "\n\n⚽ *Bàn thắng*\n" + "\n".join(scorer_lines)
 
         # Stats block — render only keys present in live_stats JSONB.
         stats_block = ""
@@ -1004,31 +1004,109 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
                 rows_list = [x for x in rows_list if x is not None]
                 if rows_list:
                     stats_block = (
-                        f"\n\n📊 *Thống kê* ({home_short} · {away_short}):\n```\n"
+                        f"\n\n📊 *Thế trận* — {home_short} vs {away_short}\n```\n"
                         + "\n".join(rows_list)
                         + "\n```"
                     )
 
-        if pick is None:
-            pick_line = ""
-        else:
+        # Pre-match probability breakdown (shows model's prior conviction).
+        prob_block = ""
+        if r["p_home_win"] is not None:
+            ph = round(float(r["p_home_win"]) * 100)
+            pd_ = round(float(r["p_draw"]) * 100)
+            pa = round(float(r["p_away_win"]) * 100)
+            prob_block = (
+                f"\n🔮 *Dự đoán trước trận:* "
+                f"{home_short} {ph}% · Hòa {pd_}% · {away_short} {pa}%"
+            )
+
+        # Model verdict + streak counter for the same league.
+        streak_block = ""
+        pick_line = ""
+        if pick is not None:
             pick_label = (
                 home_short if pick == "H"
                 else away_short if pick == "A"
                 else "Hòa"
             )
-            verdict_tag = "✓ ĐÚNG" if hit else "✗ SAI"
+            verdict_tag = "✅ ĐÚNG" if hit else "❌ SAI"
             pick_line = (
-                f"\n\n⚫ Model dự đoán *{pick_label}* ({round(conf * 100)}%) — *{verdict_tag}*"
+                f"\n⚫ *Chốt của model:* {pick_label} ({round(conf * 100)}%) — *{verdict_tag}*"
             )
+            # Streak: wins/total in same league over last 10 scored matches.
+            if r.get("league_code"):
+                async with pool.acquire() as conn:
+                    last10 = await conn.fetch(
+                        """
+                        WITH latest AS (
+                            SELECT DISTINCT ON (p.match_id)
+                                p.match_id, p.p_home_win, p.p_draw, p.p_away_win
+                            FROM predictions p
+                            ORDER BY p.match_id, p.created_at DESC
+                        )
+                        SELECT m.home_goals, m.away_goals,
+                               l.p_home_win, l.p_draw, l.p_away_win
+                        FROM matches m
+                        JOIN latest l ON l.match_id = m.id
+                        WHERE m.league_code = $1
+                          AND m.status = 'final'
+                          AND m.home_goals IS NOT NULL
+                          AND m.kickoff_time > NOW() - INTERVAL '60 days'
+                        ORDER BY m.kickoff_time DESC
+                        LIMIT 10
+                        """,
+                        r["league_code"],
+                    )
+                hits = 0
+                total = 0
+                for row in last10:
+                    probs_i = {"H": float(row["p_home_win"]), "D": float(row["p_draw"]), "A": float(row["p_away_win"])}
+                    pick_i = max(probs_i, key=probs_i.get)
+                    actual_i = (
+                        "H" if row["home_goals"] > row["away_goals"]
+                        else "A" if row["home_goals"] < row["away_goals"]
+                        else "D"
+                    )
+                    if pick_i == actual_i:
+                        hits += 1
+                    total += 1
+                if total > 0:
+                    streak_block = f"\n🔥 *Streak {prefix}*: {hits}/{total} gần nhất"
+
+        # AI match recap line. Uses Qwen; tolerant of LLM outages (just
+        # drops the line quietly).
+        recap_block = ""
+        try:
+            from app.llm.match_recap_line import match_recap_line
+            top_h = [g["player_name"] for g in goal_events if g["team_slug"] == r["home_slug"]][:3]
+            top_a = [g["player_name"] for g in goal_events if g["team_slug"] == r["away_slug"]][:3]
+            line = match_recap_line(
+                home_team=r["home_name"], away_team=r["away_name"],
+                home_goals=hg, away_goals=ag,
+                pre_pick_side=pick, pre_pick_conf=conf if pick else None,
+                hit=hit,
+                top_scorers_home=top_h, top_scorers_away=top_a,
+            )
+            if line:
+                # Light escaping so the LLM doesn't accidentally break
+                # Telegram's legacy Markdown parser.
+                safe = line.replace("*", "").replace("_", "").replace("[", "").replace("]", "")
+                recap_block = f"\n\n💬 _{safe}_"
+        except Exception as e:
+            print(f"[live-scores] FT recap line failed for {match_id}: {type(e).__name__}: {e}")
 
         text = (
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🏁 *KẾT THÚC* · {prefix}\n"
-            f"*{home_short} {hg}-{ag} {away_short}*"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"\n*{home_short}  {hg}  ━  {ag}  {away_short}*"
+            f"{prob_block}"
             f"{scorers_block}"
             f"{stats_block}"
-            f"{pick_line}\n\n"
-            f"[Xem phân tích](https://predictor.nullshift.sh/match/{match_id})"
+            f"\n{pick_line}"
+            f"{streak_block}"
+            f"{recap_block}"
+            f"\n\n[📊 Xem phân tích đầy đủ](https://predictor.nullshift.sh/match/{match_id})"
         )
 
         posted_ok = True
