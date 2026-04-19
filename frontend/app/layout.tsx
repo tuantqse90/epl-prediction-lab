@@ -40,18 +40,22 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const lang = await getLang();
+  const plausibleHost = process.env.NEXT_PUBLIC_PLAUSIBLE_HOST;
+  const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
   return (
     <html lang={lang}>
-      <head>
-        {process.env.NEXT_PUBLIC_PLAUSIBLE_HOST && process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN && (
+      {/* Do NOT hand-render <head> — Next App Router injects stylesheet
+          links into its own auto-managed head. A manual <head/> sibling
+          ships an empty head on first paint, then React hydration races
+          with the injected link and the CSS briefly/permanently vanishes. */}
+      <body className="min-h-screen bg-surface text-primary">
+        {plausibleHost && plausibleDomain && (
           <script
             defer
-            data-domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN}
-            src={`${process.env.NEXT_PUBLIC_PLAUSIBLE_HOST}/js/script.js`}
+            data-domain={plausibleDomain}
+            src={`${plausibleHost}/js/script.js`}
           />
         )}
-      </head>
-      <body className="min-h-screen bg-surface text-primary">
         <LangProvider lang={lang}>
           <SiteHeader lang={lang} />
           {children}
