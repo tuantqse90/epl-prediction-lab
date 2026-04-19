@@ -29,6 +29,9 @@ export default async function SiteHeader({ lang }: { lang: Lang }) {
         <Link href="/scorers" className="text-secondary hover:text-neon transition-colors whitespace-nowrap">
           {t("nav.scorers")}
         </Link>
+        <Link href="/news" className="text-secondary hover:text-neon transition-colors whitespace-nowrap">
+          {t("nav.news")}
+        </Link>
         <Link href="/stats" className="text-secondary hover:text-neon transition-colors whitespace-nowrap">
           {t("nav.stats")}
         </Link>

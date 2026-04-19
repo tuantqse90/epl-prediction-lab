@@ -9,6 +9,7 @@ const zh: typeof en = {
   "nav.stats": "统计",
   "nav.recent": "上周末",
   "nav.scorers": "射手榜",
+  "nav.news": "新闻",
   "common.back": "← 返回",
   "common.viewTx": "查看交易 →",
   "common.season": "赛季",

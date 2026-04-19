@@ -9,6 +9,7 @@ from app.api import admin as admin_router
 from app.api import chat as chat_router
 from app.api import fpl as fpl_router
 from app.api import matches as matches_router
+from app.api import news as news_router
 from app.api import players as players_router
 from app.api import predictions as predictions_router
 from app.api import push as push_router
@@ -43,6 +44,7 @@ app.include_router(fpl_router.router)
 app.include_router(search_router.router)
 app.include_router(players_router.router)
 app.include_router(tipsters_router.router)
+app.include_router(news_router.router)
 
 
 @app.get("/health")

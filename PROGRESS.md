@@ -2,6 +2,24 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-19 13:30 +07 — Model validation + XGBoost leg + 3 new locales + match detail tabs
+
+**Model validation**: 5-config walk-forward backtest (2,263 matches, 6 seasons). Ensemble **full-stack (Poisson + Dixon-Coles + Elo 25% + opp-adjusted xG)** beats baseline **+0.71% accuracy / −1.73% log-loss**. Elo single biggest leg (−0.0149), opp-adjust mild (−0.0046). Decay alone neutral. Keep full-stack config (`scripts/compare_configs.py`).
+
+**XGBoost leg 3**: `app/models/xgb_model.py` + `scripts/train_xgboost.py`. 21 features (strengths + Elo + rest-days + derby flag). Train on all prior seasons, holdout 2024-25 EPL → acc 53.3% / log-loss 0.984. Wired into `predict/service` as second-layer blend at weight 0.30 (conservative until multi-league history fills in). Model file at `/tmp/football-predict-xgb.json`; graceful fallback if absent.
+
+**Locales TH/ZH/KO**: added Thai, Chinese Simplified, Korean full 90-key translations. LangToggle now `<select>` (5 choices). Per-locale timezone + BCP-47 (Bangkok, Shanghai, Seoul). OpenGraph alternateLocale expanded.
+
+**Match detail tabs**: 15 panels grouped into 4 tabs (Preview / Markets / Analysis / Community) via `<MatchTabs>` client wrapper. Sticky under SiteHeader. URL hash sync (`/match/X#markets` deep-links).
+
+**Confidence intervals**: `app/models/ci.py` bootstrap 30-sample → 16/84 percentile on (pH, pD, pA). `/api/matches/{id}/ci` cached 10min. Prediction card shows band `68% / 58%–76%`.
+
+**Team profile polish**: radial-gradient hero with oversized translucent crest corner, 4 stat tiles, RadialGauge for Attack/Defense vs league, next-fixture + last-result spotlight cards, top-scorer card with neon goal count.
+
+**CSS bug fix**: removed hand-rolled `<head>` from layout.tsx that was racing Next's auto-head and stripping the stylesheet link during hydration.
+
+**Deploy flow**: `git push vps main` path stable. 90 tests pass.
+
 ## 2026-04-19 09:45 +07 — Lineups + scorer odds + injury-adjusted λ + share + JSON-LD + favorites + push-to-bare-repo
 
 **Lineups**: new `match_lineups` table + `ingest_lineups.py` (resolves `api_football_fixture_id` via `/fixtures?date=` per (league,day), then `/fixtures/lineups?fixture=<id>`). Systemd timer every 15m inside 3h pre-kickoff window. `/api/matches/{id}/lineups` + `<LineupsPanel>` on match detail.

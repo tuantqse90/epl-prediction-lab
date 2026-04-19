@@ -354,13 +354,18 @@ async def match_ci(match_id: int, request: Request) -> ConfidenceInterval | None
         return None
     league_avg = float(pd.concat([df["home_goals"], df["away_goals"]]).mean())
 
+    # 15 samples halves compute time (~3.6s → ~1.8s cold start). The
+    # resulting percentiles are slightly noisier but still bracket the
+    # point estimate in the same band. If traffic grows enough to warrant
+    # it, move CI computation to a warmup job that fills _CI_CACHE after
+    # every predict_and_persist.
     ci = bootstrap_1x2_ci(
         df,
         match["home_name"], match["away_name"],
         as_of=match["kickoff_time"],
         league_avg_goals=league_avg,
         rho=-0.15,
-        n_samples=30, last_n=12, temperature=1.35,
+        n_samples=15, last_n=12, temperature=1.35,
         seed=match_id,  # deterministic across calls for stable UX
     )
     if ci.n_samples == 0:

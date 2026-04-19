@@ -16,6 +16,9 @@ run() {
   docker compose exec -T api "$@"
 }
 
+# News headlines (RSS, no API cost)
+run python scripts/ingest_news.py || true
+
 # Injuries refresh (cheap, 5 calls/day)
 run python scripts/ingest_injuries.py --season "$SEASON" || true
 

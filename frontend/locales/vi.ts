@@ -9,6 +9,7 @@ const vi: typeof en = {
   "nav.stats": "Thống kê",
   "nav.recent": "Tuần vừa rồi",
   "nav.scorers": "Vua phá lưới",
+  "nav.news": "Tin tức",
   "common.back": "← Quay lại",
   "common.viewTx": "Xem giao dịch →",
   "common.season": "Mùa giải",

@@ -9,6 +9,7 @@ const ko: typeof en = {
   "nav.stats": "통계",
   "nav.recent": "지난 주말",
   "nav.scorers": "득점왕",
+  "nav.news": "뉴스",
   "common.back": "← 뒤로",
   "common.viewTx": "거래 보기 →",
   "common.season": "시즌",

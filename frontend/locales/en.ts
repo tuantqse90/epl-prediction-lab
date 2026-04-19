@@ -7,6 +7,7 @@ const en = {
   "nav.stats": "Stats",
   "nav.recent": "Last weekend",
   "nav.scorers": "Top scorers",
+  "nav.news": "News",
   "common.back": "← Back",
   "common.viewTx": "View transaction →",
   "common.season": "Season",

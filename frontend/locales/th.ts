@@ -9,6 +9,7 @@ const th: typeof en = {
   "nav.stats": "สถิติ",
   "nav.recent": "สุดสัปดาห์ที่ผ่านมา",
   "nav.scorers": "ดาวซัลโว",
+  "nav.news": "ข่าว",
   "common.back": "← ย้อนกลับ",
   "common.viewTx": "ดูธุรกรรม →",
   "common.season": "ฤดูกาล",

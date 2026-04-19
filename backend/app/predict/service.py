@@ -25,7 +25,11 @@ NEUTRAL = TeamStrength(attack=1.0, defense=1.0)
 # Weights are applied via two sequential convex combinations in
 # predict_match: first Poisson+Elo, then the result blended with XGB.
 ELO_WEIGHT = 0.25
-XGB_WEIGHT = 0.30   # Trained booster, most independent signal. Loaded lazily.
+# 0.15 is the conservative setting: backtest showed XGBoost alone is roughly
+# tied with raw Poisson on log-loss (limited multi-league training data
+# until more seasons accumulate). 30% was too aggressive — the diversity
+# benefit of the independent signal still justifies a small blend.
+XGB_WEIGHT = 0.15
 _XGB_MODEL_CACHE = {"model": None, "loaded": False}
 
 

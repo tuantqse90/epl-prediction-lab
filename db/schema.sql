@@ -149,6 +149,21 @@ CREATE TABLE IF NOT EXISTS twitter_posts (
 );
 CREATE INDEX IF NOT EXISTS idx_twitter_match ON twitter_posts (match_id);
 
+CREATE TABLE IF NOT EXISTS news_items (
+    id            SERIAL PRIMARY KEY,
+    source        TEXT NOT NULL,
+    url           TEXT UNIQUE NOT NULL,
+    title         TEXT NOT NULL,
+    summary       TEXT,
+    published_at  TIMESTAMPTZ NOT NULL,
+    teams         TEXT[] NOT NULL DEFAULT '{}',
+    league_code   TEXT,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_news_published ON news_items (published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_news_teams     ON news_items USING GIN (teams);
+CREATE INDEX IF NOT EXISTS idx_news_league    ON news_items (league_code, published_at DESC);
+
 CREATE TABLE IF NOT EXISTS chat_messages (
     id         SERIAL PRIMARY KEY,
     session_id UUID NOT NULL,

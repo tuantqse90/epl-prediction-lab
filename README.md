@@ -1,18 +1,29 @@
-# EPL Prediction Lab
+# Football Prediction Lab
 
-> xG-driven Poisson + Dixon-Coles predictions for every Premier League match, with market-edge value bets, calibrated confidence, and plain-language reasoning from Qwen.
+> Open-methodology Poisson + Elo + XGBoost ensemble for top-5 European football leagues. Every prediction is publicly recomputable and commitment-hashed.
 
 Live: **https://predictor.nullshift.sh/** · Telegram: **[@worldcup_predictor](https://t.me/worldcup_predictor)**
 
 ## What it does
 
-- **Predicts** every EPL fixture with a Poisson + Dixon-Coles engine tuned on 7 seasons of Understat data (`last_n=12`, `ρ=-0.15`, `T=1.35`).
-- **Compares to the market**: flags every outcome where the model's implied edge over devigged bookmaker odds exceeds 5 percentage points.
-- **Explains itself**: each prediction ships with a short, data-grounded Vietnamese reasoning line from Qwen (via LiteLLM → DashScope intl).
-- **Chats about the match**: multi-turn Q&A grounded in the same RAG data block (last-5 xG, H2H, top scorers, model probabilities).
-- **Ships weekly**: systemd timer drives a full refresh cycle every Monday 02:00 UTC; pre-match picks + post-match recap auto-post to the Telegram channel.
+- **Predicts** every fixture in EPL, La Liga, Serie A, Bundesliga, Ligue 1 with a layered ensemble:
+  - Dixon-Coles Poisson on opponent-adjusted xG (last 12 matches, exponential decay, venue-split strengths)
+  - Goal-weighted Elo (25% blend, 70-point home-field advantage)
+  - XGBoost softprob on 21 features (30% second-layer blend)
+- **Quantifies uncertainty**: 30-sample bootstrap confidence intervals on every outcome (`68% / 58%–76%`).
+- **Derived markets**: O/U 1.5/2.5/3.5, BTTS, clean-sheet, HT winner, HT/FT 9-grid, anytime goalscorer per player. Fractional Kelly stake next to every bookmaker odds.
+- **Live mode**: 10-second systemd timer polls API-Football during match windows, recomputes probabilities from remaining-Poisson, publishes goal events to Telegram + web push.
+- **Transparent**: every prediction carries a SHA-256 commitment hash recomputable from the public body. /benchmark page tracks rolling model vs baseline vs uniform-random.
+- **Multilingual**: EN / VI / TH / ZH / KO with per-locale timezones (London, Ho Chi Minh, Bangkok, Shanghai, Seoul).
+- **Explains itself**: Qwen-generated reasoning per fixture + multi-turn chat grounded in the same RAG data.
 
-Currently 52% 1X2 accuracy vs a 42% home-always baseline over ~2600 backtested matches.
+**Backtested accuracy** (6 seasons, 2,263 matches):
+
+| config | accuracy | log-loss |
+|---|---|---|
+| baseline (raw Poisson) | 52.32% | 1.0015 |
+| + Elo ensemble | 53.29% | 0.9866 |
+| **full ensemble** (Poisson+Elo+opp-adj) | **53.03%** | **0.9843 (−1.73%)** |
 
 ## Stack
 
