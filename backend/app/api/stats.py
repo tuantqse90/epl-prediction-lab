@@ -525,6 +525,84 @@ async def comparison(
     return out
 
 
+class SinceUpgrade(BaseModel):
+    """Live log-loss + accuracy on matches scored with a specific model version.
+
+    Used by the /proof banner to demonstrate the v2 ensemble in the wild,
+    not just in backtest.
+    """
+    pattern: str
+    scored: int
+    correct: int
+    accuracy: float
+    log_loss: float
+    earliest: date | None
+    latest: date | None
+
+
+_SINCE_UPGRADE_QUERY = """
+WITH v2 AS (
+    SELECT DISTINCT ON (p.match_id)
+        p.match_id, p.p_home_win, p.p_draw, p.p_away_win, p.model_version, p.created_at
+    FROM predictions p
+    WHERE p.model_version LIKE '%' || $1::text || '%'
+    ORDER BY p.match_id, p.created_at DESC
+)
+SELECT m.home_goals, m.away_goals, m.kickoff_time,
+       v2.p_home_win, v2.p_draw, v2.p_away_win
+FROM matches m
+JOIN v2 ON v2.match_id = m.id
+WHERE m.status = 'final'
+  AND m.home_goals IS NOT NULL
+"""
+
+
+@router.get("/since-upgrade", response_model=SinceUpgrade)
+async def since_upgrade(
+    request: Request,
+    pattern: str = Query("xgb=0.6", description="Substring that must appear in predictions.model_version"),
+) -> SinceUpgrade:
+    """Aggregate log-loss + accuracy for matches predicted with a specific model.
+
+    Pattern matches `model_version` via SQL LIKE. The default `xgb=0.6`
+    filters to predictions written after the 2026-04-19 ensemble upgrade.
+    """
+    pool = request.app.state.pool
+    cache_key = ("since_upgrade", pattern)
+    cached = _STATS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(_SINCE_UPGRADE_QUERY, pattern)
+
+    scored = 0
+    correct = 0
+    ll_sum = 0.0
+    dates: list = []
+    for r in rows:
+        hg, ag = int(r["home_goals"]), int(r["away_goals"])
+        actual = _outcome(hg, ag)
+        probs = {"H": float(r["p_home_win"]), "D": float(r["p_draw"]), "A": float(r["p_away_win"])}
+        if max(probs, key=probs.get) == actual:
+            correct += 1
+        ll_sum += -math.log(max(probs[actual], 1e-12))
+        scored += 1
+        dates.append(r["kickoff_time"].date())
+
+    out = SinceUpgrade(
+        pattern=pattern,
+        scored=scored,
+        correct=correct,
+        accuracy=correct / scored if scored else 0.0,
+        log_loss=ll_sum / scored if scored else 0.0,
+        earliest=min(dates) if dates else None,
+        latest=max(dates) if dates else None,
+    )
+    _STATS_CACHE.set(cache_key, out)
+    return out
+
+
 class HistorySeason(BaseModel):
     season: str
     scored: int

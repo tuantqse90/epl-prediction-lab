@@ -53,6 +53,26 @@ type Comparison = {
   model_log_loss: number;
 };
 
+type SinceUpgrade = {
+  pattern: string;
+  scored: number;
+  correct: number;
+  accuracy: number;
+  log_loss: number;
+  earliest: string | null;
+  latest: string | null;
+};
+
+async function fetchSinceUpgrade(): Promise<SinceUpgrade | null> {
+  try {
+    const res = await fetch(`${BASE}/api/stats/since-upgrade?pattern=xgb%3D0.6`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 async function fetchHistory(league?: string): Promise<HistorySeason[]> {
   const qs = league ? `?league=${encodeURIComponent(league)}` : "";
   try {
@@ -100,12 +120,13 @@ export default async function ProofPage() {
   const leagueParam = leagueForApi(league);
   const leagueLabel = lang === "vi" ? leagueInfo.name_vi : leagueInfo.name_en;
 
-  const [history, cal, comp30, compSeason, compAll] = await Promise.all([
+  const [history, cal, comp30, compSeason, compAll, sinceV2] = await Promise.all([
     fetchHistory(leagueParam),
     fetchCalibration("2025-26", leagueParam),
     fetchComparison(30, leagueParam),
     fetchComparison(240, leagueParam), // ~current season window
     fetchComparison(0, leagueParam),
+    fetchSinceUpgrade(),
   ]);
 
   const totalScored = history.reduce((s, r) => s + r.scored, 0);
@@ -200,11 +221,49 @@ export default async function ProofPage() {
               <p className="font-mono text-xs text-neon">+3.8pp {lang === "vi" ? "chính xác" : "accuracy"}</p>
             </div>
           </div>
-          <p className="font-mono text-[10px] text-muted leading-relaxed pt-2">
-            {lang === "vi"
-              ? "Số live log-loss sẽ cập nhật khi có đủ trận đã chấm với model mới."
-              : "Live log-loss over the new ensemble will populate as new matches finalize."}
-          </p>
+          {sinceV2 && sinceV2.scored > 0 ? (
+            <div className="rounded-lg bg-neon/5 border border-neon/30 p-3 mt-1">
+              <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-neon">
+                  {lang === "vi" ? "Số liệu thực tế trên ensemble mới" : "Live numbers under new ensemble"}
+                </span>
+                <span className="font-mono text-[10px] text-muted">
+                  {lang === "vi" ? "từ" : "since"} {sinceV2.earliest}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 mt-2 font-mono text-xs">
+                <div>
+                  <p className="text-muted text-[10px] uppercase tracking-wide">
+                    {lang === "vi" ? "Trận đã chấm" : "Scored"}
+                  </p>
+                  <p className="stat text-primary text-lg">{sinceV2.scored}</p>
+                </div>
+                <div>
+                  <p className="text-muted text-[10px] uppercase tracking-wide">
+                    {lang === "vi" ? "Chính xác" : "Accuracy"}
+                  </p>
+                  <p className="stat text-neon text-lg">{pct(sinceV2.accuracy)}</p>
+                </div>
+                <div>
+                  <p className="text-muted text-[10px] uppercase tracking-wide">
+                    {lang === "vi" ? "Log-loss" : "Log-loss"}
+                  </p>
+                  <p className="stat text-neon text-lg">{sinceV2.log_loss.toFixed(3)}</p>
+                </div>
+              </div>
+              <p className="font-mono text-[10px] text-muted mt-2">
+                {lang === "vi"
+                  ? `Backtest dự đoán 0.9278. Chênh lệch thực tế: ${(sinceV2.log_loss - 0.9278).toFixed(3)}.`
+                  : `Backtest predicted 0.9278. Live delta vs backtest: ${(sinceV2.log_loss - 0.9278).toFixed(3)}.`}
+              </p>
+            </div>
+          ) : (
+            <p className="font-mono text-[10px] text-muted leading-relaxed pt-2">
+              {lang === "vi"
+                ? "Số live log-loss sẽ cập nhật khi có đủ trận đã chấm với model mới."
+                : "Live log-loss over the new ensemble will populate as new matches finalize."}
+            </p>
+          )}
         </div>
       </section>
 
