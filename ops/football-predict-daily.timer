@@ -1,0 +1,10 @@
+[Unit]
+Description=EPL Prediction Lab — daily predict refresh at 06:00 UTC
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 UTC
+Persistent=true
+Unit=football-predict-daily.service
+
+[Install]
+WantedBy=timers.target

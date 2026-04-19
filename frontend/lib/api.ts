@@ -101,6 +101,36 @@ export async function getScorerOdds(matchId: number, limit = 12): Promise<Scorer
   return (await res.json()) as ScorerOdds[];
 }
 
+export type TeamInjuryImpact = {
+  team_slug: string;
+  injured_xg_share: number;
+  lambda_multiplier: number;
+  top_absent: string[];
+};
+
+export type InjuryImpact = { home: TeamInjuryImpact; away: TeamInjuryImpact };
+
+export async function getInjuryImpact(matchId: number): Promise<InjuryImpact | null> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/injury-impact`, { cache: "no-store" });
+  if (!res.ok) return null;
+  return (await res.json()) as InjuryImpact;
+}
+
+export type Weather = {
+  temp_c: number | null;
+  wind_kmh: number | null;
+  precip_mm: number | null;
+  condition: string | null;
+  fetched_at: string | null;
+};
+
+export async function getWeather(matchId: number): Promise<Weather | null> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/weather`, { cache: "no-store" });
+  if (!res.ok) return null;
+  const body = (await res.json()) as Weather | null;
+  return body;
+}
+
 export async function fetchSuggestedPrompts(matchId: number): Promise<string[]> {
   const res = await fetch(`${BASE}/api/chat/suggest/${matchId}`, { cache: "no-store" });
   if (!res.ok) return [];

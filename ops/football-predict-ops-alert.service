@@ -1,0 +1,9 @@
+[Unit]
+Description=EPL Prediction Lab — ops health alert to Telegram
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/football-predict
+ExecStart=/bin/bash -c "cd /opt/football-predict && docker compose exec -T api python scripts/ops_alert.py"
+User=root

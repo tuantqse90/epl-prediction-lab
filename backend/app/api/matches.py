@@ -39,6 +39,14 @@ class MatchInjuries(BaseModel):
     away: list[Injury]
 
 
+class WeatherOut(BaseModel):
+    temp_c: float | None
+    wind_kmh: float | None
+    precip_mm: float | None
+    condition: str | None
+    fetched_at: str | None
+
+
 class ScorerOdds(BaseModel):
     player_name: str
     team_slug: str
@@ -48,6 +56,18 @@ class ScorerOdds(BaseModel):
     season_games: int
     expected_goals: float    # xG contribution for this match
     p_anytime: float         # probability of scoring ≥ 1 goal
+
+
+class TeamInjuryImpact(BaseModel):
+    team_slug: str
+    injured_xg_share: float        # fraction of team season xG currently out
+    lambda_multiplier: float       # what we multiply pre-adjust λ by (≤ 1.0)
+    top_absent: list[str]          # player names ordered by xG contribution
+
+
+class InjuryImpact(BaseModel):
+    home: TeamInjuryImpact
+    away: TeamInjuryImpact
 
 
 class LineupPlayer(BaseModel):
@@ -270,6 +290,83 @@ async def match_lineups(match_id: int, request: Request) -> MatchLineups:
         )
 
     return MatchLineups(home=_build(pair["home_slug"]), away=_build(pair["away_slug"]))
+
+
+@router.get("/{match_id}/weather", response_model=WeatherOut | None)
+async def match_weather(match_id: int, request: Request) -> WeatherOut | None:
+    pool = request.app.state.pool
+    row = await pool.fetchrow(
+        "SELECT temp_c, wind_kmh, precip_mm, condition, fetched_at "
+        "FROM match_weather WHERE match_id = $1",
+        match_id,
+    )
+    if row is None:
+        return None
+    return WeatherOut(
+        temp_c=row["temp_c"],
+        wind_kmh=row["wind_kmh"],
+        precip_mm=row["precip_mm"],
+        condition=row["condition"],
+        fetched_at=row["fetched_at"].isoformat() if row["fetched_at"] else None,
+    )
+
+
+@router.get("/{match_id}/injury-impact", response_model=InjuryImpact)
+async def match_injury_impact(match_id: int, request: Request) -> InjuryImpact:
+    """Per-team injury-adjusted λ multiplier + top absentees by season xG.
+
+    Mirrors the INJURY_ALPHA shrink applied in predict/service so the FE
+    can explain the model's move: "λ_home = 1.5 × 0.86 = 1.29 (Salah, Saka out)".
+    """
+    from app.predict.service import INJURY_ALPHA, _injury_impact
+
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        pair = await conn.fetchrow(
+            """
+            SELECT m.season,
+                   ht.id AS home_id, ht.slug AS home_slug,
+                   at.id AS away_id, at.slug AS away_slug
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            WHERE m.id = $1
+            """,
+            match_id,
+        )
+        if pair is None:
+            raise HTTPException(404, f"match {match_id} not found")
+
+        async def _team(team_id: int, team_slug: str) -> TeamInjuryImpact:
+            share = await _injury_impact(conn, team_id, pair["season"])
+            multiplier = max(0.5, 1.0 - INJURY_ALPHA * share)
+            absent = await conn.fetch(
+                """
+                SELECT p.player_name, p.xg
+                FROM player_injuries pi
+                JOIN teams t ON t.id = $1 AND pi.team_slug = t.slug
+                JOIN player_season_stats p
+                     ON p.team_id = t.id
+                    AND p.season = $2
+                    AND p.player_name = pi.player_name
+                WHERE pi.season = $2
+                  AND pi.last_seen_at >= NOW() - INTERVAL '3 days'
+                  AND pi.status_label <> 'Missing Fixture'
+                ORDER BY p.xg DESC NULLS LAST
+                LIMIT 5
+                """,
+                team_id, pair["season"],
+            )
+            return TeamInjuryImpact(
+                team_slug=team_slug,
+                injured_xg_share=round(share, 4),
+                lambda_multiplier=round(multiplier, 4),
+                top_absent=[r["player_name"] for r in absent],
+            )
+
+        home = await _team(pair["home_id"], pair["home_slug"])
+        away = await _team(pair["away_id"], pair["away_slug"])
+    return InjuryImpact(home=home, away=away)
 
 
 @router.get("/{match_id}/scorers", response_model=list[ScorerOdds])

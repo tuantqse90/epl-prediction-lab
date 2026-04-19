@@ -1,7 +1,11 @@
+import Link from "next/link";
+
 import FavoritesSection from "@/components/FavoritesSection";
 import LivePoller from "@/components/LivePoller";
 import MatchCard from "@/components/MatchCard";
+import PushButton from "@/components/PushButton";
 import QuickPicks from "@/components/QuickPicks";
+import TelegramCTA from "@/components/TelegramCTA";
 import { listMatches } from "@/lib/api";
 import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
 import type { MatchOut } from "@/lib/types";
@@ -51,9 +55,25 @@ export default async function HomePage() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-12 space-y-10">
       {hasLive && <LivePoller />}
-      <header className="space-y-3">
+      <header className="space-y-4">
         <h1 className="headline-hero">{t("dash.headline")}</h1>
         <p className="max-w-2xl text-secondary text-base md:text-lg">{t("dash.subhead")}</p>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          {acc && acc.scored > 0 && (
+            <span className="inline-flex items-center gap-1 font-mono">
+              <span className="stat text-base text-neon">{Math.round(acc.accuracy * 100)}%</span>
+              <span className="text-muted">
+                {lang === "vi" ? `chính xác · ${acc.scored} trận` : `accuracy · ${acc.scored} matches`}
+              </span>
+            </span>
+          )}
+          <span className="text-muted">·</span>
+          <Link href="/docs/model" className="text-secondary hover:text-neon transition-colors font-mono text-xs uppercase tracking-wide">
+            {lang === "vi" ? "Mô hình hoạt động thế nào →" : "How the model works →"}
+          </Link>
+          <span className="text-muted">·</span>
+          <PushButton />
+        </div>
       </header>
 
       {error && (
@@ -69,6 +89,7 @@ export default async function HomePage() {
 
       {matches.length > 0 && <FavoritesSection matches={matches} />}
       {matches.length > 0 && <QuickPicks matches={matches} lang={lang} />}
+      <TelegramCTA lang={lang} />
 
       {acc && acc.scored > 0 && (
         <section className="card grid grid-cols-2 md:grid-cols-4 gap-6">

@@ -6,19 +6,21 @@ import ChatWidget from "@/components/ChatWidget";
 import CommitmentBadge from "@/components/CommitmentBadge";
 import H2HPanel from "@/components/H2HPanel";
 import InjuriesPanel from "@/components/InjuriesPanel";
+import InjuryImpactBadge from "@/components/InjuryImpactBadge";
 import LineupsPanel from "@/components/LineupsPanel";
 import LiveBadge from "@/components/LiveBadge";
 import LivePoller from "@/components/LivePoller";
 import MatchEventsList from "@/components/MatchEventsList";
 import MatchJsonLd from "@/components/MatchJsonLd";
 import ScorerOddsPanel from "@/components/ScorerOddsPanel";
+import WeatherPanel from "@/components/WeatherPanel";
 import PredictionBar from "@/components/PredictionBar";
 import ScoreMatrix from "@/components/ScoreMatrix";
 import ShareButtons from "@/components/ShareButtons";
 import TeamLogo from "@/components/TeamLogo";
 import TerminalBlock from "@/components/TerminalBlock";
 import { OddsPanel } from "@/components/ValueBetBadge";
-import { getH2H, getInjuries, getLineups, getMatch, getScorerOdds } from "@/lib/api";
+import { getH2H, getInjuries, getInjuryImpact, getLineups, getMatch, getScorerOdds, getWeather } from "@/lib/api";
 import { formatKickoff } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
 import { leagueByCode } from "@/lib/leagues";
@@ -74,6 +76,8 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const injuries = await getInjuries(matchId).catch(() => ({ home: [], away: [] }));
   const lineups = await getLineups(matchId).catch(() => ({ home: null, away: null }));
   const scorerOdds = await getScorerOdds(matchId, 12).catch(() => []);
+  const injuryImpact = await getInjuryImpact(matchId).catch(() => null);
+  const weather = await getWeather(matchId).catch(() => null);
 
   const p = match.prediction;
   const isLive = match.status === "live" && !!match.live;
@@ -210,6 +214,17 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
         lang={lang}
       />
 
+      {injuryImpact && (
+        <InjuryImpactBadge
+          impact={injuryImpact}
+          lang={lang}
+          homeShort={match.home.short_name}
+          awayShort={match.away.short_name}
+        />
+      )}
+
+      {weather && <WeatherPanel weather={weather} lang={lang} />}
+
       <ScorerOddsPanel rows={scorerOdds} lang={lang} />
 
       <InjuriesPanel
@@ -227,7 +242,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
         lang={lang}
       />
 
-      {match.odds && <OddsPanel odds={match.odds} lang={lang} />}
+      {match.odds && <OddsPanel odds={match.odds} lang={lang} matchId={match.id} />}
       {p && (
         <ScoreMatrix
           prediction={p}

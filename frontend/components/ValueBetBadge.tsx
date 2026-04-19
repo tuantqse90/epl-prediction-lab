@@ -1,6 +1,7 @@
 import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import type { OddsOut } from "@/lib/types";
+import AddToBetslip from "./AddToBetslip";
 
 export const VALUE_THRESHOLD = 0.05;
 
@@ -32,7 +33,7 @@ export function ValueBetBadge({ odds, lang = "vi" }: { odds: OddsOut; lang?: Lan
   );
 }
 
-export function OddsPanel({ odds, lang = "vi" }: { odds: OddsOut; lang?: Lang }) {
+export function OddsPanel({ odds, lang = "vi", matchId }: { odds: OddsOut; lang?: Lang; matchId?: number }) {
   const rows: Array<{
     key: "H" | "D" | "A";
     label: string;
@@ -59,6 +60,7 @@ export function OddsPanel({ odds, lang = "vi" }: { odds: OddsOut; lang?: Lang })
             <th className="label px-2 py-1 text-right">{t(lang, "odds.odds")}</th>
             <th className="label px-2 py-1 text-right">{t(lang, "odds.fair")}</th>
             <th className="label px-2 py-1 text-right">{t(lang, "odds.edge")}</th>
+            {matchId != null && <th className="label px-2 py-1 text-right"></th>}
           </tr>
         </thead>
         <tbody>
@@ -81,6 +83,11 @@ export function OddsPanel({ odds, lang = "vi" }: { odds: OddsOut; lang?: Lang })
                 <td className={`px-2 py-2 tabular-nums text-right ${edgeClass}`}>
                   {hasEdge ? pp(r.edge!) : "—"}
                 </td>
+                {matchId != null && (
+                  <td className="px-2 py-2 text-right">
+                    <AddToBetslip matchId={matchId} outcome={r.key} odds={r.odd} />
+                  </td>
+                )}
               </tr>
             );
           })}

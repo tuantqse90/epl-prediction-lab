@@ -316,6 +316,23 @@ async def _notify_goal_events(
             print(f"[live-scores] telegram goal alert failed: {type(e).__name__}: {e}")
             continue
 
+        # Web Push to subscribers following either side. Best-effort — no
+        # retry, drops 410 Gone rows. Separate from telegram so a TG outage
+        # doesn't silence push and vice versa.
+        try:
+            from app.api.push import dispatch_goal
+            await dispatch_goal(
+                pool,
+                [teams["home_slug"], teams["away_slug"]],
+                {
+                    "title": f"{icon} {minute_label} {home_short} {home_goals}-{away_goals} {away_short}",
+                    "body": f"{scoring_team} — {scorer}",
+                    "url": f"https://predictor.nullshift.sh/match/{match_id}",
+                },
+            )
+        except Exception as e:
+            print(f"[live-scores] push dispatch failed: {type(e).__name__}: {e}")
+
         async with pool.acquire() as conn:
             await conn.execute(
                 "UPDATE match_events SET notified_at = NOW() WHERE id = $1", r["id"],
