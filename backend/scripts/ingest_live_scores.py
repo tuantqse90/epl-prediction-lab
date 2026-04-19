@@ -445,64 +445,85 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
     # BEFORE the /fixtures/events roundtrip (which adds ~1s and only
     # contributes player/assist names). Player-level detail still populates
     # the frontend via the subsequent events upsert; the Telegram side just
-    # gets "X scored, it's now 2-1 at 67'" in real time. Idempotent via the
-    # prev score check — if another process already posted, the score
-    # won't change again on this tick.
-    if score_changed:
-        prev_hg = match_row["prev_hg"] or 0
-        prev_ag = match_row["prev_ag"] or 0
-        scored_home = int(hg) > prev_hg
-        scored_away = int(ag) > prev_ag
+    # gets "X scored, it's now 2-1 at 67'" in real time.
+    #
+    # Guards:
+    #   * prev_hg/prev_ag == NULL → first-time seeing this match, establish
+    #     a baseline without posting. Prevents "Có bàn thắng!" on match boot.
+    #   * score went *down* (VAR cancels a goal) → don't celebrate; skip.
+    #   * Idempotent via the prev score check: once posted, the score is
+    #     identical next tick so score_changed is False.
+    prev_hg_raw = match_row["prev_hg"]
+    prev_ag_raw = match_row["prev_ag"]
+    is_first_reading = prev_hg_raw is None or prev_ag_raw is None
+    prev_hg = int(prev_hg_raw) if prev_hg_raw is not None else 0
+    prev_ag = int(prev_ag_raw) if prev_ag_raw is not None else 0
+    scored_home = int(hg) > prev_hg
+    scored_away = int(ag) > prev_ag
+    should_notify_goal = (
+        score_changed
+        and not is_first_reading
+        and (scored_home or scored_away)
+    )
+    if should_notify_goal:
+        # Pull the canonical league code + short names from our DB — not
+        # from the API payload — so every notification uses the same
+        # league prefix and short-form team labels as the rest of the UI.
+        async with pool.acquire() as conn:
+            meta = await conn.fetchrow(
+                """
+                SELECT m.league_code,
+                       ht.short_name AS home_short, ht.slug AS home_slug,
+                       at.short_name AS away_short, at.slug AS away_slug
+                FROM matches m
+                JOIN teams ht ON ht.id = m.home_team_id
+                JOIN teams at ON at.id = m.away_team_id
+                WHERE m.id = $1
+                """,
+                match_row["id"],
+            )
+
         minute_label = f"{elapsed}'" if elapsed is not None else "—"
-        prefix = _league_prefix((fixture.get("league") or {}).get("name"))
-        home_escaped = home.replace("_", "\\_")
-        away_escaped = away.replace("_", "\\_")
-        # Prefer away-first if only away scored; sometimes both increment
-        # (catch-up on post-VAR adjustments) — rare, show generic.
-        if scored_home and not scored_away:
-            lead = f"⚽ *{home_escaped}* ghi bàn!"
-        elif scored_away and not scored_home:
-            lead = f"⚽ *{away_escaped}* ghi bàn!"
-        else:
+        prefix = _league_prefix(meta["league_code"] if meta else None)
+        home_short = (meta["home_short"] if meta else home).replace("_", "\\_")
+        away_short = (meta["away_short"] if meta else away).replace("_", "\\_")
+
+        if scored_home and scored_away:
+            # Extremely rare edge case (2-goal jump from missed update).
             lead = "⚽ *Có bàn thắng!*"
+        elif scored_home:
+            lead = f"⚽ *{home_short}* ghi bàn!"
+        else:
+            lead = f"⚽ *{away_short}* ghi bàn!"
+
         text = (
             f"{lead}  _{minute_label}_\n"
-            f"{prefix} · *{home_escaped} {int(hg)}-{int(ag)} {away_escaped}*\n"
+            f"{prefix} · *{home_short} {int(hg)}-{int(ag)} {away_short}*\n"
             f"[Xem live](https://predictor.nullshift.sh/match/{match_row['id']})"
         )
         token = os.environ.get("TELEGRAM_BOT_TOKEN")
         chat_id = os.environ.get("TELEGRAM_CHAT_ID")
         if token and chat_id:
             try:
-                _telegram_post(token, chat_id, text)
+                result = _telegram_post(token, chat_id, text)
+                if not result.get("ok"):
+                    print(f"[live-scores] instant goal tg api error for {match_row['id']}: {result}")
             except Exception as e:
-                print(f"[live-scores] instant goal tg failed for {match_row['id']}: {type(e).__name__}")
-        try:
-            from app.api.push import dispatch_goal
-            # Pull slugs once for push subscription filter.
-            async with pool.acquire() as conn:
-                slugs_row = await conn.fetchrow(
-                    """
-                    SELECT ht.slug AS home_slug, at.slug AS away_slug
-                    FROM matches m
-                    JOIN teams ht ON ht.id = m.home_team_id
-                    JOIN teams at ON at.id = m.away_team_id
-                    WHERE m.id = $1
-                    """,
-                    match_row["id"],
-                )
-            if slugs_row:
+                print(f"[live-scores] instant goal tg failed for {match_row['id']}: {type(e).__name__}: {e}")
+        if meta:
+            try:
+                from app.api.push import dispatch_goal
                 await dispatch_goal(
                     pool,
-                    [slugs_row["home_slug"], slugs_row["away_slug"]],
+                    [meta["home_slug"], meta["away_slug"]],
                     {
-                        "title": f"⚽ {home_escaped} {int(hg)}-{int(ag)} {away_escaped}",
+                        "title": f"⚽ {home_short} {int(hg)}-{int(ag)} {away_short}",
                         "body": f"{minute_label}",
                         "url": f"https://predictor.nullshift.sh/match/{match_row['id']}",
                     },
                 )
-        except Exception as e:
-            print(f"[live-scores] instant goal push failed: {type(e).__name__}")
+            except Exception as e:
+                print(f"[live-scores] instant goal push failed: {type(e).__name__}: {e}")
 
     # Only hit /fixtures/events when something interesting changed. Most
     # polling cycles (90%+) see a static scoreline — skipping events there
@@ -617,7 +638,7 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
             )
 
         text = (
-            f"🏁 *FULL TIME* · {prefix}\n"
+            f"🏁 *KẾT THÚC* · {prefix}\n"
             f"*{home_short} {hg}-{ag} {away_short}*"
             f"{pick_line}\n\n"
             f"[Xem phân tích](https://predictor.nullshift.sh/match/{match_id})"
@@ -763,18 +784,22 @@ async def _notify_halftime(pool: asyncpg.Pool) -> int:
         away_short = r["away_short"].replace("_", "\\_")
         prefix = _league_prefix(r.get("league_code"))
 
+        # Stored prob row is the pre-match prediction (live probs are
+        # computed on-demand from remaining Poisson, not persisted). Label
+        # it as such so users don't think we're showing real-time model
+        # update at HT.
         probs_line = ""
         if r["p_home_win"] is not None:
             ph = round(float(r["p_home_win"]) * 100)
             pd_ = round(float(r["p_draw"]) * 100)
             pa = round(float(r["p_away_win"]) * 100)
-            probs_line = f"\n⚫ Model hiện tại: {home_short} {ph}% · Hòa {pd_}% · {away_short} {pa}%"
+            probs_line = f"\n⚫ Model (pre-match): {home_short} {ph}% · Hòa {pd_}% · {away_short} {pa}%"
 
         text = (
-            f"⏸️ *HALF TIME* · {prefix}\n"
+            f"⏸️ *HẾT HIỆP 1* · {prefix}\n"
             f"*{home_short} {hg}-{ag} {away_short}*"
             f"{probs_line}\n\n"
-            f"[Xem live tại đây](https://predictor.nullshift.sh/match/{match_id})"
+            f"[Xem chi tiết](https://predictor.nullshift.sh/match/{match_id})"
         )
 
         posted_ok = True
