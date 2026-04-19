@@ -54,10 +54,13 @@ export default function SearchModal() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title="Search (Ctrl+K)"
-        className="rounded-full border border-border px-3 py-1 font-mono text-xs text-muted hover:border-neon hover:text-neon transition-colors"
+        title="Search (⌘K)"
+        aria-label="Open search"
+        className="group inline-flex items-center gap-2 rounded-full border border-border bg-raised/60 px-2.5 py-1 font-mono text-[11px] text-secondary hover:border-neon hover:text-neon hover:bg-raised transition-colors"
       >
-        ⌘K
+        <span aria-hidden className="text-neon/70 group-hover:text-neon transition-colors">⌕</span>
+        <span className="hidden md:inline">Search</span>
+        <kbd className="rounded border border-border px-1 py-0 text-[10px] tracking-wider text-muted group-hover:text-neon">⌘K</kbd>
       </button>
     );
   }
