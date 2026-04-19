@@ -34,6 +34,16 @@ export default async function sitemap({
       { url: `${SITE}/history`,              changeFrequency: "weekly", priority: 0.5, lastModified: now },
       { url: `${SITE}/roi`,                  changeFrequency: "weekly", priority: 0.5, lastModified: now },
       { url: `${SITE}/docs/model`,           changeFrequency: "monthly",priority: 0.5, lastModified: now },
+      { url: `${SITE}/blog`,                 changeFrequency: "weekly", priority: 0.7, lastModified: now },
+      { url: `${SITE}/blog/xgb-weight-jump`, changeFrequency: "monthly",priority: 0.6, lastModified: now },
+      { url: `${SITE}/blog/dixon-coles-rho`, changeFrequency: "monthly",priority: 0.6, lastModified: now },
+      { url: `${SITE}/blog/all-time-gap`,    changeFrequency: "monthly",priority: 0.6, lastModified: now },
+      { url: `${SITE}/leagues`,              changeFrequency: "weekly", priority: 0.7, lastModified: now },
+      { url: `${SITE}/leagues/epl`,          changeFrequency: "daily",  priority: 0.8, lastModified: now },
+      { url: `${SITE}/leagues/laliga`,       changeFrequency: "daily",  priority: 0.8, lastModified: now },
+      { url: `${SITE}/leagues/seriea`,       changeFrequency: "daily",  priority: 0.8, lastModified: now },
+      { url: `${SITE}/leagues/bundesliga`,   changeFrequency: "daily",  priority: 0.8, lastModified: now },
+      { url: `${SITE}/leagues/ligue1`,       changeFrequency: "daily",  priority: 0.8, lastModified: now },
     ];
   }
 

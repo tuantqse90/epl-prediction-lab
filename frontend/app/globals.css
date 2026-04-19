@@ -49,4 +49,49 @@
   .card {
     @apply bg-raised border border-border rounded-xl p-5;
   }
+  .blog-prose h2 {
+    @apply font-display text-2xl md:text-3xl font-semibold mt-10 mb-3 text-primary;
+  }
+  .blog-prose h3 {
+    @apply font-display text-lg md:text-xl font-semibold mt-6 mb-2 text-primary;
+  }
+  .blog-prose p {
+    @apply text-secondary text-base leading-relaxed my-4;
+  }
+  .blog-prose strong {
+    @apply text-primary font-semibold;
+  }
+  .blog-prose em {
+    @apply text-primary;
+  }
+  .blog-prose a {
+    @apply text-neon underline underline-offset-2 hover:opacity-80 transition-opacity;
+  }
+  .blog-prose code {
+    @apply font-mono text-xs bg-high px-1.5 py-0.5 rounded text-neon;
+  }
+  .blog-prose pre {
+    @apply my-5 overflow-x-auto rounded-lg border border-border-muted bg-black/60 p-4;
+  }
+  .blog-prose pre code {
+    @apply bg-transparent p-0 text-[13px] leading-relaxed text-secondary;
+  }
+  .blog-prose ul {
+    @apply my-4 space-y-1 pl-6 list-disc text-secondary;
+  }
+  .blog-prose ul li {
+    @apply leading-relaxed;
+  }
+  .blog-prose table {
+    @apply my-5 w-full border-collapse text-sm font-mono;
+  }
+  .blog-prose thead tr {
+    @apply border-b border-border;
+  }
+  .blog-prose th {
+    @apply px-3 py-2 text-left font-mono text-[11px] uppercase tracking-wide text-muted;
+  }
+  .blog-prose td {
+    @apply px-3 py-2 border-b border-border-muted text-secondary;
+  }
 }

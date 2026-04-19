@@ -79,6 +79,10 @@ export default async function HomePage() {
             {lang === "vi" ? "Chứng minh →" : "Proof →"}
           </Link>
           <span className="text-muted">·</span>
+          <Link href="/blog" className="text-secondary hover:text-neon transition-colors font-mono text-xs uppercase tracking-wide">
+            blog →
+          </Link>
+          <span className="text-muted">·</span>
           <PushButton />
         </div>
       </header>
