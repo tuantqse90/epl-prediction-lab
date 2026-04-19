@@ -2,6 +2,10 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 08:00 +07 — plan-new.md + full docs refresh
+
+Scoped Phase 5+ "sharp-bettor analytics" into new `plan-new.md` (CLV logging → correlated markets → backend Kelly + virtual bankroll → per-league edge map → sharp-exchange reference; in-play parked). Explicit scoping rule: analytics + display only, no custody. Updated `CLAUDE.md` (multi-league scope, bare-repo deploy, plan-new pointer) and refreshed `docs/database.md` (6 missing tables), `docs/prediction-model.md` (Elo + XGB ensemble, injury/weather λ shrinks, CI bootstrap), `docs/project-structure.md` (current 14 routers + 33 scripts + 21 FE pages), `docs/deploy.md` (Hostinger shared VPS + bare-repo + post-receive), `docs/roadmap.md` (Phase 4 closed/dropped, Phase 5+ pointer), `docs/frontend.md` (route list now matches live app).
+
 ## 2026-04-19 15:00 +07 — 5-item UI/UX batch: convey model quality
 
 **#81 ProofStrip hero**: new `<ProofStrip>` server component above the match grid. 4-row horizontal bar chart — Model / Bookmakers / Always-Home / Random — on 30-day finals. Backed by new `/api/stats/comparison` endpoint (TTL-cached) that argmaxes both model probs and devigged bookmaker odds. Hidden if `scored < 10`.

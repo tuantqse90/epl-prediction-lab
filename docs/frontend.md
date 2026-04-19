@@ -191,32 +191,45 @@ Probability bars and stat deltas map onto the palette deliberately — keep neon
 
 ## 6. Routes
 
-### `/` — Dashboard
+The app is multi-league (EPL / La Liga / Bundesliga / Serie A / Ligue 1) with a cookie-driven locale (en / vi / th / zh / ko). Every page respects both.
 
-- **Hero strip**: `> epl-lab :: matchweek {n} :: 2025-26` (mono, muted) + one uppercase display headline (e.g. `THIS WEEK`).
-- **Match grid**: 3–4 column grid on desktop, 1 col mobile. Each card:
-  - Kickoff label (mono muted, uppercase).
-  - Teams (display type, uppercase).
-  - Probability bar — neon on winner, grey on the other two.
-  - `top_score` (mono, large) + confidence chip.
-  - Ghost CTA: `VIEW MATCH →`.
-- **Sidebar** (desktop only): xG-adjusted league table. Position numbers mono, tabular.
+### Core
 
-### `/match/[id]` — Deep dive
+- `/` — **Dashboard.** Hero line (`> football-predict :: matchweek {n}`), `<ProofStrip>` (Model / Bookmakers / Always-Home / Random accuracy bars on last 30d), `<QuickPicks>` (top 3 upcoming where `best_edge ≥ 5pp`), match grid (3–4 cols desktop / 1 col mobile). Each `<MatchCard>` has a model-pick banner, `+X% vs market` chip, neon-on-winner 3-way bar, top scoreline + confidence, and a ghost `VIEW MATCH →`.
+- `/match/[id]` — **Match detail.** 4-tab layout (Preview / Markets / Analysis / Community) via `<MatchTabs>`. Prediction block is the single neon moment (big favoured % with radial glow, top scoreline mono-huge, 16–84% CI band). Reasoning block as terminal panel. `<OddsPanel>` with Kelly popout at `best_edge ≥ 10pp`. `<ScoreMatrix>` 6×6 heatmap. Lineups, injuries, weather, H2H, scorers. Bottom-docked `<ChatWidget>` with suggested prompts per locale.
+- `/leagues` and `/leagues/[slug]` — per-league hub + standings.
 
-- Teams header, huge uppercase display, form strings W-D-L-W-W with per-letter color (`neon` / `muted` / `error`).
-- **Prediction block** — the single neon moment on the page. Big percentage for the favored outcome, radial glow, top scoreline mono-huge.
-- **Reasoning block** — rendered as a terminal panel: `#161616` raised surface, mono, `#D9D9D9` text, a `> analyst //` prefix line in `#778899`.
-- Stat comparison (xG, xGA, PPDA, shots/game) — two-column bars, neon on the leading side per row.
-- **Chat widget**, bottom-docked, persistent. Neon send button (black icon). Suggested prompts as ghost chips: `"Sao mày predict thế?"` / `"Ai ghi bàn?"` / `"Kèo nào đáng?"`.
+### Stats + betting signal
 
-### `/table` — xG table
+- `/proof` — **Trust / methodology.** Weighted accuracy + log-loss chips, 30d head-to-head bar chart, per-season accuracy, calibration reliability table, 4-step hash-verification how-to.
+- `/roi` — flat-stake PnL line chart; edge-threshold selector (3/5/7/10pp); cumulative P&L on model picks with drawdown shaded.
+- `/last-weekend` — 7-day hit/miss window, summary strip + card grid with model pick vs final score.
+- `/benchmark` — model vs baselines (bookmakers, always-home, random) side by side.
+- `/stats` — generic stats dashboard (log-loss, accuracy, weighted vs raw).
+- `/history` — per-season accuracy bars.
+- `/table` — xG-adjusted standings, real vs xG, sortable, overperformers neon / underperformers red.
+- `/scorers` — top 25 by season; sortable across G / xG / npxG / Δ / A / xA / KP / GP.
 
-- Side-by-side: real table vs xG-based table. Sortable. Overperformers glow subtly (`--accent-neon` text on the delta column); underperformers in `--color-error`.
+### Teams + players
 
-### `/teams/[slug]` — Team profile
+- `/teams/[slug]` — radial-gradient crest hero, 4 stat tiles, Attack/Defense gauges vs league, next-fixture + last-result spotlight, top-scorer card with neon goal count, recent + upcoming fixtures.
+- `/players` and `/players/[slug]` — searchable leaderboard + individual history.
+- `/compare` — player/team head-to-head.
 
-- Season stat blocks (mono, tabular). Form chart (last 10, xG timeline) with neon fill on xG overperformance, error tint on underperformance. Top scorers as a mono stat table (xG vs goals). Fixture list reuses dashboard match cards.
+### Betting tools (analytics only — never takes real stakes)
+
+- `/parlay` — parlay builder with fractional-Kelly calculator capped at 0.25.
+- `/betslip` — localStorage-backed slip scratchpad.
+- `/tipsters` — community leaderboard (handle → picks → log-loss).
+- `/fpl` — Fantasy Premier League selector.
+
+### Meta
+
+- `/news` — team-filtered news feed.
+- `/admin` — quota + ingest freshness + per-league counts.
+- `/faq`, `/about`, `/docs`, `/blog`.
+
+See [`plan-new.md`](../plan-new.md) for upcoming surfaces — `/roi/by-league` (Phase 8), `<MarketsEdge>` on match page (Phase 6), virtual bankroll view on `/roi` (Phase 7), exchange-consensus row in `<OddsPanel>` (Phase 9).
 
 ---
 
