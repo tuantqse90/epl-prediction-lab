@@ -1,0 +1,15 @@
+[Unit]
+Description=EPL Prediction Lab — refresh per-bookmaker odds every 15m
+
+[Timer]
+# 15 min cadence catches most pre-kickoff market movements. Ultra plan
+# (75k/day) means this never threatens quota: ~30 fixtures in a 72h
+# window × 96 runs/day = 2880 API calls ≈ 4% of daily cap.
+OnBootSec=5m
+OnUnitActiveSec=15m
+Unit=football-predict-odds.service
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

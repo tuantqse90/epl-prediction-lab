@@ -1,0 +1,10 @@
+[Unit]
+Description=EPL Prediction Lab — per-bookmaker odds refresh (API-Football)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/football-predict
+ExecStart=/usr/bin/docker compose exec -T api python scripts/ingest_bookmaker_odds.py --hours 72
+User=root
