@@ -36,6 +36,7 @@ class PlayerSeason(BaseModel):
 class PlayerProfile(BaseModel):
     slug: str
     player_name: str
+    photo_url: str | None = None
     seasons: list[PlayerSeason]
     career_goals: int
     career_xg: float
@@ -52,7 +53,7 @@ async def get_player(slug: str, request: Request) -> PlayerProfile:
         rows = await conn.fetch(
             """
             SELECT p.player_name, p.season, p.games, p.goals, p.assists,
-                   p.xg, p.xa, p.npxg, p.key_passes, p.position,
+                   p.xg, p.xa, p.npxg, p.key_passes, p.position, p.photo_url,
                    t.slug AS team_slug, t.short_name AS team_short
             FROM player_season_stats p
             JOIN teams t ON t.id = p.team_id
@@ -88,9 +89,16 @@ async def get_player(slug: str, request: Request) -> PlayerProfile:
         for r in rows if r["player_name"] == canonical
     ]
 
+    # First non-null photo URL across this player's rows.
+    photo_url = next(
+        (r["photo_url"] for r in rows if r["player_name"] == canonical and r["photo_url"]),
+        None,
+    )
+
     return PlayerProfile(
         slug=_slugify(canonical),
         player_name=canonical,
+        photo_url=photo_url,
         seasons=seasons,
         career_goals=sum(s.goals for s in seasons),
         career_xg=round(sum(s.xg for s in seasons), 2),

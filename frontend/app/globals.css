@@ -17,6 +17,24 @@
     background: #e0ff32;
     color: #000;
   }
+  /* A11y: all interactive elements get a visible neon ring on keyboard
+     focus. The default browser outline varies wildly; this normalizes
+     across Chromium/WebKit/Firefox with a consistent Payy-accent color.
+     :focus (not :focus-visible) would fire on every mouse click, which
+     is ugly — :focus-visible only shows on true keyboard nav. */
+  *:focus {
+    outline: none;
+  }
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 2px solid #e0ff32;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
 
 @layer components {

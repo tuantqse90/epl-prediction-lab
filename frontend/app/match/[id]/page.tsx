@@ -136,9 +136,25 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
       <MatchJsonLd match={match} url={`https://predictor.nullshift.sh/match/${match.id}`} />
       {isLive && <LivePoller />}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <Link href="/" className="btn-ghost text-sm">
-          {t("common.back")}
-        </Link>
+        <nav className="flex items-center gap-2 font-mono text-xs text-muted" aria-label="Breadcrumb">
+          <Link href="/" className="hover:text-neon">Home</Link>
+          {leagueInfo && (
+            <>
+              <span aria-hidden>/</span>
+              <Link href={`/leagues/${leagueInfo.slug}`} className="hover:text-neon">
+                {leagueInfo.emoji} {leagueInfo.short}
+              </Link>
+            </>
+          )}
+          <span aria-hidden>/</span>
+          <Link href={`/teams/${match.home.slug}`} className="hover:text-neon truncate max-w-[8rem]">
+            {match.home.short_name}
+          </Link>
+          <span aria-hidden>vs</span>
+          <Link href={`/teams/${match.away.slug}`} className="hover:text-neon truncate max-w-[8rem]">
+            {match.away.short_name}
+          </Link>
+        </nav>
         <ShareButtons
           url={`https://predictor.nullshift.sh/match/${match.id}`}
           title={`${match.home.name} vs ${match.away.name}`}

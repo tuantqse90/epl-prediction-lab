@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import FavoritesSection from "@/components/FavoritesSection";
+import KeyboardNavHint from "@/components/KeyboardNavHint";
 import LivePoller from "@/components/LivePoller";
 import MatchCard from "@/components/MatchCard";
 import ProofStrip from "@/components/ProofStrip";
@@ -154,11 +155,15 @@ export default async function HomePage({
         </section>
       )}
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <section
+        data-kbd-target
+        className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+      >
         {matches.map((m) => (
           <MatchCard key={m.id} match={m} lang={lang} />
         ))}
       </section>
+      <KeyboardNavHint />
 
       {(page > 1 || hasNext) && (
         <nav

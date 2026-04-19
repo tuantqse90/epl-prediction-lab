@@ -134,7 +134,19 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 space-y-10">
-      <Link href="/" className="btn-ghost text-sm">{t("common.back")}</Link>
+      <nav className="flex items-center gap-2 font-mono text-xs text-muted" aria-label="Breadcrumb">
+        <Link href="/" className="hover:text-neon">Home</Link>
+        {leagueInfo && (
+          <>
+            <span aria-hidden>/</span>
+            <Link href={`/leagues/${leagueInfo.slug}`} className="hover:text-neon">
+              {leagueInfo.emoji} {leagueInfo.short}
+            </Link>
+          </>
+        )}
+        <span aria-hidden>/</span>
+        <span className="text-secondary truncate">{p.name}</span>
+      </nav>
 
       {/* HERO — elite treatment if team is in top-8 of its league */}
       <header
