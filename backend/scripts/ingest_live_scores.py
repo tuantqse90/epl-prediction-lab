@@ -119,35 +119,31 @@ def _map_status(api_short: str) -> str:
 
 
 async def _has_potential_live(pool: asyncpg.Pool) -> bool:
-    """Return True when polling is warranted. Tight gate to stay under the
-    7500/day Pro-plan quota at 3s cadence.
+    """Return True when polling is warranted.
 
-    Fires only when:
-      (a) at least one match is currently status='live' — we need real-time
-          score updates during the match, OR
-      (b) a kickoff is within the next ~10 minutes — covers the ~2-3 min
-          transition from 'scheduled' → 'live' where API-Football hasn't
-          yet flagged the fixture in its live feed, OR
-      (c) a very-recently-kicked-off match is still marked 'scheduled' in
-          our DB (kickoff 0-20 min ago) — catches the first live update.
-
-    Dead time between match waves (e.g. between 12:30 and 15:00 Sat
-    kick-offs) = 0 API calls, which matters for 3s cadence budget.
+    Ultra plan = 150k req/day; cadence budget is a non-issue. We still
+    gate off completely-idle periods so logs stay clean, but the window
+    is generous — any match kicked off in the last 150 min or starting
+    within 10 min is worth polling. Even if API-Football already marked
+    it final, the call is cheap and picks up the FT transition.
     """
     return bool(await pool.fetchval(
         """
         SELECT EXISTS(
             SELECT 1 FROM matches
             WHERE status = 'live'
-               OR (status = 'scheduled'
-                   AND kickoff_time BETWEEN NOW() - INTERVAL '20 minutes'
+               OR (status != 'final'
+                   AND kickoff_time BETWEEN NOW() - INTERVAL '150 minutes'
                                         AND NOW() + INTERVAL '10 minutes')
         )
         """,
     ))
 
 
-_QUOTA_FLOOR = 150  # stop polling when fewer than this many requests remain today
+# Stop polling only when we're truly about to hit the wall. Ultra plan =
+# 150,000 req/day; a 500 floor still leaves ~3 hours of headroom at peak
+# weekend burn (~200 req/min) while catching runaway misconfigs early.
+_QUOTA_FLOOR = 500
 
 
 def _fetch(key: str, league_id: int | None = None) -> list[dict] | None:
