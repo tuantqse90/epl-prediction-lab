@@ -76,8 +76,8 @@ async function fetchCalibration(season: string, league?: string): Promise<StatsO
   }
 }
 
-async function fetchComparison(league?: string): Promise<Comparison | null> {
-  const qs = new URLSearchParams({ days: "30" });
+async function fetchComparison(days: number, league?: string): Promise<Comparison | null> {
+  const qs = new URLSearchParams({ days: String(days) });
   if (league) qs.set("league", league);
   try {
     const res = await fetch(`${BASE}/api/stats/comparison?${qs}`, { cache: "no-store" });
@@ -100,10 +100,12 @@ export default async function ProofPage() {
   const leagueParam = leagueForApi(league);
   const leagueLabel = lang === "vi" ? leagueInfo.name_vi : leagueInfo.name_en;
 
-  const [history, cal, comp] = await Promise.all([
+  const [history, cal, comp30, compSeason, compAll] = await Promise.all([
     fetchHistory(leagueParam),
     fetchCalibration("2025-26", leagueParam),
-    fetchComparison(leagueParam),
+    fetchComparison(30, leagueParam),
+    fetchComparison(240, leagueParam), // ~current season window
+    fetchComparison(0, leagueParam),
   ]);
 
   const totalScored = history.reduce((s, r) => s + r.scored, 0);
@@ -179,54 +181,93 @@ export default async function ProofPage() {
         </div>
       </section>
 
-      {/* Comparison: 30-day head-to-head */}
-      {comp && comp.scored >= 10 && (
-        <section className="card space-y-4">
-          <div className="flex items-baseline justify-between gap-3 flex-wrap">
-            <h2 className="headline-section text-2xl md:text-3xl">
-              {lang === "vi" ? "Mô hình vs nhà cái — 30 ngày" : "Model vs the market — last 30 days"}
-            </h2>
-            <span className="font-mono text-[11px] text-muted">
-              {comp.scored} {lang === "vi" ? "trận" : "matches"}
-            </span>
-          </div>
-          <p className="text-secondary text-sm">
-            {lang === "vi"
-              ? "Mỗi hàng là tỉ lệ đoán đúng argmax của chiến lược đó trên cùng tập trận cuối."
-              : "Each row is argmax-accuracy on the same finished matches over 30 days."}
-          </p>
-          <div className="space-y-2 font-mono text-xs">
-            {(() => {
-              const rows = [
-                { label: lang === "vi" ? "MODEL" : "Model", value: comp.model_accuracy, accent: true },
-                { label: lang === "vi" ? "NHÀ CÁI" : "Bookmakers", value: comp.bookmaker_accuracy },
-                { label: lang === "vi" ? "LUÔN CHỦ NHÀ" : "Always Home", value: comp.home_baseline_accuracy },
-                { label: lang === "vi" ? "NGẪU NHIÊN" : "Random", value: comp.uniform_baseline_accuracy },
-              ];
-              const max = Math.max(0.6, ...rows.map((r) => r.value));
-              return rows.map((r) => {
-                const width = Math.min(100, (r.value / max) * 100);
+      {/* Comparison: 3 windows — 30d, season, all-time */}
+      {(() => {
+        const windows = [
+          {
+            key: "30d",
+            title: lang === "vi" ? "30 ngày gần nhất" : "Last 30 days",
+            data: comp30,
+          },
+          {
+            key: "season",
+            title: lang === "vi" ? "Mùa hiện tại" : "Current season",
+            data: compSeason,
+          },
+          {
+            key: "all",
+            title: lang === "vi" ? "Mọi thời điểm (kể từ 2019)" : "All-time (since 2019)",
+            data: compAll,
+          },
+        ].filter((w) => w.data && w.data.scored >= 10);
+        if (windows.length === 0) return null;
+        return (
+          <section className="card space-y-6">
+            <div className="space-y-2">
+              <h2 className="headline-section text-2xl md:text-3xl">
+                {lang === "vi" ? "Mô hình vs nhà cái" : "Model vs the market"}
+              </h2>
+              <p className="text-secondary text-sm">
+                {lang === "vi"
+                  ? "Mỗi khung thời gian so argmax của model vs argmax của odds đã khử vig. Cùng tập trận — khác nhau ai đoán đúng."
+                  : "Each window compares model argmax vs devigged-bookmaker argmax on the same finals. Same matches, different picks."}
+              </p>
+            </div>
+            <div className="space-y-8">
+              {windows.map((w) => {
+                const c = w.data!;
+                const rows = [
+                  { label: lang === "vi" ? "MODEL" : "Model", value: c.model_accuracy, accent: true },
+                  { label: lang === "vi" ? "NHÀ CÁI" : "Bookmakers", value: c.bookmaker_accuracy },
+                  { label: lang === "vi" ? "LUÔN CHỦ NHÀ" : "Always Home", value: c.home_baseline_accuracy },
+                  { label: lang === "vi" ? "NGẪU NHIÊN" : "Random", value: c.uniform_baseline_accuracy },
+                ];
+                const max = Math.max(0.6, ...rows.map((r) => r.value));
+                const beat = c.model_accuracy > c.bookmaker_accuracy;
+                const delta = Math.round((c.model_accuracy - c.bookmaker_accuracy) * 1000) / 10;
                 return (
-                  <div key={r.label} className="flex items-center gap-3">
-                    <span className={`w-28 shrink-0 uppercase tracking-wide ${r.accent ? "text-neon" : "text-secondary"}`}>
-                      {r.label}
-                    </span>
-                    <div className="flex-1 h-7 rounded bg-high overflow-hidden">
-                      <div
-                        className={`h-full ${r.accent ? "bg-neon" : "bg-secondary/40"} transition-all`}
-                        style={{ width: `${width}%` }}
-                      />
+                  <div key={w.key} className="space-y-3">
+                    <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                      <h3 className="font-display font-semibold uppercase tracking-tight text-lg">
+                        {w.title}
+                      </h3>
+                      <div className="flex items-baseline gap-3 font-mono text-[11px]">
+                        <span className="text-muted">
+                          {c.scored} {lang === "vi" ? "trận" : "matches"}
+                        </span>
+                        <span className={beat ? "text-neon" : "text-error"}>
+                          {beat ? "+" : ""}{delta.toFixed(1)}pp
+                        </span>
+                      </div>
                     </div>
-                    <span className={`w-14 text-right tabular-nums ${r.accent ? "text-neon font-semibold" : "text-primary"}`}>
-                      {pct(r.value)}
-                    </span>
+                    <div className="space-y-2 font-mono text-xs">
+                      {rows.map((r) => {
+                        const width = Math.min(100, (r.value / max) * 100);
+                        return (
+                          <div key={r.label} className="flex items-center gap-3">
+                            <span className={`w-28 shrink-0 uppercase tracking-wide ${r.accent ? "text-neon" : "text-secondary"}`}>
+                              {r.label}
+                            </span>
+                            <div className="flex-1 h-6 rounded bg-high overflow-hidden">
+                              <div
+                                className={`h-full ${r.accent ? "bg-neon" : "bg-secondary/40"} transition-all`}
+                                style={{ width: `${width}%` }}
+                              />
+                            </div>
+                            <span className={`w-14 text-right tabular-nums ${r.accent ? "text-neon font-semibold" : "text-primary"}`}>
+                              {pct(r.value)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
-              });
-            })()}
-          </div>
-        </section>
-      )}
+              })}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Per-season rolling accuracy */}
       {history.length > 0 && (

@@ -29,6 +29,7 @@ type RecentMatch = {
   actual_outcome: "H" | "D" | "A";
   hit: boolean;
   confidence: number;
+  recap: string | null;
 };
 
 type RecentWindow = {
@@ -210,6 +211,14 @@ export default async function LastWeekendPage({
                     {predicted} · {pct(m.confidence)}
                   </span>
                 </div>
+                {m.recap && (
+                  <p className="border-t border-border-muted pt-3 text-sm text-secondary leading-relaxed">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted mb-1 block">
+                      {lang === "vi" ? "Mô hình nói" : "Model says"}
+                    </span>
+                    {m.recap}
+                  </p>
+                )}
               </Link>
             );
           })}

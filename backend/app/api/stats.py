@@ -79,6 +79,7 @@ class RecentMatchResult(BaseModel):
     actual_outcome: str
     hit: bool
     confidence: float
+    recap: str | None = None
 
 
 class RecentWindowOut(BaseModel):
@@ -153,7 +154,7 @@ WITH latest AS (
 )
 SELECT
     m.id AS match_id, m.kickoff_time, m.home_goals, m.away_goals,
-    m.home_xg, m.away_xg, m.league_code,
+    m.home_xg, m.away_xg, m.league_code, m.recap,
     ht.slug AS home_slug, ht.short_name AS home_short,
     at.slug AS away_slug, at.short_name AS away_short,
     l.p_home_win, l.p_draw, l.p_away_win
@@ -382,6 +383,7 @@ async def recent(
                 actual_outcome=actual,
                 hit=hit,
                 confidence=probs[predicted],
+                recap=r["recap"],
             )
         )
 
@@ -408,7 +410,7 @@ class Comparison(BaseModel):
     model_log_loss: float
 
 
-_COMPARISON_QUERY = """
+_COMPARISON_QUERY_WINDOWED = """
 WITH latest AS (
     SELECT DISTINCT ON (p.match_id)
         p.match_id, p.p_home_win, p.p_draw, p.p_away_win
@@ -431,14 +433,39 @@ WHERE m.status = 'final'
   AND ($2::text IS NULL OR m.league_code = $2)
 """
 
+_COMPARISON_QUERY_ALL = """
+WITH latest AS (
+    SELECT DISTINCT ON (p.match_id)
+        p.match_id, p.p_home_win, p.p_draw, p.p_away_win
+    FROM predictions p
+    ORDER BY p.match_id, p.created_at DESC
+)
+SELECT m.home_goals, m.away_goals,
+       l.p_home_win, l.p_draw, l.p_away_win,
+       o.odds_home, o.odds_draw, o.odds_away
+FROM matches m
+JOIN latest l ON l.match_id = m.id
+LEFT JOIN LATERAL (
+    SELECT odds_home, odds_draw, odds_away
+    FROM match_odds WHERE match_id = m.id
+    ORDER BY captured_at DESC LIMIT 1
+) o ON TRUE
+WHERE m.status = 'final'
+  AND m.home_goals IS NOT NULL
+  AND ($1::text IS NULL OR m.league_code = $1)
+"""
+
 
 @router.get("/comparison", response_model=Comparison)
 async def comparison(
     request: Request,
-    days: int = Query(30, ge=1, le=365),
+    days: int = Query(30, ge=0, le=9999, description="0 = all-time"),
     league: str | None = Query(None),
 ) -> Comparison:
-    """Four-way accuracy: model vs bookmakers vs always-home vs uniform."""
+    """Four-way accuracy: model vs bookmakers vs always-home vs uniform.
+
+    Pass ``days=0`` to ignore the time window and score all finals in the DB.
+    """
     from app.ingest.odds import fair_probs
 
     pool = request.app.state.pool
@@ -449,7 +476,10 @@ async def comparison(
         return cached
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(_COMPARISON_QUERY, str(days), league_code)
+        if days == 0:
+            rows = await conn.fetch(_COMPARISON_QUERY_ALL, league_code)
+        else:
+            rows = await conn.fetch(_COMPARISON_QUERY_WINDOWED, str(days), league_code)
 
     scored = 0
     model_correct = 0

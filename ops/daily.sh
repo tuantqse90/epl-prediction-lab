@@ -29,6 +29,9 @@ run python scripts/ingest_weather.py --window-minutes 2880 || true
 # predict_all_upcoming iterates league-agnostic by match.league_code.
 run python scripts/predict_upcoming.py --horizon-days "$HORIZON_DAYS" --with-reasoning
 
+# Post-match LLM recaps for finals in the last 7d (cheap, idempotent).
+run python scripts/generate_recaps.py --days 7 --limit 120 || true
+
 # Social distribution — tolerated failure (missing creds, rate limit, etc.)
 run python scripts/post_twitter.py --horizon-days 3 --threshold 0.07 --max 5 || true
 run python scripts/post_twitter_recap.py || true

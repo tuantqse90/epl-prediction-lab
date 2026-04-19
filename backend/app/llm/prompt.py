@@ -41,3 +41,39 @@ def build_reasoning_prompt(
         f"Giải thích ngắn gọn VÌ SAO model predict như vậy. "
         f"Chỉ rõ 2-3 số liệu quan trọng nhất. Tối đa 3 câu, giọng anh em."
     )
+
+
+def build_recap_prompt(
+    *,
+    home_team: str,
+    away_team: str,
+    home_goals: int,
+    away_goals: int,
+    home_xg: float | None,
+    away_xg: float | None,
+    predicted_outcome: str,
+    predicted_confidence: float,
+    top_scoreline: tuple[int, int],
+    actual_outcome: str,
+    hit: bool,
+) -> str:
+    th, ta = top_scoreline
+    outcome_vi = {"H": "chủ nhà thắng", "D": "hòa", "A": "đội khách thắng"}
+    pred_phrase = outcome_vi[predicted_outcome]
+    actual_phrase = outcome_vi[actual_outcome]
+    verdict = "ĐÚNG" if hit else "SAI"
+    xg_line = ""
+    if home_xg is not None and away_xg is not None:
+        xg_line = f"xG thực tế: {home_team} {home_xg:.2f} - {away_xg:.2f} {away_team}\n"
+    return (
+        f"Trận đã kết thúc: {home_team} {home_goals} - {away_goals} {away_team}\n"
+        f"{xg_line}"
+        f"Model đoán: {pred_phrase} ({round(predicted_confidence * 100)}%), "
+        f"tỷ số {th}-{ta}\n"
+        f"Thực tế: {actual_phrase}\n"
+        f"Model đoán {verdict}.\n\n"
+        f"Viết recap 2-3 câu: (1) model đoán đúng/sai ở đâu, "
+        f"(2) xG/tỷ số có khớp với kỳ vọng không, "
+        f"(3) 1 yếu tố bất ngờ hoặc khớp mô hình. "
+        f"Giọng anh em, không khoa trương, tối đa 3 câu."
+    )
