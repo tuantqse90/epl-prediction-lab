@@ -1,11 +1,11 @@
 [Unit]
-Description=EPL Prediction Lab — poll live scores every 5s
+Description=EPL Prediction Lab — poll live scores every 3s (API-Football Pro)
 
 [Timer]
-OnBootSec=5s
-OnUnitActiveSec=5s
+OnBootSec=3s
+OnUnitActiveSec=3s
 Unit=football-predict-live.service
-AccuracySec=1s
+AccuracySec=500ms
 
 [Install]
 WantedBy=timers.target
