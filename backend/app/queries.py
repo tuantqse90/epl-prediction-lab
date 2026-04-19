@@ -25,8 +25,10 @@ SELECT
     at.slug AS away_slug, at.name AS away_name, at.short_name AS away_short,
     lp.p_home_win, lp.p_draw, lp.p_away_win,
     lp.expected_home_goals, lp.expected_away_goals,
-    lp.top_scorelines, lp.reasoning, lp.reasoning_model, lp.model_version,
+    lp.top_scorelines, lp.model_version,
     lp.commitment_hash,
+    COALESCE(lp.reasoning, lpr.reasoning) AS reasoning,
+    COALESCE(lp.reasoning_model, lpr.reasoning_model) AS reasoning_model,
     lo.odds_home, lo.odds_draw, lo.odds_away, lo.source AS odds_source,
     hf.form AS home_form,
     af.form AS away_form
@@ -40,6 +42,13 @@ LEFT JOIN LATERAL (
     ORDER BY created_at DESC
     LIMIT 1
 ) lp ON TRUE
+LEFT JOIN LATERAL (
+    SELECT reasoning, reasoning_model
+    FROM predictions
+    WHERE match_id = m.id AND reasoning IS NOT NULL AND reasoning <> ''
+    ORDER BY created_at DESC
+    LIMIT 1
+) lpr ON TRUE
 LEFT JOIN LATERAL (
     SELECT *
     FROM match_odds
