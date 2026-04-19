@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import TeamLogo from "@/components/TeamLogo";
@@ -7,6 +8,26 @@ import type { Lang } from "@/lib/i18n";
 import { getLeague, leagueByCode } from "@/lib/leagues";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ days?: string }>;
+}): Promise<Metadata> {
+  const sp = await searchParams;
+  const days = sp.days ?? "7";
+  const title = `Last ${days} days — model hits & misses · predictor.nullshift.sh`;
+  const description =
+    `Every finished match in the last ${days} days with what the 3-leg ensemble predicted, ` +
+    `what actually happened, and why. Scored after full-time. No edits after.`;
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "article", url: "/last-weekend" },
+    twitter: { card: "summary_large_image", title, description },
+    alternates: { canonical: "/last-weekend" },
+  };
+}
 
 const BASE = process.env.SERVER_API_URL ?? "http://localhost:8000";
 

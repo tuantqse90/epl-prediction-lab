@@ -23,13 +23,17 @@ export default async function sitemap({
 
   if (id === 0) {
     return [
-      { url: `${SITE}/`,            changeFrequency: "daily",  priority: 1.0, lastModified: now },
-      { url: `${SITE}/table`,       changeFrequency: "daily",  priority: 0.8, lastModified: now },
-      { url: `${SITE}/stats`,       changeFrequency: "weekly", priority: 0.7, lastModified: now },
-      { url: `${SITE}/last-weekend`,changeFrequency: "weekly", priority: 0.7, lastModified: now },
-      { url: `${SITE}/scorers`,     changeFrequency: "weekly", priority: 0.6, lastModified: now },
-      { url: `${SITE}/history`,     changeFrequency: "weekly", priority: 0.5, lastModified: now },
-      { url: `${SITE}/roi`,         changeFrequency: "weekly", priority: 0.5, lastModified: now },
+      { url: `${SITE}/`,                     changeFrequency: "daily",  priority: 1.0, lastModified: now },
+      { url: `${SITE}/proof`,                changeFrequency: "weekly", priority: 0.9, lastModified: now },
+      { url: `${SITE}/table`,                changeFrequency: "daily",  priority: 0.8, lastModified: now },
+      { url: `${SITE}/last-weekend`,         changeFrequency: "daily",  priority: 0.8, lastModified: now },
+      { url: `${SITE}/last-weekend?days=14`, changeFrequency: "daily",  priority: 0.6, lastModified: now },
+      { url: `${SITE}/last-weekend?days=30`, changeFrequency: "daily",  priority: 0.6, lastModified: now },
+      { url: `${SITE}/stats`,                changeFrequency: "weekly", priority: 0.7, lastModified: now },
+      { url: `${SITE}/scorers`,              changeFrequency: "weekly", priority: 0.6, lastModified: now },
+      { url: `${SITE}/history`,              changeFrequency: "weekly", priority: 0.5, lastModified: now },
+      { url: `${SITE}/roi`,                  changeFrequency: "weekly", priority: 0.5, lastModified: now },
+      { url: `${SITE}/docs/model`,           changeFrequency: "monthly",priority: 0.5, lastModified: now },
     ];
   }
 

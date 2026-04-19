@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import admin as admin_router
 from app.api import chat as chat_router
+from app.api import compare as compare_router
 from app.api import fpl as fpl_router
 from app.api import matches as matches_router
 from app.api import news as news_router
@@ -45,6 +46,7 @@ app.include_router(search_router.router)
 app.include_router(players_router.router)
 app.include_router(tipsters_router.router)
 app.include_router(news_router.router)
+app.include_router(compare_router.router)
 
 
 @app.get("/health")
