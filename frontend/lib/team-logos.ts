@@ -3,6 +3,10 @@
 // Unknown teams or broken URLs fall back to a monogram pill in <TeamLogo/>.
 const ESPN = (id: number | string) =>
   `https://a.espncdn.com/i/teamlogos/soccer/500/${id}.png`;
+// API-Football CDN fallback — used when the ESPN ID returns 404. Values
+// come from `teams.api_football_id` populated by ingest_full_squad_photos.
+const AF = (id: number | string) =>
+  `https://media.api-sports.io/football/teams/${id}.png`;
 
 export const TEAM_LOGOS: Record<string, string> = {
   // ─── Premier League ────────────────────────────────────────────
@@ -50,7 +54,7 @@ export const TEAM_LOGOS: Record<string, string> = {
   "rayo-vallecano": ESPN(101),
   elche: ESPN(92),
   levante: ESPN(95),
-  "real-oviedo": ESPN(10269),
+  "real-oviedo": AF(718),
 
   // ─── Bundesliga ────────────────────────────────────────────────
   "bayern-munich": ESPN(132),
@@ -66,8 +70,8 @@ export const TEAM_LOGOS: Record<string, string> = {
   "fc-cologne": ESPN(133),
   "union-berlin": ESPN(598),
   hoffenheim: ESPN(7911),
-  "mainz-05": ESPN(136),
-  "fc-heidenheim": ESPN(7907),
+  "mainz-05": AF(164),
+  "fc-heidenheim": AF(180),
   augsburg: ESPN(11608),
   "st-pauli": ESPN(2950),
   "hamburger-sv": ESPN(128),
