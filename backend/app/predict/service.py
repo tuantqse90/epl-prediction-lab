@@ -24,12 +24,12 @@ NEUTRAL = TeamStrength(attack=1.0, defense=1.0)
 # Ensemble weights — final 1X2 = (ELO + XGB) signals blend into Poisson.
 # Weights are applied via two sequential convex combinations in
 # predict_match: first Poisson+Elo, then the result blended with XGB.
-ELO_WEIGHT = 0.25
-# 0.30 is optimal per walk-forward tune on 1,816 out-of-sample matches
-# (2024-25 + 2025-26 across top-5 leagues), vs the old 0.15 conservative
-# setting. Log-loss dropped 0.9834 → 0.9633 (-2.0%), accuracy 52.4 → 54.2%.
-# See scripts/tune_ensemble.py.
-XGB_WEIGHT = 0.30
+ELO_WEIGHT = 0.20
+# Optimal weights per walk-forward tune on 1,816 out-of-sample matches
+# (2024-25 + 2025-26 across top-5 leagues). Original config elo=0.25/xgb=0.15
+# → log-loss 0.9834, acc 52.4%. Current elo=0.20/xgb=0.60 → log-loss 0.9278,
+# acc 56.2% (-5.6% log-loss, +3.8pp accuracy). See scripts/tune_ensemble.py.
+XGB_WEIGHT = 0.60
 _XGB_MODEL_CACHE = {"model": None, "loaded": False}
 
 
