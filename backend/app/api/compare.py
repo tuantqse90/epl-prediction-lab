@@ -166,7 +166,10 @@ async def head_to_head(
             p_away_win=blended.p_away_win,
         )
 
-    top = poisson_only.top_scorelines[0] if poisson_only.top_scorelines else {"home": 1, "away": 1}
+    if poisson_only.top_scorelines:
+        top_h, top_a = int(poisson_only.top_scorelines[0][0]), int(poisson_only.top_scorelines[0][1])
+    else:
+        top_h, top_a = 1, 1
     return H2HPrediction(
         home_name=home_team["name"], home_slug=home_team["slug"],
         away_name=away_team["name"], away_slug=away_team["slug"],
@@ -181,6 +184,6 @@ async def head_to_head(
         ensemble=ensemble_triple,
         expected_home_goals=poisson_only.expected_home_goals,
         expected_away_goals=poisson_only.expected_away_goals,
-        top_scoreline=(int(top["home"]), int(top["away"])),
+        top_scoreline=(top_h, top_a),
         data_as_of=as_of,
     )
