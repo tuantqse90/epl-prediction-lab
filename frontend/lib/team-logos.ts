@@ -1,12 +1,9 @@
 // Club crest URLs served by ESPN's public CDN. Keyed by our Understat-derived
 // kebab-case slug (see `slugify` in backend/app/ingest/schedule.py).
 // Unknown teams or broken URLs fall back to a monogram pill in <TeamLogo/>.
+// IDs audited 2026-04-19 against live site.api.espn.com rosters.
 const ESPN = (id: number | string) =>
   `https://a.espncdn.com/i/teamlogos/soccer/500/${id}.png`;
-// API-Football CDN fallback — used when the ESPN ID returns 404. Values
-// come from `teams.api_football_id` populated by ingest_full_squad_photos.
-const AF = (id: number | string) =>
-  `https://media.api-sports.io/football/teams/${id}.png`;
 
 export const TEAM_LOGOS: Record<string, string> = {
   // ─── Premier League ────────────────────────────────────────────
@@ -52,9 +49,9 @@ export const TEAM_LOGOS: Record<string, string> = {
   alaves: ESPN(96),
   espanyol: ESPN(88),
   "rayo-vallecano": ESPN(101),
-  elche: ESPN(92),
-  levante: ESPN(95),
-  "real-oviedo": AF(718),
+  elche: ESPN(3751),
+  levante: ESPN(1538),
+  "real-oviedo": ESPN(92),
 
   // ─── Bundesliga ────────────────────────────────────────────────
   "bayern-munich": ESPN(132),
@@ -65,16 +62,16 @@ export const TEAM_LOGOS: Record<string, string> = {
   "vfb-stuttgart": ESPN(134),
   "borussia-m-gladbach": ESPN(268),
   wolfsburg: ESPN(138),
-  freiburg: ESPN(143),
+  freiburg: ESPN(126),
   "werder-bremen": ESPN(137),
-  "fc-cologne": ESPN(133),
+  "fc-cologne": ESPN(122),
   "union-berlin": ESPN(598),
   hoffenheim: ESPN(7911),
-  "mainz-05": AF(164),
-  "fc-heidenheim": AF(180),
-  augsburg: ESPN(11608),
-  "st-pauli": ESPN(2950),
-  "hamburger-sv": ESPN(128),
+  "mainz-05": ESPN(2950),
+  "fc-heidenheim": ESPN(6418),
+  augsburg: ESPN(3841),
+  "st-pauli": ESPN(270),
+  "hamburger-sv": ESPN(127),
 
   // ─── Serie A ───────────────────────────────────────────────────
   juventus: ESPN(111),
@@ -82,45 +79,45 @@ export const TEAM_LOGOS: Record<string, string> = {
   "ac-milan": ESPN(103),
   napoli: ESPN(114),
   roma: ESPN(104),
-  lazio: ESPN(105),
-  atalanta: ESPN(112),
+  lazio: ESPN(112),
+  atalanta: ESPN(105),
   fiorentina: ESPN(109),
   bologna: ESPN(107),
-  torino: ESPN(108),
-  udinese: ESPN(115),
-  genoa: ESPN(122),
-  cagliari: ESPN(117),
-  "parma-calcio-1913": ESPN(118),
+  torino: ESPN(239),
+  udinese: ESPN(118),
+  genoa: ESPN(3263),
+  cagliari: ESPN(2925),
+  "parma-calcio-1913": ESPN(115),
   verona: ESPN(119),
-  empoli: ESPN(116),
+  empoli: ESPN(2574),
   lecce: ESPN(113),
-  sassuolo: ESPN(106),
-  como: ESPN(127),
-  cremonese: ESPN(148),
-  pisa: ESPN(252),
+  sassuolo: ESPN(3997),
+  como: ESPN(2572),
+  cremonese: ESPN(4050),
+  pisa: ESPN(3956),
 
   // ─── Ligue 1 ───────────────────────────────────────────────────
   "paris-saint-germain": ESPN(160),
   marseille: ESPN(176),
-  lyon: ESPN(166),
+  lyon: ESPN(167),
   monaco: ESPN(174),
-  lille: ESPN(165),
-  nice: ESPN(170),
-  lens: ESPN(167),
-  rennes: ESPN(175),
-  nantes: ESPN(159),
+  lille: ESPN(166),
+  nice: ESPN(2502),
+  lens: ESPN(175),
+  rennes: ESPN(169),
+  nantes: ESPN(165),
   strasbourg: ESPN(180),
-  montpellier: ESPN(168),
-  toulouse: ESPN(173),
-  reims: ESPN(172),
-  brest: ESPN(162),
-  "le-havre": ESPN(3707),
-  auxerre: ESPN(3709),
-  angers: ESPN(3701),
+  montpellier: ESPN(274),
+  toulouse: ESPN(179),
+  reims: ESPN(3243),
+  brest: ESPN(6997),
+  "le-havre": ESPN(3236),
+  auxerre: ESPN(172),
+  angers: ESPN(7868),
   "saint-etienne": ESPN(178),
-  metz: ESPN(171),
-  lorient: ESPN(169),
-  "paris-fc": ESPN(3708),
+  metz: ESPN(177),
+  lorient: ESPN(273),
+  "paris-fc": ESPN(6851),
 };
 
 export function logoFor(slug: string): string | undefined {
