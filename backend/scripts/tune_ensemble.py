@@ -200,6 +200,7 @@ async def _build_samples(
                 home_team=r["home_name"],
                 away_team=r["away_name"],
                 as_of=as_of,
+                league_avg=league_avg,
             )
             if feats is not None:
                 xgb_triple = xgb_predict_probs(xgb_model, feats)
