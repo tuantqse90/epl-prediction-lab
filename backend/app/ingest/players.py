@@ -63,14 +63,27 @@ async def upsert_player_stats(
     season: str,
     rows: Iterable[PlayerRow],
 ) -> int:
-    """Delete+insert per season. Idempotent; avoids needing a UNIQUE constraint
-    on an existing table we can't easily migrate."""
+    """Delete+insert per season — BUT only for teams represented in `rows`.
+
+    Prior version wiped every season row before re-inserting, which meant
+    re-running for league B after league A destroyed league A's data. We
+    now scope the delete to the team names touched by this ingest so each
+    league keeps the others intact.
+    """
     rows = list(rows)
+    team_names = sorted({r.team_name for r in rows})
     async with pool.acquire() as conn:
         async with conn.transaction():
-            await conn.execute(
-                "DELETE FROM player_season_stats WHERE season = $1", season
-            )
+            if team_names:
+                await conn.execute(
+                    """
+                    DELETE FROM player_season_stats
+                    WHERE season = $1
+                      AND team_id IN (SELECT id FROM teams WHERE name = ANY($2::text[]))
+                    """,
+                    season, team_names,
+                )
+            inserted = 0
             for r in rows:
                 team_id = await conn.fetchval(
                     "SELECT id FROM teams WHERE name = $1", r.team_name
@@ -90,4 +103,5 @@ async def upsert_player_stats(
                     r.xg, r.xa, r.npxg,
                     r.key_passes, r.position,
                 )
-    return len(rows)
+                inserted += 1
+    return inserted
