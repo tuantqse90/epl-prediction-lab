@@ -1149,6 +1149,20 @@ async def run() -> None:
     settings = get_settings()
     pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=2)
     try:
+        # DB-only cleanups run unconditionally — they don't call API-Football,
+        # so they must keep working even when the daily quota is exhausted.
+        # Without this, a quota exhaustion would leave matches stuck "LIVE 90'"
+        # in the UI until the UTC reset.
+        flipped = await _flip_stuck_live_to_final(pool)
+        if flipped:
+            print(f"[live-scores] flipped {flipped} stale live rows → final")
+        ht_posts = await _notify_halftime(pool)
+        if ht_posts:
+            print(f"[live-scores] posted {ht_posts} half-time notifications")
+        ft_posts = await _notify_full_time(pool)
+        if ft_posts:
+            print(f"[live-scores] posted {ft_posts} full-time notifications")
+
         if not await _has_potential_live(pool):
             print("[live-scores] no match within live window; skipping API call")
             return
@@ -1164,18 +1178,6 @@ async def run() -> None:
             except Exception as e:
                 print(f"[live-scores] skip fixture: {type(e).__name__}: {e}")
         print(f"[live-scores] updated {touched} rows")
-
-        flipped = await _flip_stuck_live_to_final(pool)
-        if flipped:
-            print(f"[live-scores] flipped {flipped} stale live rows → final")
-
-        ht_posts = await _notify_halftime(pool)
-        if ht_posts:
-            print(f"[live-scores] posted {ht_posts} half-time notifications")
-
-        ft_posts = await _notify_full_time(pool)
-        if ft_posts:
-            print(f"[live-scores] posted {ft_posts} full-time notifications")
     finally:
         await pool.close()
 
