@@ -100,8 +100,6 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const displayPred = isLive && match.live && p
     ? { ...p, p_home_win: match.live.p_home_win, p_draw: match.live.p_draw, p_away_win: match.live.p_away_win }
     : p;
-  const top = p?.top_scorelines?.[0];
-
   // Determine model's pick + whether it matched the actual final outcome.
   const actualOutcome = isFinal
     ? match.home_goals! > match.away_goals!
@@ -117,6 +115,20 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
       ? "A"
       : "D"
     : null;
+
+  // Match the displayed "predicted scoreline" to the argmax outcome so the
+  // card doesn't show a draw scoreline (1-1) while the model picked an
+  // Away win. Fall back to the overall top scoreline when the picked class
+  // isn't represented in the top-N list.
+  const outcomeOfScore = (s: { home: number; away: number }) =>
+    s.home > s.away ? "H" : s.home < s.away ? "A" : "D";
+  const overallTop = p?.top_scorelines?.[0];
+  const top = (() => {
+    if (!p) return undefined;
+    if (!modelPick) return overallTop;
+    const match = p.top_scorelines?.find((s) => outcomeOfScore(s) === modelPick);
+    return match ?? overallTop;
+  })();
   const isHit = actualOutcome !== null && modelPick !== null && actualOutcome === modelPick;
   const modelPickLabel =
     modelPick === "H" ? match.home.short_name
