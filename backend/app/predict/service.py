@@ -12,15 +12,29 @@ from app import queries
 from app.models.elo import compute_ratings, elo_to_3way
 from app.models.features import TeamStrength, compute_team_strengths, match_lambdas
 from app.models.poisson import MatchPrediction, predict_match
+from app.models.xgb_model import (
+    build_feature_row as xgb_build_feature_row,
+    load_model as xgb_load_model,
+    predict_probs as xgb_predict_probs,
+)
 from app.onchain.commitment import commitment_hash
 
 NEUTRAL = TeamStrength(attack=1.0, defense=1.0)
 
-# Ensemble weight — 0.25 means the final 1X2 is 75% Poisson + 25% Elo.
-# Elo gives us an independent signal that's less sensitive to xG noise
-# (a team that won 1-0 on a fluke shouldn't get the same λ bump as one
-# that won on 2.5 xG — Elo just cares about the result).
+# Ensemble weights — final 1X2 = (ELO + XGB) signals blend into Poisson.
+# Weights are applied via two sequential convex combinations in
+# predict_match: first Poisson+Elo, then the result blended with XGB.
 ELO_WEIGHT = 0.25
+XGB_WEIGHT = 0.30   # Trained booster, most independent signal. Loaded lazily.
+_XGB_MODEL_CACHE = {"model": None, "loaded": False}
+
+
+def _xgb_model():
+    """Lazy-load once per process. Returns None if model file absent."""
+    if not _XGB_MODEL_CACHE["loaded"]:
+        _XGB_MODEL_CACHE["model"] = xgb_load_model()
+        _XGB_MODEL_CACHE["loaded"] = True
+    return _XGB_MODEL_CACHE["model"]
 
 # How hard an injury-adjusted xG shortfall bites the team's λ. 0.6 means
 # losing 20% of team-xG to current absentees knocks λ down by 12%. Chosen
@@ -179,12 +193,46 @@ async def predict_and_persist(
         triple = elo_to_3way(elo_home, elo_away)
         elo_triple = (triple.p_home_win, triple.p_draw, triple.p_away_win)
 
+    # First pass: Poisson + Elo blend.
     result = predict_match(
         lam_h, lam_a, rho=rho, temperature=temperature,
         elo_probs=elo_triple,
         elo_weight=ELO_WEIGHT if elo_triple is not None else 0.0,
     )
-    tagged_version = f"{model_version}:rho={rho}:T={temperature}:elo={ELO_WEIGHT}"
+
+    # Second pass: layer XGBoost on top. Only blend if the trained booster
+    # file exists — a fresh deploy without training data silently falls
+    # back to the Poisson+Elo ensemble.
+    xgb_model = _xgb_model()
+    xgb_triple = None
+    if xgb_model is not None:
+        feats = xgb_build_feature_row(
+            prior_finals, match["home_name"], match["away_name"],
+            match["kickoff_time"], league_avg,
+        )
+        if feats is not None:
+            xgb_triple = xgb_predict_probs(xgb_model, feats)
+    if xgb_triple is not None:
+        w = XGB_WEIGHT
+        blended = (
+            (1 - w) * result.p_home_win + w * xgb_triple[0],
+            (1 - w) * result.p_draw + w * xgb_triple[1],
+            (1 - w) * result.p_away_win + w * xgb_triple[2],
+        )
+        z = sum(blended) or 1.0
+        result = MatchPrediction(
+            p_home_win=blended[0] / z,
+            p_draw=blended[1] / z,
+            p_away_win=blended[2] / z,
+            expected_home_goals=result.expected_home_goals,
+            expected_away_goals=result.expected_away_goals,
+            top_scorelines=result.top_scorelines,
+        )
+
+    tagged_version = (
+        f"{model_version}:rho={rho}:T={temperature}:elo={ELO_WEIGHT}"
+        f"{':xgb=' + str(XGB_WEIGHT) if xgb_triple is not None else ''}"
+    )
     digest = commitment_hash(
         prediction=result,
         match_id=match_id,
