@@ -141,13 +141,42 @@ WITH latest AS (
         p.match_id, p.p_home_win, p.p_draw, p.p_away_win
     FROM predictions p
     ORDER BY p.match_id, p.created_at DESC
+),
+avg_odds AS (
+    -- One aggregate-odds row per match. Preference order: 'the-odds-api:avg'
+    -- (multi-book average, freshest), then 'football-data:avg' (historical
+    -- pooled), then per-book average fallback.
+    SELECT DISTINCT ON (match_id) match_id, odds_home, odds_draw, odds_away
+    FROM match_odds
+    WHERE source LIKE '%:avg'
+       OR source LIKE 'odds-api:%'
+    ORDER BY match_id,
+             CASE WHEN source = 'the-odds-api:avg' THEN 0
+                  WHEN source = 'football-data:avg' THEN 1
+                  ELSE 2 END,
+             captured_at DESC
+),
+best_odds AS (
+    -- Best (maximum) per-outcome price across every odds-api:<book> row
+    -- for the match. Falls back to the avg row when no per-book rows exist.
+    SELECT match_id,
+           MAX(odds_home) AS best_home,
+           MAX(odds_draw) AS best_draw,
+           MAX(odds_away) AS best_away
+    FROM match_odds
+    WHERE source LIKE 'odds-api:%'
+    GROUP BY match_id
 )
 SELECT m.kickoff_time, m.home_goals, m.away_goals,
        l.p_home_win, l.p_draw, l.p_away_win,
-       o.odds_home, o.odds_draw, o.odds_away
+       a.odds_home, a.odds_draw, a.odds_away,
+       COALESCE(b.best_home, a.odds_home) AS best_home,
+       COALESCE(b.best_draw, a.odds_draw) AS best_draw,
+       COALESCE(b.best_away, a.odds_away) AS best_away
 FROM matches m
 JOIN latest l ON l.match_id = m.id
-JOIN match_odds o ON o.match_id = m.id
+JOIN avg_odds a ON a.match_id = m.id
+LEFT JOIN best_odds b ON b.match_id = m.id
 WHERE m.status = 'final' AND m.season = $1
   AND m.home_goals IS NOT NULL
   AND ($2::text IS NULL OR m.league_code = $2)
@@ -694,8 +723,12 @@ async def roi(
     total_bets = 0
     for r in rows:
         probs = {"H": float(r["p_home_win"]), "D": float(r["p_draw"]), "A": float(r["p_away_win"])}
-        odds = {"H": r["odds_home"], "D": r["odds_draw"], "A": r["odds_away"]}
-        fair = fair_probs(odds["H"], odds["D"], odds["A"])
+        # Edge is measured against the average / reference odds (devigged
+        # market fair). A bettor would NOT get the average price — they
+        # shop around and take the best quote available across books.
+        avg_odds = {"H": r["odds_home"], "D": r["odds_draw"], "A": r["odds_away"]}
+        best_odds = {"H": r["best_home"], "D": r["best_draw"], "A": r["best_away"]}
+        fair = fair_probs(avg_odds["H"], avg_odds["D"], avg_odds["A"])
         if fair is None:
             continue
         fair_map = {"H": fair[0], "D": fair[1], "A": fair[2]}
@@ -708,7 +741,7 @@ async def roi(
                 continue
             entry["bets"] += 1
             total_bets += 1
-            pnl = (float(odds[side]) - 1.0) if side == outcome else -1.0
+            pnl = (float(best_odds[side]) - 1.0) if side == outcome else -1.0
             entry["pnl"] += pnl
             total_pnl += pnl
 
