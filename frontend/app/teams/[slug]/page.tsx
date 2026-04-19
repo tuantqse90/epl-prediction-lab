@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import FollowStar from "@/components/FollowStar";
+import RadialGauge from "@/components/RadialGauge";
 import SeasonTrajectoryChart from "@/components/SeasonTrajectoryChart";
 import TeamLogo from "@/components/TeamLogo";
 import { formatShortDate } from "@/lib/date";
@@ -66,12 +67,14 @@ export async function generateMetadata({
   const res = await fetch(`${BASE}/api/teams/${slug}`, { cache: "no-store" });
   if (!res.ok) return { title: "Team" };
   const p: TeamProfile = await res.json();
-  const title = p.name;
   const s = p.stats;
-  const desc = `EPL ${p.season}: ${s.played}P · ${s.wins}W-${s.draws}D-${s.losses}L · ${s.points} pts · xG diff ${(s.xg_for - s.xg_against).toFixed(1)}.`;
-  return { title, description: desc, openGraph: { title, description: desc, url: `/teams/${slug}` } };
+  const desc = `${p.season}: ${s.played}P · ${s.wins}W-${s.draws}D-${s.losses}L · ${s.points} pts · xG Δ ${(s.xg_for - s.xg_against).toFixed(1)}.`;
+  return {
+    title: p.name,
+    description: desc,
+    openGraph: { title: p.name, description: desc, url: `/teams/${slug}` },
+  };
 }
-
 
 async function fetchProfile(slug: string): Promise<TeamProfile | null> {
   const res = await fetch(`${BASE}/api/teams/${slug}`, { cache: "no-store" });
@@ -80,19 +83,25 @@ async function fetchProfile(slug: string): Promise<TeamProfile | null> {
   return res.json();
 }
 
-function formColor(r: string) {
-  if (r === "W") return "text-neon";
-  if (r === "L") return "text-error";
-  return "text-muted";
+function playerSlug(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-function fixtureLine(f: FixtureBrief, lang: "vi" | "en") {
-  const date = formatShortDate(f.kickoff_time, lang);
-  const score =
-    f.home_goals !== null && f.away_goals !== null
-      ? `${f.home_goals}-${f.away_goals}`
-      : "vs";
-  return { date, home: f.home_short, away: f.away_short, score };
+function formDot(r: string) {
+  if (r === "W") return "bg-neon";
+  if (r === "L") return "bg-error";
+  return "bg-muted";
+}
+
+function fixtureResult(f: FixtureBrief) {
+  const hg = f.home_goals;
+  const ag = f.away_goals;
+  if (hg == null || ag == null) return null;
+  const ourScore = f.is_home ? hg : ag;
+  const theirScore = f.is_home ? ag : hg;
+  if (ourScore > theirScore) return "W" as const;
+  if (ourScore < theirScore) return "L" as const;
+  return "D" as const;
 }
 
 export default async function TeamPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -105,96 +114,266 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
   const s = p.stats;
   const xgDiff = s.xg_for - s.xg_against;
   const color = colorFor(p.slug);
+  const ppg = s.played > 0 ? s.points / s.played : 0;
+
+  // Coefficients relative to a ~1.45 goals-per-match baseline (top-5 avg).
+  const attackCoef = s.played > 0 ? s.xg_for / s.played / 1.45 : 1;
+  const defenseCoef = s.played > 0 ? s.xg_against / s.played / 1.45 : 1;
+
+  const nextFixture = p.upcoming[0];
+  const lastFixture = p.recent[0];
+  const lastResult = lastFixture ? fixtureResult(lastFixture) : null;
+  const topScorer = p.top_scorers[0];
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12 space-y-8">
+    <main className="mx-auto max-w-6xl px-6 py-10 space-y-10">
       <Link href="/" className="btn-ghost text-sm">{t("common.back")}</Link>
 
-      <header className="relative -mx-6 overflow-hidden rounded-xl p-6 space-y-3">
+      {/* HERO */}
+      <header className="relative -mx-6 overflow-hidden rounded-2xl p-8 md:p-12 border border-border/30 bg-surface">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-25"
-          style={{ background: `radial-gradient(closest-side at 20% 50%, ${color}, transparent 60%)` }}
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: `radial-gradient(closest-side at 30% 30%, ${color}55, transparent 65%),
+                         radial-gradient(closest-side at 90% 80%, ${color}22, transparent 70%)`,
+          }}
         />
-        <div className="relative space-y-3">
-          <p className="font-mono text-xs text-muted">{t("common.season")} {p.season}</p>
-          <h1 className="flex flex-wrap items-center gap-4">
-            <TeamLogo slug={p.slug} name={p.name} size={72} />
-            <span className="headline-hero">{p.name}</span>
-            <FollowStar slug={p.slug} label={p.name} />
-          </h1>
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-16 -right-10 opacity-[0.07]"
+        >
+          <TeamLogo slug={p.slug} name={p.name} size={360} />
+        </div>
+        <div className="relative space-y-6">
+          <p className="font-mono text-xs text-muted">
+            {t("common.season")} {p.season}
+          </p>
+          <div className="flex flex-wrap items-center gap-4 md:gap-6">
+            <TeamLogo slug={p.slug} name={p.name} size={88} />
+            <div className="flex flex-col gap-2 min-w-0">
+              <h1 className="headline-hero">{p.name}</h1>
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="rounded-full bg-high px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wider text-secondary">
+                  {s.wins}W · {s.draws}D · {s.losses}L
+                </span>
+                <FollowStar slug={p.slug} label={p.name} />
+              </div>
+            </div>
+          </div>
+
+          {/* Hero stat row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-4">
+            <div>
+              <p className="label">{t("team.points")}</p>
+              <p className="font-display text-5xl font-bold tabular-nums text-neon leading-none">
+                {s.points}
+              </p>
+              <p className="font-mono text-[11px] text-muted mt-1">{ppg.toFixed(2)} pts/game</p>
+            </div>
+            <div>
+              <p className="label">{t("team.goals")}</p>
+              <p className="font-display text-5xl font-bold tabular-nums leading-none">
+                {s.goals_for}
+                <span className="text-muted text-3xl">–</span>
+                {s.goals_against}
+              </p>
+              <p className="font-mono text-[11px] text-muted mt-1">
+                GD {s.goals_for - s.goals_against > 0 ? "+" : ""}
+                {s.goals_for - s.goals_against}
+              </p>
+            </div>
+            <div>
+              <p className="label">{t("team.xgDiff")}</p>
+              <p
+                className={
+                  "font-display text-5xl font-bold tabular-nums leading-none " +
+                  (xgDiff > 0.5 ? "text-neon" : xgDiff < -0.5 ? "text-error" : "")
+                }
+              >
+                {xgDiff > 0 ? "+" : ""}
+                {xgDiff.toFixed(1)}
+              </p>
+              <p className="font-mono text-[11px] text-muted mt-1">
+                xG {s.xg_for.toFixed(1)} / {s.xg_against.toFixed(1)}
+              </p>
+            </div>
+            <div>
+              <p className="label">{t("team.form")}</p>
+              <div className="flex items-center gap-1.5 h-[48px]">
+                {p.form.length === 0 && (
+                  <span className="text-muted text-sm">{t("team.form.none")}</span>
+                )}
+                {p.form.slice(0, 10).map((r, i) => (
+                  <span
+                    key={i}
+                    title={r}
+                    className={`h-3 w-3 rounded-full ${formDot(r)}`}
+                  />
+                ))}
+              </div>
+              <p className="font-mono text-[11px] text-muted mt-1">last 10 results</p>
+            </div>
+          </div>
         </div>
       </header>
 
+      {/* Next fixture + last result spotlight */}
+      {(nextFixture || (lastFixture && lastResult)) && (
+        <section className="grid md:grid-cols-2 gap-4">
+          {nextFixture && (
+            <Link
+              href={`/match/${nextFixture.id}`}
+              className="card flex items-center gap-4 hover:border-neon transition-colors"
+            >
+              <span className="label text-neon shrink-0">Next</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-display font-semibold text-lg truncate">
+                  {nextFixture.is_home
+                    ? `vs ${nextFixture.away_short}`
+                    : `@ ${nextFixture.home_short}`}
+                </p>
+                <p className="font-mono text-xs text-muted">
+                  {formatShortDate(nextFixture.kickoff_time, lang)}
+                </p>
+              </div>
+              <TeamLogo
+                slug={nextFixture.is_home ? nextFixture.away_slug : nextFixture.home_slug}
+                name={nextFixture.is_home ? nextFixture.away_short : nextFixture.home_short}
+                size={40}
+              />
+            </Link>
+          )}
+          {lastFixture && lastResult && (
+            <Link
+              href={`/match/${lastFixture.id}`}
+              className="card flex items-center gap-4 hover:border-neon transition-colors"
+            >
+              <span
+                className={
+                  "label shrink-0 " +
+                  (lastResult === "W" ? "text-neon" : lastResult === "L" ? "text-error" : "text-secondary")
+                }
+              >
+                Last {lastResult}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="font-display font-semibold text-lg tabular-nums">
+                  {lastFixture.home_short} {lastFixture.home_goals}–{lastFixture.away_goals} {lastFixture.away_short}
+                </p>
+                <p className="font-mono text-xs text-muted">
+                  {formatShortDate(lastFixture.kickoff_time, lang)}
+                </p>
+              </div>
+            </Link>
+          )}
+        </section>
+      )}
+
+      {/* Attack / defense gauges */}
+      <section className="card space-y-6">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+          <h2 className="label">Attack / defense vs league</h2>
+          <p className="text-[11px] text-muted">1.00 = league average xG per match</p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-10">
+          <RadialGauge value={attackCoef} label="Attack" higherIsBetter />
+          <RadialGauge value={defenseCoef} label="Defense" higherIsBetter={false} />
+        </div>
+      </section>
+
       <SeasonTrajectoryChart slug={p.slug} season={p.season} lang={lang} />
 
-      <section className="card grid grid-cols-2 md:grid-cols-5 gap-5">
-        <div>
-          <p className="text-xs text-muted">{t("team.played")}</p>
-          <p className="stat">{s.played}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted">{t("team.record")}</p>
-          <p className="stat">{s.wins}-{s.draws}-{s.losses}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted">{t("team.points")}</p>
-          <p className="stat text-neon">{s.points}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted">{t("team.goals")}</p>
-          <p className="stat">{s.goals_for}–{s.goals_against}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted">{t("team.xgDiff")}</p>
-          <p className={`stat ${xgDiff > 0.5 ? "text-neon" : xgDiff < -0.5 ? "text-error" : ""}`}>
-            {xgDiff > 0 ? "+" : ""}
-            {xgDiff.toFixed(1)}
-          </p>
-        </div>
-      </section>
+      {/* Top scorer spotlight */}
+      {topScorer && (
+        <section className="card relative overflow-hidden">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-40"
+            style={{
+              background: `radial-gradient(closest-side at 15% 50%, ${color}44, transparent 55%)`,
+            }}
+          />
+          <div className="relative flex items-center gap-6 flex-wrap">
+            <div className="flex-1 min-w-0">
+              <p className="label mb-2">Top scorer</p>
+              <Link
+                href={`/players/${playerSlug(topScorer.player_name)}`}
+                className="hover:text-neon"
+              >
+                <p className="font-display text-3xl font-semibold truncate">
+                  {topScorer.player_name}
+                </p>
+              </Link>
+              <p className="font-mono text-xs text-muted mt-1">
+                {topScorer.position ?? "—"}
+              </p>
+            </div>
+            <div className="flex gap-6">
+              <div>
+                <p className="label">Goals</p>
+                <p className="stat text-neon text-4xl">{topScorer.goals}</p>
+              </div>
+              <div>
+                <p className="label">xG</p>
+                <p className="stat text-4xl">{topScorer.xg.toFixed(1)}</p>
+              </div>
+              <div>
+                <p className="label">G − xG</p>
+                <p
+                  className={`stat text-4xl ${
+                    topScorer.goals - topScorer.xg > 1
+                      ? "text-neon"
+                      : topScorer.goals - topScorer.xg < -1
+                      ? "text-error"
+                      : ""
+                  }`}
+                >
+                  {topScorer.goals - topScorer.xg > 0 ? "+" : ""}
+                  {(topScorer.goals - topScorer.xg).toFixed(1)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
-      <section className="card space-y-3">
-        <p className="text-sm text-muted">{t("team.form")}</p>
-        <div className="flex gap-2 font-mono text-2xl">
-          {p.form.length === 0 && <span className="text-muted text-sm">{t("team.form.none")}</span>}
-          {p.form.map((r, i) => (
-            <span key={i} className={formColor(r)}>{r}</span>
-          ))}
-        </div>
-      </section>
-
-      <section className="card">
-        <h2 className="font-display font-semibold uppercase tracking-tight mb-3">
-          {t("team.topScorers")}
-        </h2>
-        {p.top_scorers.length === 0 ? (
-          <p className="text-muted text-sm">{t("team.topScorers.empty", { season: p.season })}</p>
-        ) : (
+      {/* Full scorers table */}
+      {p.top_scorers.length > 1 && (
+        <section className="card p-0 overflow-x-auto">
+          <div className="flex items-baseline justify-between p-5 pb-3">
+            <h2 className="label">{t("team.topScorers")}</h2>
+            <p className="text-[11px] text-muted">Top {p.top_scorers.length} by goals</p>
+          </div>
           <table className="w-full font-mono text-sm">
             <thead className="text-muted">
               <tr className="border-b border-border">
                 {["#", "player", "pos", "G", "xG", "A", "xA", "Δ"].map((h) => (
-                  <th key={h} className="label px-2 py-2 text-left">{h}</th>
+                  <th key={h} className="label px-3 py-2 text-left">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {p.top_scorers.map((sc, i) => {
+              {p.top_scorers.slice(1).map((sc, i) => {
                 const delta = sc.goals - sc.xg;
                 return (
-                  <tr key={sc.player_name} className="border-b border-border-muted">
-                    <td className="px-2 py-2 text-muted">{i + 1}</td>
-                    <td className="px-2 py-2 text-primary">{sc.player_name}</td>
-                    <td className="px-2 py-2 text-muted">{sc.position ?? "-"}</td>
-                    <td className="px-2 py-2 tabular-nums">{sc.goals}</td>
-                    <td className="px-2 py-2 tabular-nums text-secondary">{sc.xg.toFixed(1)}</td>
-                    <td className="px-2 py-2 tabular-nums">{sc.assists}</td>
-                    <td className="px-2 py-2 tabular-nums text-secondary">{sc.xa.toFixed(1)}</td>
+                  <tr key={sc.player_name} className="border-b border-border-muted hover:bg-high">
+                    <td className="px-3 py-2 text-muted">{i + 2}</td>
+                    <td className="px-3 py-2 text-primary">
+                      <Link href={`/players/${playerSlug(sc.player_name)}`} className="hover:text-neon">
+                        {sc.player_name}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2 text-muted">{sc.position ?? "-"}</td>
+                    <td className="px-3 py-2 tabular-nums">{sc.goals}</td>
+                    <td className="px-3 py-2 tabular-nums text-secondary">{sc.xg.toFixed(1)}</td>
+                    <td className="px-3 py-2 tabular-nums">{sc.assists}</td>
+                    <td className="px-3 py-2 tabular-nums text-secondary">{sc.xa.toFixed(1)}</td>
                     <td
-                      className={`px-2 py-2 tabular-nums ${
-                        delta > 0.5 ? "text-neon" : delta < -0.5 ? "text-error" : "text-muted"
-                      }`}
+                      className={
+                        "px-3 py-2 tabular-nums " +
+                        (delta > 0.5 ? "text-neon" : delta < -0.5 ? "text-error" : "text-muted")
+                      }
                     >
                       {delta > 0 ? "+" : ""}
                       {delta.toFixed(1)}
@@ -204,25 +383,41 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
               })}
             </tbody>
           </table>
-        )}
-      </section>
+        </section>
+      )}
 
-      <section className="grid md:grid-cols-2 gap-6">
+      {/* Fixtures grid */}
+      <section className="grid md:grid-cols-2 gap-4">
         <div className="card space-y-3">
-          <p className="text-sm text-muted">{t("team.recent")}</p>
+          <div className="flex items-center justify-between">
+            <h2 className="label">{t("team.recent")}</h2>
+            <span className="font-mono text-[10px] text-muted">{p.recent.length}</span>
+          </div>
           {p.recent.length === 0 ? (
             <p className="text-muted text-sm">{t("team.none")}</p>
           ) : (
-            <ul className="space-y-1 font-mono text-sm">
+            <ul className="divide-y divide-border/60">
               {p.recent.map((f) => {
-                const l = fixtureLine(f, lang);
+                const res = fixtureResult(f);
                 return (
                   <li key={f.id}>
-                    <Link href={`/match/${f.id}`} className="hover:text-neon">
-                      <span className="text-muted mr-3">{l.date}</span>
-                      <span>{l.home}</span>{" "}
-                      <span className="text-neon">{l.score}</span>{" "}
-                      <span>{l.away}</span>
+                    <Link href={`/match/${f.id}`} className="flex items-center gap-3 py-2 hover:text-neon">
+                      <span
+                        className={
+                          "h-2 w-2 rounded-full shrink-0 " +
+                          (res === "W" ? "bg-neon" : res === "L" ? "bg-error" : "bg-muted")
+                        }
+                      />
+                      <span className="font-mono text-xs text-muted w-20 shrink-0">
+                        {formatShortDate(f.kickoff_time, lang)}
+                      </span>
+                      <span className="flex-1 truncate font-mono text-sm">
+                        {f.home_short}{" "}
+                        <span className="text-neon tabular-nums">
+                          {f.home_goals ?? "-"}–{f.away_goals ?? "-"}
+                        </span>{" "}
+                        {f.away_short}
+                      </span>
                     </Link>
                   </li>
                 );
@@ -231,24 +426,27 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
           )}
         </div>
         <div className="card space-y-3">
-          <p className="text-sm text-muted">{t("team.upcoming")}</p>
+          <div className="flex items-center justify-between">
+            <h2 className="label">{t("team.upcoming")}</h2>
+            <span className="font-mono text-[10px] text-muted">{p.upcoming.length}</span>
+          </div>
           {p.upcoming.length === 0 ? (
             <p className="text-muted text-sm">{t("team.none")}</p>
           ) : (
-            <ul className="space-y-1 font-mono text-sm">
-              {p.upcoming.map((f) => {
-                const l = fixtureLine(f, lang);
-                return (
-                  <li key={f.id}>
-                    <Link href={`/match/${f.id}`} className="hover:text-neon">
-                      <span className="text-muted mr-3">{l.date}</span>
-                      <span>{l.home}</span>{" "}
-                      <span className="text-muted">{l.score}</span>{" "}
-                      <span>{l.away}</span>
-                    </Link>
-                  </li>
-                );
-              })}
+            <ul className="divide-y divide-border/60">
+              {p.upcoming.map((f) => (
+                <li key={f.id}>
+                  <Link href={`/match/${f.id}`} className="flex items-center gap-3 py-2 hover:text-neon">
+                    <span className="h-2 w-2 rounded-full bg-secondary shrink-0" />
+                    <span className="font-mono text-xs text-muted w-20 shrink-0">
+                      {formatShortDate(f.kickoff_time, lang)}
+                    </span>
+                    <span className="flex-1 truncate font-mono text-sm">
+                      {f.home_short} <span className="text-muted">vs</span> {f.away_short}
+                    </span>
+                  </Link>
+                </li>
+              ))}
             </ul>
           )}
         </div>

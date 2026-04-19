@@ -148,7 +148,10 @@ async def predict_and_persist(
             f"no finished matches with xG for league {league_code!r} — run ingest first"
         )
 
-    strengths = compute_team_strengths(df, as_of=match["kickoff_time"], last_n=last_n)
+    # opponent_adjust=True rescales each match's xG by opponent quality.
+    strengths = compute_team_strengths(
+        df, as_of=match["kickoff_time"], last_n=last_n, opponent_adjust=True,
+    )
     home = strengths.get(match["home_name"], NEUTRAL)
     away = strengths.get(match["away_name"], NEUTRAL)
 

@@ -26,6 +26,8 @@ type AdminStatus = {
     matches_live: number;
     predictions_total: number;
   }>;
+  recent_errors_15m: number;
+  last_errors: Array<{ ts: number; path: string; error: string }>;
 };
 
 async function fetchStatus(): Promise<AdminStatus | null> {
@@ -121,6 +123,25 @@ export default async function AdminPage() {
             <p>{fmtAge(s.ingest.last_player_stats)}</p>
           </div>
         </div>
+      </section>
+
+      {/* Recent errors */}
+      <section className="card space-y-3">
+        <h2 className="label">Recent errors (15 min)</h2>
+        <p className={`stat ${s.recent_errors_15m > 0 ? "text-error" : "text-neon"}`}>
+          {s.recent_errors_15m}
+        </p>
+        {s.last_errors.length > 0 && (
+          <ul className="space-y-1 font-mono text-xs">
+            {s.last_errors.slice(-5).reverse().map((e, i) => (
+              <li key={i} className="flex justify-between gap-2 text-muted">
+                <span className="text-error">{e.error}</span>
+                <span className="truncate">{e.path}</span>
+                <span>{new Date(e.ts * 1000).toLocaleTimeString()}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* Per-league counts */}

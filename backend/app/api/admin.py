@@ -47,10 +47,18 @@ class IngestTimestamps(BaseModel):
     last_player_stats: datetime | None
 
 
+class ErrorEvent(BaseModel):
+    ts: float
+    path: str
+    error: str
+
+
 class AdminStatus(BaseModel):
     quota: QuotaOut | None
     ingest: IngestTimestamps
     leagues: list[LeagueCounts]
+    recent_errors_15m: int
+    last_errors: list[ErrorEvent]
 
 
 def _fetch_quota() -> QuotaOut | None:
@@ -129,6 +137,9 @@ async def admin_status(request: Request) -> AdminStatus:
             )
         )
 
+    from app.core.error_log import recent_errors
+
+    errs = recent_errors(window_sec=900)
     return AdminStatus(
         quota=_fetch_quota(),
         ingest=IngestTimestamps(
@@ -138,4 +149,6 @@ async def admin_status(request: Request) -> AdminStatus:
             last_player_stats=ts_row["last_player_stats"],
         ),
         leagues=leagues_out,
+        recent_errors_15m=len(errs),
+        last_errors=[ErrorEvent(**e) for e in errs[-10:]],
     )

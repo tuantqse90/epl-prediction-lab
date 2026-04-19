@@ -45,12 +45,19 @@ services:
   web:
     build:
       context: ./frontend
+      args:
+        # NEXT_PUBLIC_ vars are baked at build time — pipe via build args
+        # as well as runtime env so both paths see the same values.
+        NEXT_PUBLIC_PLAUSIBLE_HOST: ${NEXT_PUBLIC_PLAUSIBLE_HOST:-}
+        NEXT_PUBLIC_PLAUSIBLE_DOMAIN: ${NEXT_PUBLIC_PLAUSIBLE_DOMAIN:-}
     restart: unless-stopped
     depends_on:
       - api
     environment:
       SERVER_API_URL: http://api:8000
       NEXT_PUBLIC_API_URL: ""
+      NEXT_PUBLIC_PLAUSIBLE_HOST: ${NEXT_PUBLIC_PLAUSIBLE_HOST:-}
+      NEXT_PUBLIC_PLAUSIBLE_DOMAIN: ${NEXT_PUBLIC_PLAUSIBLE_DOMAIN:-}
     ports:
       - "127.0.0.1:${WEB_HOST_PORT:-3500}:3000"
 

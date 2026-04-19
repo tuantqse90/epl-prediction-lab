@@ -18,9 +18,12 @@ from app.api import table as table_router
 from app.api import teams as teams_router
 from app.api import tipsters as tipsters_router
 from app.core.db import lifespan
+from app.core.error_log import ErrorLogMiddleware
 
 app = FastAPI(title="EPL Prediction Lab", lifespan=lifespan)
 
+# Error middleware first so 500s from any later middleware still get logged.
+app.add_middleware(ErrorLogMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

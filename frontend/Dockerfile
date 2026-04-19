@@ -8,6 +8,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# NEXT_PUBLIC_* are baked at build time. Empty defaults keep prior behavior.
+ARG NEXT_PUBLIC_PLAUSIBLE_HOST=""
+ARG NEXT_PUBLIC_PLAUSIBLE_DOMAIN=""
+ENV NEXT_PUBLIC_PLAUSIBLE_HOST=$NEXT_PUBLIC_PLAUSIBLE_HOST \
+    NEXT_PUBLIC_PLAUSIBLE_DOMAIN=$NEXT_PUBLIC_PLAUSIBLE_DOMAIN
 RUN npm run build
 
 FROM node:22-alpine AS runner

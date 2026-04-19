@@ -42,13 +42,19 @@ def compute_team_strengths(
     as_of: pd.Timestamp,
     last_n: int | None = None,
     decay: float = 0.9,
+    opponent_adjust: bool = False,
 ) -> dict[str, TeamStrength]:
     """Return {team_name: TeamStrength} using only matches strictly before `as_of`.
 
-    `last_n` caps history per team (most recent N matches). `decay` applies
-    exponential weight by recency: the most-recent match gets weight 1.0,
-    one-before-that decay, two-before decay^2, etc. Set decay=1.0 for the
-    previous uniform-average behavior.
+    Pipeline:
+      1. `last_n` caps history per team to the most recent N matches.
+      2. `decay` gives exponential weight by recency (decay=1 → uniform).
+      3. `opponent_adjust` divides each match's xG_for by the opponent's raw
+         defense coefficient (and xG_against by opponent's attack) before
+         averaging — so xG piled against a weak defense counts less than
+         xG earned against a strong one. Implemented as a two-pass: we
+         compute raw strengths first, then redo the aggregation with the
+         per-match opponent multiplier applied.
     """
     done = schedule.loc[(schedule["date"] < as_of) & schedule["is_result"].astype(bool)]
     if done.empty:
@@ -81,21 +87,35 @@ def compute_team_strengths(
         weights = pd.Series([decay ** i for i in range(n)])
         return float((ordered[col] * weights).sum() / weights.sum() / league_avg)
 
-    strengths: dict[str, TeamStrength] = {}
-    for team, grp in team_matches.groupby("team"):
-        home_rows = grp[grp["venue"] == "home"]
-        away_rows = grp[grp["venue"] == "away"]
-        overall_att = _weighted(grp, "xg_for") or 1.0
-        overall_def = _weighted(grp, "xg_against") or 1.0
-        strengths[team] = TeamStrength(
-            attack=overall_att,
-            defense=overall_def,
-            attack_home=_weighted(home_rows, "xg_for"),
-            defense_home=_weighted(home_rows, "xg_against"),
-            attack_away=_weighted(away_rows, "xg_for"),
-            defense_away=_weighted(away_rows, "xg_against"),
-        )
-    return strengths
+    def _build(matches: pd.DataFrame) -> dict[str, TeamStrength]:
+        out: dict[str, TeamStrength] = {}
+        for team, grp in matches.groupby("team"):
+            home_rows = grp[grp["venue"] == "home"]
+            away_rows = grp[grp["venue"] == "away"]
+            out[team] = TeamStrength(
+                attack=_weighted(grp, "xg_for") or 1.0,
+                defense=_weighted(grp, "xg_against") or 1.0,
+                attack_home=_weighted(home_rows, "xg_for"),
+                defense_home=_weighted(home_rows, "xg_against"),
+                attack_away=_weighted(away_rows, "xg_for"),
+                defense_away=_weighted(away_rows, "xg_against"),
+            )
+        return out
+
+    raw = _build(team_matches)
+    if not opponent_adjust:
+        return raw
+
+    # Second pass: rescale each row's xG by the opponent's raw coefficient,
+    # then rebuild. Guard against zero-coefficient div by clipping to a
+    # sane band — defense of 0.5 means 'half as porous as average', not
+    # 'impossible to score on'.
+    adjusted = team_matches.copy()
+    opp_def = adjusted["opp"].map(lambda t: (raw.get(t).defense if t in raw else 1.0))
+    opp_att = adjusted["opp"].map(lambda t: (raw.get(t).attack  if t in raw else 1.0))
+    adjusted["xg_for"]    = adjusted["xg_for"]    / opp_def.clip(lower=0.3, upper=2.5)
+    adjusted["xg_against"] = adjusted["xg_against"] / opp_att.clip(lower=0.3, upper=2.5)
+    return _build(adjusted)
 
 
 def match_lambdas(
