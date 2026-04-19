@@ -27,6 +27,11 @@ run python scripts/ingest_injuries.py --season "$SEASON" || true
 # new top-scorer rosters.
 run python scripts/ingest_player_photos.py --season "$SEASON" || true
 
+# Full-squad photo sweep (once daily). ~100 API calls total: 5 for
+# team-id resolution (only runs once per team), then ~95 team-squad
+# pulls. Covers every player on team pages, not just top-20 scorers.
+run python scripts/ingest_full_squad_photos.py --season "$SEASON" || true
+
 # Weather forecast for matches in the next 48h (open-meteo, no key)
 run python scripts/ingest_weather.py --window-minutes 2880 || true
 
