@@ -88,6 +88,14 @@ class RecentWindowOut(BaseModel):
     correct: int
     accuracy: float
     mean_log_loss: float
+    # Excluding actual-draws from the denominator. The 3-way argmax
+    # almost never picks D (draws average 25% real-world but sit below
+    # both H and A in per-match probability), so argmax-accuracy is
+    # structurally capped around 75%. Showing no-draw accuracy alongside
+    # makes the model's real hit-rate on predictable matches visible.
+    accuracy_excl_draws: float = 0.0
+    scored_excl_draws: int = 0
+    draws_in_window: int = 0
     matches: list[RecentMatchResult]
 
 
@@ -390,12 +398,20 @@ async def recent(
         )
 
     n = len(out_rows)
+    draws = sum(1 for r in out_rows if r.actual_outcome == "D")
+    non_draw_n = n - draws
+    non_draw_correct = sum(
+        1 for r in out_rows if r.actual_outcome != "D" and r.hit
+    )
     return RecentWindowOut(
         days=days,
         scored=n,
         correct=correct,
         accuracy=(correct / n) if n else 0.0,
         mean_log_loss=(ll_sum / n) if n else 0.0,
+        accuracy_excl_draws=(non_draw_correct / non_draw_n) if non_draw_n else 0.0,
+        scored_excl_draws=non_draw_n,
+        draws_in_window=draws,
         matches=out_rows,
     )
 
