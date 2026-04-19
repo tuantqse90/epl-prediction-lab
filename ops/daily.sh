@@ -35,5 +35,6 @@ run python scripts/generate_recaps.py --days 7 --limit 120 || true
 # Social distribution — tolerated failure (missing creds, rate limit, etc.)
 run python scripts/post_twitter.py --horizon-days 3 --threshold 0.07 --max 5 || true
 run python scripts/post_twitter_recap.py || true
+run python scripts/post_telegram_digest.py --horizon-hours 24 --threshold 0.05 --max 3 || true
 
 echo "[daily] done"
