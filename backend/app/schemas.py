@@ -48,6 +48,23 @@ class OddsOut(BaseModel):
     best_edge: float | None = None
 
 
+class LiveStatsSide(BaseModel):
+    possession_pct: str | None = None
+    shots_total: int | None = None
+    shots_on: int | None = None
+    corners: int | None = None
+    fouls: int | None = None
+    offsides: int | None = None
+    passes_pct: str | None = None
+    saves: int | None = None
+    xg: float | str | None = None
+
+
+class LiveStats(BaseModel):
+    home: LiveStatsSide | None = None
+    away: LiveStatsSide | None = None
+
+
 class LiveOut(BaseModel):
     minute: int
     live_period: str | None = None     # '1H' | 'HT' | '2H' | 'FT' | 'AET' | 'PEN'
@@ -58,6 +75,7 @@ class LiveOut(BaseModel):
     p_away_win: float
     expected_remaining_home_goals: float
     expected_remaining_away_goals: float
+    stats: LiveStats | None = None
 
 
 class MatchEventOut(BaseModel):

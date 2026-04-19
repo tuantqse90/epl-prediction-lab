@@ -185,6 +185,95 @@ def _fetch_events(key: str, fixture_id: int) -> list[dict]:
         return []
 
 
+def _fetch_stats(key: str, fixture_id: int) -> list[dict]:
+    """Per-team live stats (possession, shots, corners, fouls, offsides,
+    passes, passes-accuracy, saves). One API request per match — quota
+    cost means we throttle which matches get stats, not every tick."""
+    url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}"
+    req = urllib.request.Request(url, headers={"x-apisports-key": key})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = json.loads(resp.read())
+        return body.get("response", []) or []
+    except Exception as e:
+        print(f"[live-scores] stats fetch failed for {fixture_id}: {type(e).__name__}")
+        return []
+
+
+# Cache per-process so we don't re-pull stats for the same match every tick.
+# Tuple of (fixture_id, epoch_seconds) — when True, it's time to pull again.
+_STATS_COOLDOWN_SEC = 30
+_stats_last_pull: dict[int, float] = {}
+
+
+def _should_pull_stats(fixture_id: int) -> bool:
+    import time
+    now = time.time()
+    last = _stats_last_pull.get(fixture_id, 0.0)
+    if now - last >= _STATS_COOLDOWN_SEC:
+        _stats_last_pull[fixture_id] = now
+        return True
+    return False
+
+
+async def _upsert_stats(
+    pool: asyncpg.Pool, match_id: int, fixture_response: list[dict],
+    home_api_name: str, away_api_name: str,
+) -> None:
+    """Collapse API-Football's per-team stats array into a compact JSON
+    blob on matches.live_stats. Normalized names: possession_pct,
+    shots_total, shots_on, corners, fouls, offsides, passes_pct, saves."""
+    def _row_for(team_name: str) -> dict:
+        for t in fixture_response:
+            if (t.get("team") or {}).get("name", "") == team_name:
+                return _pack_stats(t.get("statistics") or [])
+        return {}
+
+    def _pack_stats(arr: list[dict]) -> dict:
+        m: dict = {}
+        for s in arr:
+            typ = (s.get("type") or "").lower()
+            val = s.get("value")
+            if val is None:
+                continue
+            if "ball possession" in typ:
+                m["possession_pct"] = str(val).rstrip("%")
+            elif typ == "total shots":
+                m["shots_total"] = val
+            elif typ == "shots on goal":
+                m["shots_on"] = val
+            elif typ == "corner kicks":
+                m["corners"] = val
+            elif typ == "fouls":
+                m["fouls"] = val
+            elif typ == "offsides":
+                m["offsides"] = val
+            elif typ == "passes %":
+                m["passes_pct"] = str(val).rstrip("%")
+            elif typ == "goalkeeper saves":
+                m["saves"] = val
+            elif typ == "expected_goals":
+                m["xg"] = val
+        return m
+
+    packed = {
+        "home": _row_for(home_api_name),
+        "away": _row_for(away_api_name),
+    }
+    # Skip the DB write when we got nothing useful — saves noise in logs.
+    if not packed["home"] and not packed["away"]:
+        return
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE matches
+            SET live_stats = $2::jsonb, live_stats_updated_at = NOW()
+            WHERE id = $1
+            """,
+            match_id, json.dumps(packed),
+        )
+
+
 async def _upsert_events(
     pool: asyncpg.Pool, match_id: int, events: list[dict], home: str, away: str,
 ) -> list[int]:
@@ -580,6 +669,19 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
         and db_status in ("live", "final")
         and fixture_id and api_key
     )
+    # Live stats pull — throttled to once every _STATS_COOLDOWN_SEC per
+    # match so six concurrent live fixtures cost ≤12 req/min total.
+    if db_status == "live" and fixture_id and api_key and _should_pull_stats(int(fixture_id)):
+        stats_resp = _fetch_stats(api_key, int(fixture_id))
+        if stats_resp:
+            try:
+                await _upsert_stats(
+                    pool, match_row["id"], stats_resp,
+                    teams["home"]["name"], teams["away"]["name"],
+                )
+            except Exception as e:
+                print(f"[live-scores] stats upsert failed for {match_row['id']}: {type(e).__name__}: {e}")
+
     if should_fetch_events:
         events = _fetch_events(api_key, int(fixture_id))
         new_ids = await _upsert_events(pool, match_row["id"], events, home, away)
@@ -689,9 +791,10 @@ async def _enrich_goal_message_with_scorer(
     elif penalty:
         badge = " (phạt đền)"
 
+    assist_raw = scorer_row["assist_name"] if not own_goal else None
     assist_line = ""
-    if scorer_row["assist_name"] and not own_goal:
-        assist_line = f"\n🅰️ Kiến tạo: {scorer_row['assist_name'].replace('_', chr(92)+'_')}"
+    if assist_raw:
+        assist_line = f"\n🅰️ Kiến tạo: {assist_raw.replace('_', chr(92)+'_')}"
 
     prefix = _league_prefix(meta["league_code"])
     home_short = meta["home_short"].replace("_", "\\_")
@@ -705,10 +808,25 @@ async def _enrich_goal_message_with_scorer(
     else:
         scoring = "⚽"
 
+    # Qwen-powered 1-sentence commentary. Sync call adds ~500-900ms to this
+    # enrichment cycle; acceptable because the instant post already fired.
+    # Returns None on LLM outage — we just skip the line.
+    from app.llm.goal_commentary import goal_commentary as _commentary
+    commentary = _commentary(
+        home_team=home_name, away_team=away_name,
+        home_goals=hg, away_goals=ag,
+        scorer=scorer_row["player_name"], assist=assist_raw,
+        minute=min_raw if min_raw is not None else 0,
+        league=meta["league_code"],
+        is_own_goal=own_goal, is_penalty=penalty,
+    )
+    commentary_line = f"\n💬 _{commentary}_" if commentary else ""
+
     new_text = (
         f"⚽ *{scoring}* — {player}{badge}  _{minute_label}_\n"
         f"{prefix} · *{home_short} {hg}-{ag} {away_short}*"
-        f"{assist_line}\n"
+        f"{assist_line}"
+        f"{commentary_line}\n"
         f"[Xem live](https://predictor.nullshift.sh/match/{match_id})"
     )
 

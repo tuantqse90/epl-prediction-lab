@@ -64,7 +64,8 @@ async def _h2h_summary(pool: asyncpg.Pool, home: str, away: str, before) -> str:
     return "; ".join(parts)
 
 
-def _call_qwen(prompt: str, model: str) -> str:
+def _call_qwen(prompt: str, model: str, *, system: str | None = None,
+               max_tokens: int = 240, temperature: float = 0.5) -> str:
     """Call Qwen via DashScope's OpenAI-compat endpoint.
 
     LiteLLM's native `dashscope/*` route hits the CN-region endpoint, which
@@ -83,11 +84,14 @@ def _call_qwen(prompt: str, model: str) -> str:
     )
     resp = completion(
         model=f"openai/{bare_model}",
-        messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": system or SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
         api_base=api_base,
         api_key=os.environ["DASHSCOPE_API_KEY"],
-        temperature=0.5,
-        max_tokens=240,
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
     return resp["choices"][0]["message"]["content"].strip()
 

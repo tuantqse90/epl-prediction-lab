@@ -20,7 +20,7 @@ SELECT
     m.id, m.external_id, m.league_code, m.season, m.matchweek, m.kickoff_time, m.status,
     m.home_goals, m.away_goals, m.home_xg, m.away_xg,
     m.home_team_id, m.away_team_id,
-    m.minute, m.live_period, m.live_updated_at, m.referee,
+    m.minute, m.live_period, m.live_updated_at, m.live_stats, m.referee,
     ht.slug AS home_slug, ht.name AS home_name, ht.short_name AS home_short,
     at.slug AS away_slug, at.name AS away_name, at.short_name AS away_short,
     lp.p_home_win, lp.p_draw, lp.p_away_win,
@@ -306,6 +306,15 @@ def record_to_match_dict(row: asyncpg.Record) -> dict[str, Any]:
     minute = d.pop("minute", None)
     live_period = d.pop("live_period", None)
     live_updated_at = d.pop("live_updated_at", None)
+    raw_live_stats = d.pop("live_stats", None)
+    if isinstance(raw_live_stats, str):
+        try:
+            import json as _json
+            live_stats = _json.loads(raw_live_stats)
+        except Exception:
+            live_stats = None
+    else:
+        live_stats = raw_live_stats
     if (
         d.get("status") == "live"
         and minute is not None
@@ -332,6 +341,7 @@ def record_to_match_dict(row: asyncpg.Record) -> dict[str, Any]:
             "p_away_win": lp.p_away_win,
             "expected_remaining_home_goals": lp.expected_remaining_home_goals,
             "expected_remaining_away_goals": lp.expected_remaining_away_goals,
+            "stats": live_stats,
         }
 
     d["home"] = home

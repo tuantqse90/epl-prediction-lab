@@ -11,6 +11,7 @@ import HalfTimePanel from "@/components/HalfTimePanel";
 import TipsterSubmit from "@/components/TipsterSubmit";
 import XgMomentum from "@/components/XgMomentum";
 import LineupsPanel from "@/components/LineupsPanel";
+import LiveStatsPanel from "@/components/LiveStatsPanel";
 import MatchTabs from "@/components/MatchTabs";
 import LiveBadge from "@/components/LiveBadge";
 import LivePoller from "@/components/LivePoller";
@@ -284,6 +285,14 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             label: lang === "vi" ? "Tổng quan" : "Preview",
             node: (
               <>
+                {isLive && match.live?.stats && (
+                  <LiveStatsPanel
+                    stats={match.live.stats}
+                    homeShort={match.home.short_name}
+                    awayShort={match.away.short_name}
+                    lang={lang}
+                  />
+                )}
                 {match.events && match.events.length > 0 && (
                   <MatchEventsList events={match.events} lang={lang} homeSlug={match.home.slug} />
                 )}

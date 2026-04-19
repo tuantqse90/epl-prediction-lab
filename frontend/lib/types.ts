@@ -39,6 +39,23 @@ export type OddsOut = {
   best_edge?: number | null;
 };
 
+export type LiveStatsSide = {
+  possession_pct?: string | null;
+  shots_total?: number | null;
+  shots_on?: number | null;
+  corners?: number | null;
+  fouls?: number | null;
+  offsides?: number | null;
+  passes_pct?: string | null;
+  saves?: number | null;
+  xg?: number | string | null;
+};
+
+export type LiveStats = {
+  home?: LiveStatsSide | null;
+  away?: LiveStatsSide | null;
+};
+
 export type LiveOut = {
   minute: number;
   live_period: string | null; // '1H' | 'HT' | '2H' | 'FT' | 'AET' | 'PEN'
@@ -48,6 +65,7 @@ export type LiveOut = {
   p_away_win: number;
   expected_remaining_home_goals: number;
   expected_remaining_away_goals: number;
+  stats?: LiveStats | null;
 };
 
 export type MatchEvent = {
