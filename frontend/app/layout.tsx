@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     title: "EPL Prediction Lab",
     description: "Poisson + Dixon-Coles predictions, value bets, and reasoning for every EPL match.",
     locale: "vi_VN",
-    alternateLocale: ["en_GB"],
+    alternateLocale: ["en_GB", "th_TH", "zh_CN", "ko_KR"],
   },
   twitter: {
     card: "summary_large_image",

@@ -1,6 +1,16 @@
-export const LANGS = ["en", "vi"] as const;
+export const LANGS = ["en", "vi", "th", "zh", "ko"] as const;
 export type Lang = (typeof LANGS)[number];
 export const DEFAULT_LANG: Lang = "vi";
+
+// Human-readable labels for the toggle UI. One source of truth so the
+// toggle stays dumb and additions don't touch components.
+export const LANG_LABELS: Record<Lang, string> = {
+  en: "EN",
+  vi: "VI",
+  th: "TH",
+  zh: "ZH",
+  ko: "KO",
+};
 
 // Deeply nested keys would be nicer; flat string keys keep the dict grep-able.
 export type Dict = Record<string, string>;

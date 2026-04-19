@@ -45,9 +45,18 @@ async function fetchRecent(days: number, league?: string): Promise<RecentWindow 
   return res.json();
 }
 
-function outcomeLetter(lang: "en" | "vi", o: "H" | "D" | "A") {
-  if (lang === "en") return o === "H" ? "Home" : o === "D" ? "Draw" : "Away";
-  return o === "H" ? "Chủ" : o === "D" ? "Hòa" : "Khách";
+import type { Lang } from "@/lib/i18n";
+
+const OUTCOME_LABELS: Record<Lang, { H: string; D: string; A: string }> = {
+  en: { H: "Home", D: "Draw", A: "Away" },
+  vi: { H: "Chủ", D: "Hòa", A: "Khách" },
+  th: { H: "เจ้าบ้าน", D: "เสมอ", A: "ทีมเยือน" },
+  zh: { H: "主队", D: "平", A: "客队" },
+  ko: { H: "홈", D: "무", A: "원정" },
+};
+
+function outcomeLetter(lang: Lang, o: "H" | "D" | "A") {
+  return OUTCOME_LABELS[lang][o];
 }
 
 function pct(x: number) {

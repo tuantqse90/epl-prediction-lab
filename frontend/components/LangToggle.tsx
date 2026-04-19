@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useLang } from "@/lib/i18n-client";
-import type { Lang } from "@/lib/i18n";
+import { LANGS, LANG_LABELS, type Lang } from "@/lib/i18n";
 
 export default function LangToggle() {
   const current = useLang();
@@ -15,26 +15,20 @@ export default function LangToggle() {
     router.refresh();
   }
 
-  const item = (l: Lang, label: string) => (
-    <button
-      key={l}
-      onClick={() => set(l)}
-      className={
-        current === l
-          ? "text-neon font-semibold"
-          : "text-muted hover:text-primary transition-colors"
-      }
-      aria-current={current === l ? "true" : undefined}
-    >
-      {label}
-    </button>
-  );
-
+  // 5 languages — a row of buttons gets noisy on mobile. Native <select>
+  // scales and stays accessible without a JS dropdown lib.
   return (
-    <div className="inline-flex items-center gap-2 font-mono text-xs">
-      {item("vi", "VI")}
-      <span className="text-muted">/</span>
-      {item("en", "EN")}
-    </div>
+    <select
+      value={current}
+      onChange={(e) => set(e.target.value as Lang)}
+      aria-label="Language"
+      className="bg-raised border border-border rounded-full px-2 py-1 font-mono text-[11px] uppercase tracking-wide text-secondary hover:border-neon focus:outline-none focus:border-neon"
+    >
+      {LANGS.map((l) => (
+        <option key={l} value={l} className="bg-surface text-primary">
+          {LANG_LABELS[l]}
+        </option>
+      ))}
+    </select>
   );
 }
