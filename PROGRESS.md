@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-21 00:40 +07 — 6-season historical backfill for LaLiga / Serie A / Ligue 1 / Bundesliga
+
+Ran `ingest_season.py` across 4 leagues × 6 seasons (2019-20 → 2024-25) then `backtest.py` per season. 24 ingest passes + 6 walk-forward backtests. Previously only EPL had 7-season history; now **all 5 top leagues have the full matrix** so `/history` is apples-to-apples.
+
+Post-backfill coverage: 100% prediction on every (season, league) pair except 2025-26 which is mid-season. First smoke of `/api/stats/history`: overall acc trend 49.0% (2019-20) → 52.3% (2024-25) → 50.3% (2025-26 in-season). La Liga specifically: 47.9% → 54.2% → 49.7%. Apples-to-apples year-over-year model improvement visible.
+
+`/history` coverage caveat banner auto-hides since `leagues_covered` is now identical across seasons. No code changes — pure data backfill.
+
 ## 2026-04-20 14:15 +07 — Phase 15 shipped: strategy simulator (5 ships)
 
 Full Phase 15 end-to-end — **4 strategies + 1 compare view**. Shared `_walk_bets` + `_wrap_result` helpers + `/api/stats/strategy-sim?name=X` uniform endpoint; each strategy is a pure function that returns the same `{bets, starting, final, peak, drawdown%, roi%, points}` shape so the shared `<StrategyChart>` works across all of them. 10 TDD tests total (2 per strategy + 2 ladder edge cases).
