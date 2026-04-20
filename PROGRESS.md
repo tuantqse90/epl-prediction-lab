@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 13:05 +07 — Phase 9 replaced: Pinnacle sharp column + Polymarket nope
+
+Polymarket probed for a per-fixture no-vig reference (plan-new Phase 9): `tag_slug=soccer` returns 100 events, **0 individual-match markets** (all outrights — EPL Winner, Relegation, 2nd Place). Not useful when our surface is per-fixture 1X2/OU/BTTS/AH. Phase 9 Betfair Exchange also redundant: API-Football Ultra already gives us `af:Betfair` + `af:Pinnacle` + 20+ retail books.
+
+Instead: `/api/matches/:id/markets-edge` gains **pinnacle_prob + sharp_disagreement_pp** per row. Builder devigs Pinnacle's implied odds per (market, line) family (handles 2-way OU/BTTS and 3-way 1X2 uniformly). 3 new TDD tests. `<MarketsEdge>` grows a "Sharp" column between Model and Fair; amber when model diverges from sharp by ≥ 3pp.
+
+Live smoke on match 330: Over 2.5 model 62.9% vs Pinnacle 52.4% (+10.4pp model-overconfident) despite +22pp edge at matchbook — shows the amber as a useful warning. AH Home +0.5 model 73% vs Pinnacle 51.5% (+21.6pp divergence) — model thinks this is an easy home favorite, sharp sees a near-pickem.
+
 ## 2026-04-20 12:40 +07 — Phase 6b upgrade: API-Football Ultra as primary odds
 
 User confirmed we have API-Football Ultra (75k req/day). Switched from the-odds-api free tier to API-Football for multi-market odds: **unlocks BTTS** (free-tier the-odds-api 422'd it), plus full O/U ladder (0.5→7.5) and full AH ladder (-2.5 → +2.5 in 0.25 steps). New `scripts/ingest_apifootball_odds.py` pulls 1X2 + O/U + BTTS + AH (bet ids 1, 5, 8, 4) per league/season/page. One run wrote **~40,600 per-book rows across top-5 leagues** (EPL 12.2k, Serie A 9.9k, Bundesliga 8.9k, Ligue 1 9.2k, LaLiga 0.5k due to low upcoming count this week).
