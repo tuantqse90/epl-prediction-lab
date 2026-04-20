@@ -83,97 +83,75 @@ Requires per-second score/event feed + real-time λ re-estimator + WebSocket bro
 
 ---
 
-## 9. Phase 11 — Rest, fatigue, fixture-congestion features
+## 9. Phase 11 — Rest, fatigue, fixture-congestion features ✅
 
-**Hypothesis.** Pros model fatigue explicitly. A team playing their 3rd match in 7 days, especially with European midweek travel, scores materially less than the same team on 4+ days rest. XGBoost can learn this if the features are present.
+`app/models/fatigue.py` + 5 TDD tests. `compute_fixture_context` returns rest_days + congestion (14-day) + is_midweek. `/api/matches/:id/fatigue` endpoint + chip on match detail. **Phase 11b (XGB retrain with these features)** shipped in combined Phase 14 retrain — `is_midweek` reached rank-4 by feature importance.
 
-**Deliverables**
+## 10. Phase 12 — Referee adjustment ✅
 
-- [ ] **11.1** Feature engineering in `app/models/features.py` — add `compute_fixture_context(team_id, kickoff, df)` returning:
-  - `rest_days_home`, `rest_days_away` (days since previous match)
-  - `europe_midweek_flag` (did the team play a Champions/Europa fixture in the 4 days before this one?)
-  - `congestion_score` (number of matches in the prior 14 days)
-  - `away_travel_km` — optional (need team home city coords; park if too much effort)
-- [ ] **11.2** Retrain XGBoost with the extended 24-feature set. `scripts/train_xgboost.py` already exists — extend.
-- [ ] **11.3** Walk-forward backtest vs current 21-feature model on 2024-25 + 2025-26 EPL. Accept only if log-loss improves by ≥ 0.5% AND accuracy doesn't regress.
-- [ ] **11.4** `PROGRESS.md` entry with before/after numbers + config snapshot.
-- [ ] **11.5** 4 TDD tests for the feature computer — single match prior context, first-of-season edge case, midweek Euro flag detection, congestion score window boundary.
+`app/models/referee.py` + 6 TDD tests. Rolling 2-season per-ref goals-per-match delta, symmetric λ multiplier capped ±10%. Historical data backfilled across 3,634 top-5 league matches via API-Football `/fixtures`. `/api/matches/:id/referee` endpoint + chip `+0.38 g/game` on match detail.
 
-**Cost estimate.** Low. All inputs already in the DB. Retrain is seconds on our small dataset.
+## 11. Phase 13 — Lineup-sum power rating ✅
 
-## 10. Phase 12 — Referee adjustment
+`app/models/lineup_strength.py` + 6 TDD tests. `lineup_xg_rating` aggregates starters (full) + bench (0.24×), multiplier clamped to [0.70, 1.30]. `/api/matches/:id/lineup-strength` endpoint + chip `XI: H×1.05 / A×0.92`. Kicks in only when ≥ 11 starters confirmed; no-op otherwise.
 
-**Hypothesis.** Referees have durable tendencies — some hand out more cards, some let more goals happen, some are fussier about penalties. `matches.referee` is already populated but the model doesn't read it.
+## 12. Phase 14 — Market-line XGB feature ✅
 
-**Deliverables**
-
-- [ ] **12.1** Per-referee baseline calculator `app/models/referee.py` — rolling 2-season window per referee returning `goals_per_match_delta` (above/below league average) + `cards_per_match_delta`.
-- [ ] **12.2** λ adjustment in `predict/service.py`: `goals_per_match_delta` feeds a multiplicative shrink on both team λ (symmetric — refs affect both sides). Cap ±10% so no single outlier ref nukes predictions.
-- [ ] **12.3** Markets endpoint exposes the ref multiplier in the response so UI can show it.
-- [ ] **12.4** On `/match/:id` — mention the referee + their tendency in a small chip: "Michael Oliver · 0.8 goals above league avg". Pure text, no new component.
-- [ ] **12.5** Backtest: walk-forward on 2024-25. Accept only if 1X2 log-loss + O/U 2.5 log-loss both improve.
-- [ ] **12.6** 5 TDD tests — referee with ≥ 30 match sample, sparse referee fallback, cap enforcement, symmetric application, no-referee-data graceful skip.
-
-**Cost estimate.** Low. Data already stored, single-file change.
-
-## 11. Phase 13 — Lineup-sum power rating
-
-**Hypothesis.** Team attack/defense rating from opponent-adjusted rolling xG is coarse — it treats every player identically. Sharps reconstruct team strength at kickoff from the actual starting XI's individual xG contributions per 90. When the line-up is known (T-1h pre-KO), this dominates the team-level rating.
-
-**Deliverables**
-
-- [ ] **13.1** `app/models/lineup_strength.py` — given a starting XI + subs list from `match_lineups`, compute `lineup_xg_per_90 = sum(player xG per 90 × expected minutes)`. Expected minutes: 90 for starters, 15-30 for expected bench subs based on player position.
-- [ ] **13.2** Blend the lineup rating with the team-level rating in `match_lambdas`: at T-1h when lineup is confirmed, weight lineup at 0.5; at T-24h when only team rating is available, weight lineup at 0.0.
-- [ ] **13.3** Rerun prediction T-1h with lineup-informed λ. Over-write the pre-existing `predictions` row since we've gained info.
-- [ ] **13.4** `/match/:id` surfaces both the T-24h and T-1h prediction side by side with a "lineup-adjusted" label when the 2nd is available.
-- [ ] **13.5** Backtest on 2024-25 + 2025-26 where we have lineup history. Success criterion: **log-loss improves ≥ 1% over base ensemble**.
-- [ ] **13.6** 6 TDD tests — full-strength XI vs weakened XI, sub-minutes weighting, positional weighting (forwards count more than centre-backs for xG sum), missing lineup fallback, weight-blending boundary, overwrite-existing-prediction idempotency.
-
-**Cost estimate.** Medium. Requires thoughtful lineup → xG mapping (forwards contribute differently than defenders) and a second prediction-writer pass near kickoff. This is the highest-leverage single model improvement available.
-
-## 12. Phase 14 — Market-line as XGB feature (experimental)
-
-**Hypothesis.** The closing line encodes information from sharp bettors. Adding it as a feature can boost accuracy 1–2%. Caveat: feels circular (we're using market to predict market). Only attempt after Phases 11–13 have locked in the non-circular improvements so we know the baseline.
-
-**Deliverables**
-
-- [ ] **14.1** Add `market_home_fair_prob`, `market_draw_fair_prob`, `market_away_fair_prob` (devigged from earliest-available match_odds row) as 3 new features.
-- [ ] **14.2** Retrain XGBoost with the 27-feature set (21 base + 3 fatigue from P11 + 3 market features).
-- [ ] **14.3** Walk-forward backtest. Success criterion: **log-loss improves ≥ 0.5% vs post-P11+P12 baseline**. Abort if the model just reproduces the market (accuracy up but edge-betting ROI goes to zero — it's not independent signal anymore).
-- [ ] **14.4** Manually inspect top XGBoost feature importances: if market-line features absorb all the signal and the xG / Elo / form features go to zero importance, we've over-fit to the market. Roll back.
-- [ ] **14.5** 3 TDD tests — feature presence, missing-odds fallback to NaN, devig monotonicity.
-
-**Cost estimate.** Low compute-wise, medium risk. The "don't just reproduce the market" check is the hardest part.
+3 market features (`market_p_home/draw/away` devigged from earliest `:avg` odds) + 3 P11b fatigue features → 21→27 feature model. **Walk-forward retrain 2024-25 holdout: acc 53.3 → 55.41% (+2.1pp), log-loss 0.984 → 0.9790 (−0.5%), market-gain share 27.4%** (below the 50% circular-fit alarm). Saved to `/data/football-predict-xgb.json`; `predict_upcoming` refreshed 58 predictions.
 
 ---
 
-## 13. Sequencing
+## 13. Phase 15 — Strategy simulator (current)
+
+**Hypothesis.** Users learn more from *watching* strategies fail on real data than from reading about them. A strategy simulator lets users flip between named strategies — some sharp, some bad — and see the full historical bankroll trajectory for each. Makes betting-math intuitive without editing code.
+
+**Strategies to ship** (independent, shippable as own commits):
+
+1. [ ] **15.1 Value ladder** — stake = base_unit × (edge_pp / 5pp), cap 5×. Middle-ground between flat-1u and full Kelly. ~1h.
+2. [ ] **15.2 High-confidence filter** — flat 1u but only when `model_prob ≥ 0.60 AND edge_pp ≥ 5`. Noise filter. ~1h.
+3. [ ] **15.3 Martingale** — double after loss, reset on win. Pedagogical ruin demo. ~1h.
+4. [ ] **15.4 Favorite fade (contrarian)** — bet AGAINST the model pick when edge ≥ 10pp. Negative control — expected terrible ROI proves model has signal. ~1h.
+5. [ ] **15.5 Compare view** — `/strategies/compare` renders 3 strategies side-by-side on the same season + bets. Martingale ruin vs Kelly growth in one screen. ~1h.
+
+**Deliverables per strategy (uniform):**
+
+- Pure simulator fn in `app/api/stats.py` — walks `_ROI_QUERY` rows, returns `{bets, starting, final, peak, max_drawdown_pct, points, roi_percent}` — same shape as `_compute_kelly_bankroll` so the chart is reusable.
+- 2 TDD tests per strategy — core behaviour + one edge case.
+- Endpoint `GET /api/stats/strategy-sim?name=X&threshold=Y&starting=100` — uniform response shape.
+- `/strategies` page with dropdown selector reusing a `<StrategyChart>` component (fork of `<KellyChart>`).
+
+**Cost.** ~1h per strategy, 5h total. No new data, no ingest, no model touch.
+
+**Scope rule.** If the underlying model ROI is flat/negative at the chosen threshold (as Phase 7 Kelly already warned at 5pp), the page copy SAYS SO — not hide it. Transparency over marketing.
+
+---
+
+## 14. Sequencing
 
 ```
 Analytics (done)      Phases 5, 6, 6b, 7, 8, 9-sharp       ✅
 Analytics (parked)    Phase 10 in-play                     ⏸
-
-Model quality (next)  Phase 12 referee        ──► Phase 14 market-line
-                      Phase 11 fatigue        ──► Phase 14 market-line
-                      Phase 13 lineup-sum     — independent, highest impact
+Model quality (done)  Phases 11 (+11b), 12, 13, 14         ✅
+Strategy sim (current)  Phase 15.1 → 15.2 → 15.3 → 15.4 → 15.5
 ```
 
-**Recommended next order: 12 → 11 → 13 → 14.** 12 is tiny (data already there, single-file change), 11 shares the XGB retrain infra, 13 is the big win (requires lineup coverage), 14 only if the other three haven't already maxed out the edge.
+Ship order: **15.1 → 15.2 → 15.3 → 15.4 → 15.5** — each ~1h independent commit; shared `<StrategyChart>` + endpoint stable from 15.1 onwards so later strategies are pure additions.
 
 ---
 
-## 14. Success criteria
+## 15. Success criteria
 
 Before closing a phase, `PROGRESS.md` entry must include:
 
 - **Analytics phases**: backtest numbers over the last 2 full seasons (accuracy, ROI, CLV mean, log-loss). Live screenshot of the new surface. Tests-pass count + delta.
 - **Model-quality phases**: walk-forward log-loss + accuracy before/after on out-of-sample seasons. Feature-importance diff (catch accidental reliance on a single feature). Live sample of the updated prediction on one match.
+- **Strategy sim**: final units / peak / max DD / ROI% over 2024-25 holdout with starting=100. Screenshot of `/strategies?name=X` page.
 
 If CLV mean is still negative after Phase 5 data accumulates: stop model-quality work, diagnose the model. Adding features to a model whose closing line consistently beats us is polishing a losing strategy.
 
 ---
 
-## 15. Out of scope (explicit)
+## 16. Out of scope (explicit)
 
 - Live stake placement / API bridge to any book or exchange
 - Handling real user money
