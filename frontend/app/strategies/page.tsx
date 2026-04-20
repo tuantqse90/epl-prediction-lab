@@ -112,6 +112,12 @@ export default async function StrategiesPage({
         ))}
         <span className="text-muted mx-2 self-center">·</span>
         <Link
+          href="/strategies/compare"
+          className="rounded-full px-3 py-1 font-mono text-xs uppercase tracking-wide border border-border text-secondary hover:border-neon hover:text-neon"
+        >
+          {lang === "vi" ? "So sánh tất cả →" : "Compare all →"}
+        </Link>
+        <Link
           href="/roi"
           className="rounded-full px-3 py-1 font-mono text-xs uppercase tracking-wide border border-border text-secondary hover:border-neon hover:text-neon"
         >
