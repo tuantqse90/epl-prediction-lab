@@ -112,6 +112,96 @@ function pct(x: number) {
   return `${Math.round(x * 100)}%`;
 }
 
+type ClvResponse = {
+  days: number;
+  threshold: number;
+  bets: number;
+  mean_clv: number;
+  pct_beat_close: number;
+  by_league: Array<{ league_code: string; n: number; mean_clv: number; pct_beat_close: number }>;
+};
+
+async function fetchClv(days: number, league?: string): Promise<ClvResponse | null> {
+  const qs = new URLSearchParams({ days: String(days), threshold: "0.05" });
+  if (league) qs.set("league", league);
+  try {
+    const res = await fetch(`${BASE}/api/stats/clv?${qs}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function ClvCard({ lang, leagueParam }: { lang: "en" | "vi" | "th" | "zh" | "ko"; leagueParam?: string }) {
+  const data = await fetchClv(60, leagueParam);
+  // Card only shows once we have enough closing snapshots. Until the
+  // T-5min cron has been live long enough to cover finalised matches at
+  // 5pp edge, we keep the surface hidden rather than showing "0 bets".
+  if (!data || data.bets < 10) return null;
+
+  const clvPct = (data.mean_clv * 100).toFixed(2);
+  const beatPct = Math.round(data.pct_beat_close * 100);
+  const positive = data.mean_clv > 0;
+
+  return (
+    <section className="card space-y-4">
+      <div className="space-y-2">
+        <p className="font-mono text-xs uppercase tracking-[0.18em] text-neon">CLV</p>
+        <h2 className="headline-section text-2xl md:text-3xl">
+          {lang === "vi" ? "Thị trường có đồng ý với mình không?" : "Did the market agree with us by kickoff?"}
+        </h2>
+        <p className="text-secondary text-sm max-w-2xl">
+          {lang === "vi"
+            ? "Closing-Line Value: so giá mình lấy lúc flag edge vs giá đóng kèo (T-5 phút). Dương = mình bắt kèo trước khi thị trường chạy vào phe mình. Đây là chỉ số sắc bén nhất để đo chất lượng pick dài hạn."
+            : "Closing-Line Value compares the price at the time we flagged the edge vs the pre-kickoff closing price. Positive = we got there before the market moved our way. This is the sharpest long-run quality signal we have."}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div>
+          <p className="label">{lang === "vi" ? "CLV trung bình" : "Mean CLV"}</p>
+          <p className={"stat " + (positive ? "text-neon" : "text-error")}>
+            {positive ? "+" : ""}{clvPct}%
+          </p>
+          <p className="font-mono text-[11px] text-muted mt-1">{data.bets} {lang === "vi" ? "kèo" : "bets"}</p>
+        </div>
+        <div>
+          <p className="label">{lang === "vi" ? "Tỉ lệ beat close" : "% beat close"}</p>
+          <p className={"stat " + (beatPct > 50 ? "text-neon" : "text-error")}>{beatPct}%</p>
+          <p className="font-mono text-[11px] text-muted mt-1">
+            {lang === "vi" ? "của tổng kèo flag edge ≥ 5pp" : "of flagged edge ≥ 5pp bets"}
+          </p>
+        </div>
+        <div>
+          <p className="label">{lang === "vi" ? "Cửa sổ" : "Window"}</p>
+          <p className="stat">{data.days}d</p>
+          <p className="font-mono text-[11px] text-muted mt-1">
+            {lang === "vi" ? "ngày gần nhất đã đá xong" : "most recent finalised days"}
+          </p>
+        </div>
+      </div>
+
+      {data.by_league.length > 1 && (
+        <div className="border-t border-border-muted pt-3 space-y-2">
+          <p className="label">{lang === "vi" ? "Theo giải" : "By league"}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-xs font-mono">
+            {data.by_league.map((lg) => (
+              <div key={lg.league_code} className="flex items-center justify-between">
+                <span className="text-secondary truncate pr-2">{lg.league_code}</span>
+                <span className={lg.mean_clv > 0 ? "text-neon" : "text-error"}>
+                  {lg.mean_clv > 0 ? "+" : ""}{(lg.mean_clv * 100).toFixed(2)}%
+                  <span className="text-muted ml-2">{lg.n}b</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default async function ProofPage() {
   const lang = await getLang();
   const t = tFor(lang);
@@ -386,6 +476,9 @@ export default async function ProofPage() {
           </section>
         );
       })()}
+
+      {/* CLV — Closing-Line Value card */}
+      <ClvCard lang={lang} leagueParam={leagueParam} />
 
       {/* Per-season rolling accuracy */}
       {history.length > 0 && (

@@ -135,6 +135,26 @@ def edge(model_prob: float, fair_prob: float) -> float:
     return model_prob - fair_prob
 
 
+def clv_pct(stake_odds, closing_odds) -> float | None:
+    """Closing-Line Value as a decimal-odds ratio.
+
+    Positive = we took a BETTER price than the market eventually closed at
+    (i.e., the line moved in our favour — a sharp signal). Computed as
+    ``stake_odds / closing_odds − 1``.
+
+    Returns ``None`` on invalid input (missing or non-positive odds) so
+    callers can drop the row without crashing.
+    """
+    try:
+        s = float(stake_odds)
+        c = float(closing_odds)
+    except (TypeError, ValueError):
+        return None
+    if s <= 0 or c <= 0:
+        return None
+    return s / c - 1.0
+
+
 async def upsert_odds(pool: asyncpg.Pool, rows: Iterable[OddsRow]) -> int:
     rows = list(rows)
     async with pool.acquire() as conn:

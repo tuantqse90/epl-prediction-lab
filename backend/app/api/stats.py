@@ -356,6 +356,17 @@ def _g(r, key):
     return r[key]
 
 
+def _aggregate_clv(clvs) -> dict:
+    """Given a list of per-bet CLV values, return mean + % strictly positive."""
+    xs = [float(x) for x in clvs if x is not None]
+    n = len(xs)
+    if n == 0:
+        return {"n": 0, "mean_clv": 0.0, "pct_beat_close": 0.0}
+    mean = sum(xs) / n
+    beat = sum(1 for x in xs if x > 0) / n
+    return {"n": n, "mean_clv": mean, "pct_beat_close": beat}
+
+
 _CAL_BINS: list[tuple[float, float]] = [
     (0.33, 0.40),
     (0.40, 0.50),
@@ -827,6 +838,132 @@ async def history(
             )
         )
     _STATS_CACHE.set(("history", league_code), out)
+    return out
+
+
+class ClvOut(BaseModel):
+    """Closing-Line Value summary for every edge bet in the window."""
+    days: int
+    threshold: float
+    league_code: str | None
+    bets: int            # bets with BOTH stake + closing odds available
+    mean_clv: float      # avg of (stake/closing - 1) per bet
+    pct_beat_close: float  # fraction of bets where CLV > 0
+    by_league: list[dict]  # same shape, per league_code
+
+
+_CLV_QUERY = """
+WITH latest AS (
+    SELECT DISTINCT ON (p.match_id)
+        p.match_id, p.p_home_win, p.p_draw, p.p_away_win
+    FROM predictions p
+    ORDER BY p.match_id, p.created_at DESC
+),
+stake_odds AS (
+    -- "Stake" = the best price available at the time we flagged the edge.
+    -- We approximate it with the earliest per-book snapshot in match_odds
+    -- (before closing_odds captures the T-5 snapshot). In practice the
+    -- highest per-outcome across odds-api:<book> rows is still the best
+    -- available; if that's missing we fall back to :avg.
+    SELECT match_id,
+           MAX(odds_home) AS odds_home,
+           MAX(odds_draw) AS odds_draw,
+           MAX(odds_away) AS odds_away
+    FROM match_odds
+    WHERE source LIKE 'odds-api:%'
+    GROUP BY match_id
+),
+avg_odds AS (
+    SELECT DISTINCT ON (match_id) match_id, odds_home, odds_draw, odds_away
+    FROM match_odds
+    WHERE source LIKE '%:avg'
+    ORDER BY match_id,
+             CASE WHEN source = 'the-odds-api:avg' THEN 0 ELSE 1 END,
+             captured_at DESC
+)
+SELECT m.league_code,
+       l.p_home_win, l.p_draw, l.p_away_win,
+       COALESCE(s.odds_home, a.odds_home) AS stake_home,
+       COALESCE(s.odds_draw, a.odds_draw) AS stake_draw,
+       COALESCE(s.odds_away, a.odds_away) AS stake_away,
+       a.odds_home AS fair_home,
+       a.odds_draw AS fair_draw,
+       a.odds_away AS fair_away,
+       c.odds_home AS closing_home,
+       c.odds_draw AS closing_draw,
+       c.odds_away AS closing_away
+FROM matches m
+JOIN latest l ON l.match_id = m.id
+JOIN avg_odds a ON a.match_id = m.id
+LEFT JOIN stake_odds s ON s.match_id = m.id
+JOIN closing_odds c ON c.match_id = m.id AND c.source = 'the-odds-api:avg'
+WHERE m.kickoff_time >= NOW() - ($1 || ' days')::INTERVAL
+  AND m.kickoff_time <= NOW()
+  AND ($2::text IS NULL OR m.league_code = $2)
+"""
+
+
+@router.get("/clv", response_model=ClvOut)
+async def clv(
+    request: Request,
+    days: int = Query(30, ge=1, le=365),
+    threshold: float = Query(0.05, ge=0.0, le=0.5),
+    league: str | None = Query(None),
+) -> ClvOut:
+    """Closing-Line Value across every ≥threshold edge bet in the window.
+
+    For each bet we flagged (side where model prob > devigged fair + threshold),
+    compare the price we would have taken (best available per-book) vs the
+    pre-kickoff closing price from `closing_odds`. Long-run positive mean CLV
+    is the sharpest indicator the model is picking real winners.
+    """
+    from app.ingest.odds import fair_probs, clv_pct
+
+    pool = request.app.state.pool
+    league_code = _resolve_league_code(league)
+    cache_key = ("clv", days, threshold, league_code)
+    cached = _STATS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(_CLV_QUERY, str(days), league_code)
+
+    all_clvs: list[float] = []
+    by_lg: dict[str, list[float]] = {}
+    for r in rows:
+        probs = {"H": float(r["p_home_win"]), "D": float(r["p_draw"]), "A": float(r["p_away_win"])}
+        fair = fair_probs(r["fair_home"], r["fair_draw"], r["fair_away"])
+        if fair is None:
+            continue
+        fair_map = {"H": fair[0], "D": fair[1], "A": fair[2]}
+        stake = {"H": r["stake_home"], "D": r["stake_draw"], "A": r["stake_away"]}
+        closing = {"H": r["closing_home"], "D": r["closing_draw"], "A": r["closing_away"]}
+        for side in "HDA":
+            if probs[side] - fair_map[side] < threshold:
+                continue
+            v = clv_pct(stake[side], closing[side])
+            if v is None:
+                continue
+            all_clvs.append(v)
+            by_lg.setdefault(r["league_code"] or "unknown", []).append(v)
+
+    overall = _aggregate_clv(all_clvs)
+    per_league = [
+        {"league_code": lg, **_aggregate_clv(xs)}
+        for lg, xs in sorted(by_lg.items(), key=lambda kv: -len(kv[1]))
+    ]
+
+    out = ClvOut(
+        days=days,
+        threshold=threshold,
+        league_code=league_code,
+        bets=overall["n"],
+        mean_clv=overall["mean_clv"],
+        pct_beat_close=overall["pct_beat_close"],
+        by_league=per_league,
+    )
+    _STATS_CACHE.set(cache_key, out)
     return out
 
 
