@@ -2,6 +2,12 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 11:35 +07 — Phase 8 + Phase 5 (plan-new): per-league ROI + CLV
+
+**Phase 8 — per-league edge map.** Extracted `_compute_roi_metrics` pure aggregator (6 TDD tests). New `GET /api/stats/roi/by-league?window=season|7d|30d|90d` returns bets/wins/PnL_vig/PnL_no-vig/log-loss per league. Frontend: `/roi/by-league` page (window + edge chips, neon/error per row, sparse flag for <10 bets). QuickPicks on `/` now fetches 30d rolling ROI and hides picks from leagues bleeding money (footer chip explains). Live: predictor.nullshift.sh/roi/by-league. Sample: 4 leagues all +17% to +28% ROI over 30d.
+
+**Phase 5 — CLV infrastructure.** Migration 016 adds `closing_odds` table (UNIQUE per match+source, first snapshot wins). `clv_pct()` pure fn + `_aggregate_clv` with 6 TDD tests. `scripts/ingest_closing_odds.py` runs every 5min via new systemd timer; DB pre-check shortcuts zero-fixture windows to survive the-odds-api free tier quota. `GET /api/stats/clv` returns mean CLV + % beat close per league. `/proof` gains a CLV card (hidden until ≥10 snapshots). Waiting for first captures — table is live and empty.
+
 ## 2026-04-20 08:00 +07 — plan-new.md + full docs refresh
 
 Scoped Phase 5+ "sharp-bettor analytics" into new `plan-new.md` (CLV logging → correlated markets → backend Kelly + virtual bankroll → per-league edge map → sharp-exchange reference; in-play parked). Explicit scoping rule: analytics + display only, no custody. Updated `CLAUDE.md` (multi-league scope, bare-repo deploy, plan-new pointer) and refreshed `docs/database.md` (6 missing tables), `docs/prediction-model.md` (Elo + XGB ensemble, injury/weather λ shrinks, CI bootstrap), `docs/project-structure.md` (current 14 routers + 33 scripts + 21 FE pages), `docs/deploy.md` (Hostinger shared VPS + bare-repo + post-receive), `docs/roadmap.md` (Phase 4 closed/dropped, Phase 5+ pointer), `docs/frontend.md` (route list now matches live app).
