@@ -2,6 +2,16 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 11:40 +07 — Phase 6 ship 1: AH + SGP pricing (plan-new)
+
+**Math (TDD).** `prob_asian_handicap(matrix, line, side)` in `app/models/markets.py` — half, integer, and quarter lines; bettor-perspective sign convention (home +0.5 covers draws; away -0.5 needs outright win). `prob_sgp_btts_and_over(matrix, line)` reads the correlated joint directly off matrix cells. 7 new tests in `test_markets.py`; full backend suite 116 green.
+
+**Endpoint.** `GET /api/matches/:id/markets` extended with `prob_ah_home_{±0.5, ±1.5}` + `prob_sgp_btts_over_2_5`. Backward-compatible: fields default to 0.0 for any cached stale response.
+
+**UI.** New `<MarketsEdge>` below the existing `<MarketsPanel>` on `/match/:id`. Surfaces every derived market as a table: model prob, fair decimal odds, plus an SGP mispricing note quantifying how much the "independence assumption" priced by many books would miss the true joint. On the sample fixture I smoke-tested, SGP (BTTS & Over 2.5) came in at 38.4% vs naive product 24.3% — book independence would under-price by 14pp, a real SGP edge.
+
+**Deferred (Phase 6b).** Direct odds ingest for totals / BTTS / AH markets and full edge overlay. For now the user compares fair odds to their own book manually.
+
 ## 2026-04-20 11:35 +07 — Phase 8 + Phase 5 (plan-new): per-league ROI + CLV
 
 **Phase 8 — per-league edge map.** Extracted `_compute_roi_metrics` pure aggregator (6 TDD tests). New `GET /api/stats/roi/by-league?window=season|7d|30d|90d` returns bets/wins/PnL_vig/PnL_no-vig/log-loss per league. Frontend: `/roi/by-league` page (window + edge chips, neon/error per row, sparse flag for <10 bets). QuickPicks on `/` now fetches 30d rolling ROI and hides picks from leagues bleeding money (footer chip explains). Live: predictor.nullshift.sh/roi/by-league. Sample: 4 leagues all +17% to +28% ROI over 30d.
