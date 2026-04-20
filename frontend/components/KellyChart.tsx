@@ -194,6 +194,24 @@ export default async function KellyChart({
         <span>{d.points[d.points.length - 1].date}</span>
       </div>
 
+      {d.max_drawdown_pct > 95 && (
+        <div className="rounded-xl border border-error/40 bg-high p-4 space-y-2">
+          <p className="font-mono text-[10px] uppercase tracking-wide text-error">
+            {lang === "vi" ? "Bankroll bị sập" : "Bankroll wiped"}
+          </p>
+          <p className="text-secondary text-sm leading-relaxed">
+            {lang === "vi"
+              ? `Ở ngưỡng ${thresholdPP}pp, Kelly ${Math.round(d.cap * 100)}% làm bankroll về ~0 — nghĩa là cái "edge" model flag ở mức này không phải edge thật mà là noise + adverse selection. Flat 1u cũng lỗ (so trên page này), Kelly chỉ làm mất nhanh hơn theo cấp số nhân.`
+              : `At a ${thresholdPP}pp threshold, ${Math.round(d.cap * 100)}% Kelly reduces the bankroll to ~0 — the "edges" flagged at this level are noise + adverse selection, not real edges. Flat 1u is also losing (compare mode on this page); Kelly just magnifies the loss exponentially.`}
+          </p>
+          <p className="text-secondary text-sm leading-relaxed">
+            {lang === "vi"
+              ? "Trong thực tế: raise threshold, dùng quarter-Kelly (cap ≤ 6%), hoặc chỉ đánh giải có ROI dương trong /roi/by-league."
+              : "Fixes to try: raise the edge threshold, use quarter-Kelly (cap ≤ 6%), or bet only on leagues with positive recent ROI at /roi/by-league."}
+          </p>
+        </div>
+      )}
+
       <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
         {lang === "vi"
           ? "Không phải stake thật — mô phỏng trên kèo lịch sử. Không custody, không đặt cược hộ."

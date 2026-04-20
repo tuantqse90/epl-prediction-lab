@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 11:55 +07 — Phase 7: Kelly virtual bankroll (plan-new)
+
+**Simulator.** `_compute_kelly_bankroll` walks value bets chronologically, sizes via fractional Kelly on current balance, tracks peak + max drawdown. 9 TDD tests cover compounding, cap clamp, drawdown, chronological sort, below-threshold skip, plus a mutual-exclusivity test that caught a shipping bug on the first smoke test (simulator was staking each flagged side independently → 915 bets, 100% DD on real data because H+D both flagged in ~160 matches means >50% at-risk per match; fixed to stake only the highest-edge side per match).
+
+**Endpoint.** `GET /api/stats/roi/kelly` (cap, starting configurable). `/roi` page gains a Flat vs Kelly toggle. KellyChart renders bankroll line + peak reference + drawdown shaded in red + 5 stat chips (start/peak/final/roi/DD). When DD > 95% a warning block explains honestly that the flagged edges are noise, not real edges, and recommends raising threshold / using quarter-Kelly / filtering to per-league positive ROI via `/roi/by-league`.
+
+**Reveals.** Over full 2025-26, flat 1u at 5pp = -17% ROI (915 bets); Kelly 25% cap = 100% drawdown. The model doesn't have real edge at these thresholds season-wide — the short-term +20% wins we saw in per-league 30d snapshots are mean-reversion. Phase 5 CLV data will tell us definitively when it accumulates.
+
 ## 2026-04-20 11:45 +07 — fix: player photos were all blank
 
 Root cause: `media.api-sports.io/football/players/*.png` returns 403 for anonymous browsers — only responds when the `x-apisports-key` header is injected, which our server holds but `<img src>` from the browser can't send. Additionally all 2,687 player rows had NULL `photo_url` because the photo ingest had never been run on the prod DB.
