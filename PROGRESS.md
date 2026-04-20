@@ -2,6 +2,23 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 14:15 +07 — Phase 15 shipped: strategy simulator (5 ships)
+
+Full Phase 15 end-to-end — **4 strategies + 1 compare view**. Shared `_walk_bets` + `_wrap_result` helpers + `/api/stats/strategy-sim?name=X` uniform endpoint; each strategy is a pure function that returns the same `{bets, starting, final, peak, drawdown%, roi%, points}` shape so the shared `<StrategyChart>` works across all of them. 10 TDD tests total (2 per strategy + 2 ladder edge cases).
+
+**Live data 2025-26 at 5pp edge:**
+
+| Strategy | Bets | Peak | Final | ROI | DD |
+|---|---|---|---|---|---|
+| high-confidence filter | 59 | 105.2u | **102.2u** | **+2.2%** | 2.8% |
+| value ladder | 293 | 127.9u | 0u | −100% | 100% |
+| martingale | 12 | 112.8u | 0u | −100% | 100% |
+| favorite fade | 762 | 100.0u | 7.4u | −92.6% | 92.6% |
+
+High-confidence filter is the only net-positive strategy at this threshold. Favorite-fade losing 92.6% confirms the model has *real* signal (if fade were profitable, the model's edges would be noise). Martingale textbook ruin in 12 bets.
+
+`/strategies` page with dropdown selector + per-strategy warning boxes. `/strategies/compare` renders all four on one SVG with colour-coded legend + summary table. 16/16 playwright e2e still green.
+
 ## 2026-04-20 13:55 +07 — Phase 11b + 14 shipped: XGB 21 → 27 features + retrain
 
 Extended XGBoost feature set from 21 to 27: 3 new fatigue columns (congestion_home, congestion_away, is_midweek) and 3 new market-line columns (devigged `market_p_home/draw/away` from earliest stored odds — earliest, not closing, so no leak of information a value bettor acting early wouldn't have).
