@@ -330,9 +330,27 @@ async def predict_and_persist(
     xgb_model = _xgb_model()
     xgb_triple = None
     if xgb_model is not None:
+        # Pull earliest-available devigged market probs for the prediction.
+        # When absent (new fixture, no odds yet) the booster sees the (1/3,
+        # 1/3, 1/3) fallback and falls back to the non-market features.
+        market_probs = None
+        async with pool.acquire() as conn:
+            odds_row = await conn.fetchrow(
+                """
+                SELECT odds_home, odds_draw, odds_away
+                FROM match_odds
+                WHERE match_id = $1 AND source LIKE '%:avg'
+                ORDER BY captured_at ASC LIMIT 1
+                """,
+                match_id,
+            )
+        if odds_row:
+            from app.ingest.odds import fair_probs
+            market_probs = fair_probs(odds_row["odds_home"], odds_row["odds_draw"], odds_row["odds_away"])
         feats = xgb_build_feature_row(
             prior_finals, match["home_name"], match["away_name"],
             match["kickoff_time"], league_avg,
+            market_probs=market_probs,
         )
         if feats is not None:
             xgb_triple = xgb_predict_probs(xgb_model, feats)

@@ -4,13 +4,20 @@ Uses the same leak-safe walk-forward construction as the Poisson + Elo
 path: every feature (strengths, Elo, form) is computed from matches
 strictly before each target match's kickoff.
 
-Features (21 total):
+Features (27 total):
   attack/defense coefficients per side (overall + home/away) ................ 12
   Elo rating per side + diff ................................................ 3
   days-rest per side + diff ................................................. 3
   league-average goals (raw) ................................................ 1
   home advantage constant ................................................... 1
   is-derby (same city heuristic via team-name prefix)  ...................... 1
+  Phase 11b — fatigue/congestion ........................................... 3
+    congestion_home, congestion_away (matches in 14d prior)
+    is_midweek (Tue/Wed/Thu kickoff proxy for European overlap)
+  Phase 14 — market-line devigged implied probs ............................ 3
+    market_p_home, market_p_draw, market_p_away
+    (fallback (0.33, 0.33, 0.33) when odds absent, so predict path never
+    errors — the booster learns to downweight the prior in that case)
 
 Target: {0: home win, 1: draw, 2: away win}. Softmax probs blend into the
 Poisson 1X2 at predict-time via `ensemble_weight_xgb` in predict/service.
@@ -43,6 +50,10 @@ FEATURE_NAMES = [
     "league_avg",
     "home_adv_const",
     "is_derby",
+    # P11b — fatigue/congestion
+    "congestion_home", "congestion_away", "is_midweek",
+    # P14 — market-line devigged probs
+    "market_p_home", "market_p_draw", "market_p_away",
 ]
 
 
@@ -92,8 +103,15 @@ def build_feature_row(
     away_team: str,
     as_of: pd.Timestamp,
     league_avg: float,
+    *,
+    market_probs: tuple[float, float, float] | None = None,
 ) -> list[float] | None:
-    """Compute all 21 features for a single target match, or None if insufficient history."""
+    """Compute all 27 features for a single target match, or None if
+    insufficient history.
+
+    `market_probs` is the devigged 1X2 prob from book odds. Pass None when
+    odds aren't available — we default to (1/3, 1/3, 1/3) so the booster
+    learns to ignore the feature block when no signal is present."""
     if history.empty:
         return None
     strengths = compute_team_strengths(
@@ -111,6 +129,16 @@ def build_feature_row(
     rest_h = _days_rest(history, home_team, as_of)
     rest_a = _days_rest(history, away_team, as_of)
 
+    # --- Phase 11b: congestion + midweek ---
+    from app.models.fatigue import compute_fixture_context
+    ctx = compute_fixture_context(history, home=home_team, away=away_team, kickoff=as_of)
+
+    # --- Phase 14: market-line prior ---
+    if market_probs is None:
+        m_h, m_d, m_a = 1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0
+    else:
+        m_h, m_d, m_a = market_probs
+
     return [
         home.attack, home.defense,
         _safe(home.attack_home, home.attack), _safe(home.defense_home, home.defense),
@@ -123,6 +151,8 @@ def build_feature_row(
         league_avg,
         1.3,  # static home-advantage param used in match_lambdas
         _is_derby(home_team, away_team),
+        float(ctx.congestion_home), float(ctx.congestion_away), 1.0 if ctx.is_midweek else 0.0,
+        float(m_h), float(m_d), float(m_a),
     ]
 
 

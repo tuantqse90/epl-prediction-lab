@@ -43,6 +43,8 @@ def _outcome(hg: int, ag: int) -> int:
 
 async def _extract(pool: asyncpg.Pool, holdout_season: str) -> tuple[list, list, list, list]:
     """Return (X_train, y_train, X_test, y_test) — test = holdout_season only."""
+    from app.ingest.odds import fair_probs
+
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
@@ -58,6 +60,23 @@ async def _extract(pool: asyncpg.Pool, holdout_season: str) -> tuple[list, list,
             ORDER BY m.kickoff_time ASC
             """
         )
+        # Pre-fetch earliest odds per match so build_feature_row can join
+        # the devigged market prior. Earliest-available avoids using the
+        # closing line (which would leak information a bettor taking early
+        # value wouldn't have).
+        odds_rows = await conn.fetch(
+            """
+            SELECT DISTINCT ON (match_id) match_id, odds_home, odds_draw, odds_away
+            FROM match_odds
+            WHERE source LIKE '%:avg'
+            ORDER BY match_id, captured_at ASC
+            """
+        )
+    market_by_match: dict[int, tuple[float, float, float]] = {}
+    for o in odds_rows:
+        fp = fair_probs(o["odds_home"], o["odds_draw"], o["odds_away"])
+        if fp is not None:
+            market_by_match[o["match_id"]] = fp
 
     # Group match rows by league so per-league history used for features.
     by_league: dict[str, list] = {}
@@ -80,7 +99,10 @@ async def _extract(pool: asyncpg.Pool, holdout_season: str) -> tuple[list, list,
             history = df[df["date"] < as_of]
             if len(history) < 20:  # need enough prior matches for strengths
                 continue
-            feats = build_feature_row(history, r["home_name"], r["away_name"], as_of, league_avg)
+            feats = build_feature_row(
+                history, r["home_name"], r["away_name"], as_of, league_avg,
+                market_probs=market_by_match.get(r["id"]),
+            )
             if feats is None:
                 continue
             target = _outcome(int(r["home_goals"]), int(r["away_goals"]))
@@ -137,6 +159,22 @@ def _train(X_train, y_train, X_test, y_test) -> None:
     acc = (argmax == y_arr).mean()
     ll = -np.log(np.maximum(preds[np.arange(len(y_arr)), y_arr], 1e-12)).mean()
     print(f"[xgb] holdout accuracy={acc * 100:.2f}%  log-loss={ll:.4f}")
+
+    # Feature importance — catch Phase 14 market-feature-collapse (if market
+    # probs dominate, the booster stopped learning from xG/Elo/form).
+    fmap = booster.get_score(importance_type="gain")
+    ranked = sorted(fmap.items(), key=lambda kv: -kv[1])
+    print("[xgb] top 10 features by gain:")
+    for name, gain in ranked[:10]:
+        print(f"  {name:<22} {gain:>10.2f}")
+    # Warn if market features ate all the signal.
+    market_gain = sum(fmap.get(n, 0.0) for n in ("market_p_home", "market_p_draw", "market_p_away"))
+    total_gain = sum(fmap.values()) or 1.0
+    market_share = market_gain / total_gain
+    print(f"[xgb] market-features gain share: {market_share * 100:.1f}%")
+    if market_share > 0.50:
+        print("[xgb] WARNING: market features dominate — possible circular fit. "
+              "Consider training a fallback 21-feature model as reference.")
 
     save_model(booster)
     print(f"[xgb] saved → {MODEL_PATH}")
