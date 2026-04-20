@@ -612,6 +612,59 @@ def _simulate_martingale(
     return _wrap_result(points, starting, bankroll, peak, bets)
 
 
+def _simulate_favorite_fade(
+    rows, *, threshold: float, starting: float, base_unit: float = 1.0,
+) -> dict:
+    """Contrarian: when the model flags a side with edge ≥ threshold, bet
+    AGAINST that side (pick the highest-odds opposing outcome). Negative
+    control: if the model has real signal, this strategy should bleed. If
+    it doesn't bleed, our "edges" were noise."""
+    from app.ingest.odds import fair_probs
+
+    bankroll = float(starting)
+    peak = bankroll
+    bets = 0
+    points: list[dict] = []
+    for r in sorted(rows, key=lambda x: _g(x, "kickoff_time")):
+        if bankroll <= 0:
+            break
+        p = {"H": float(_g(r, "p_home_win")),
+             "D": float(_g(r, "p_draw")),
+             "A": float(_g(r, "p_away_win"))}
+        avg = {"H": _g(r, "odds_home"), "D": _g(r, "odds_draw"), "A": _g(r, "odds_away")}
+        best = {"H": _g(r, "best_home"), "D": _g(r, "best_draw"), "A": _g(r, "best_away")}
+        if any(v is None for v in avg.values()) or any(v is None for v in best.values()):
+            continue
+        fair = fair_probs(avg["H"], avg["D"], avg["A"])
+        if fair is None:
+            continue
+        fair_map = {"H": fair[0], "D": fair[1], "A": fair[2]}
+        flagged = []
+        for side in "HDA":
+            if p[side] - fair_map[side] >= threshold:
+                flagged.append((p[side] - fair_map[side], side))
+        if not flagged:
+            continue
+        flagged.sort(reverse=True)
+        _, model_side = flagged[0]
+        # Pick the opposing outcome with highest book odds (maximises payoff
+        # when the model is wrong).
+        fade_candidates = [s for s in "HDA" if s != model_side]
+        fade_side = max(fade_candidates, key=lambda s: float(best[s]))
+        outcome = _outcome(int(_g(r, "home_goals")), int(_g(r, "away_goals")))
+        stake = min(base_unit, bankroll)
+        won = (fade_side == outcome)
+        bankroll += stake * (float(best[fade_side]) - 1.0) if won else -stake
+        bets += 1
+        if bankroll > peak:
+            peak = bankroll
+        kickoff = _g(r, "kickoff_time")
+        day = kickoff.date() if hasattr(kickoff, "date") else kickoff
+        points.append({"date": day, "bankroll": round(max(bankroll, 0.0), 4), "bets": bets})
+    bankroll = max(bankroll, 0.0)
+    return _wrap_result(points, starting, bankroll, peak, bets)
+
+
 def _compute_roi_by_league(rows, threshold: float) -> list[dict]:
     """Group rows by league_code, run _compute_roi_metrics per group, sort
     by bets desc. Leagues with zero bets are kept so the caller can show the
@@ -1319,7 +1372,7 @@ class StrategySimOut(BaseModel):
     points: list[KellyPoint]
 
 
-_STRATEGIES = ("value-ladder", "high-confidence", "martingale")   # grows as 15.4 ships
+_STRATEGIES = ("value-ladder", "high-confidence", "martingale", "favorite-fade")
 
 
 @router.get("/strategy-sim", response_model=StrategySimOut)
@@ -1354,6 +1407,8 @@ async def strategy_sim(
         m = _simulate_high_confidence(rows, threshold=threshold, starting=starting)
     elif name == "martingale":
         m = _simulate_martingale(rows, threshold=threshold, starting=starting)
+    elif name == "favorite-fade":
+        m = _simulate_favorite_fade(rows, threshold=threshold, starting=starting)
     else:  # pragma: no cover — guarded above
         raise HTTPException(status_code=500, detail="strategy missing dispatcher")
 

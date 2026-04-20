@@ -39,7 +39,15 @@ const STRATEGIES = [
     warning_en: "Never attempt live. Bankroll runs out before the eventual win lands — the textbook Martingale failure mode.",
     warning_vi: "KHÔNG làm thật. Bankroll cháy trước khi trận thắng tiếp theo về — thất bại điển hình của Martingale.",
   },
-  // 15.4 slots in here as it ships
+  {
+    slug: "favorite-fade",
+    label_en: "Favorite fade (contrarian)",
+    label_vi: "Ngược model",
+    explainer_en: "Bet AGAINST the model's pick when its edge is ≥ threshold. Negative control: if this isn't deeply negative, the model's edges are noise.",
+    explainer_vi: "Đặt ngược pick của model khi edge ≥ ngưỡng. Negative control: nếu chiến thuật này KHÔNG lỗ nặng thì edge của model là noise.",
+    warning_en: "Expected ROI is deeply negative if the model has real signal. If this comes out profitable, the model's 'edges' aren't real — roll back recent model changes.",
+    warning_vi: "Nếu model có signal thật thì ROI phải âm sâu. Nếu chiến thuật này LÃI, nghĩa là 'edge' của model không thật — cần rollback thay đổi model gần đây.",
+  },
 ] as const;
 
 const THRESHOLDS = [0.03, 0.05, 0.07, 0.10] as const;

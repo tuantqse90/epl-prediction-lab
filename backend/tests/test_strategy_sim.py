@@ -147,3 +147,34 @@ def test_martingale_stops_at_bankroll_depleted():
     assert out["final_units"] == pytest.approx(0.0)
     # Not every row was bet — loop bailed early.
     assert out["bets"] < 6
+
+
+# ── 15.4 Favorite fade (contrarian) ──────────────────────────────────────────
+
+
+def test_favorite_fade_bets_against_model_on_high_edge():
+    """When model says H with edge ≥ threshold, fade picks the highest-odds
+    opposing side. If that opposing side wins, fade wins."""
+    from app.api.stats import _simulate_favorite_fade
+
+    # Odds 2.2/3.8/3.2 devig to fair ~(0.44, 0.26, 0.31). Model p_h=0.70 →
+    # edge on H ~26pp. Fade bets on draw (best opposing odds 3.9) but away
+    # actually wins → fade picks draw (higher odds) → fade LOSES stake.
+    rows = [_row(kickoff=_dt(-1), p_h=0.70, p_d=0.15, p_a=0.15,
+                 oh=2.2, od=3.8, oa=3.2, best_h=2.3, best_d=3.9, best_a=3.3,
+                 hg=0, ag=1)]
+    out = _simulate_favorite_fade(rows, threshold=0.10, starting=100.0, base_unit=1.0)
+    assert out["bets"] == 1
+    # Fade picks draw (odds 3.9 > away 3.3), draw doesn't happen → -1u
+    assert out["final_units"] == pytest.approx(99.0, abs=0.1)
+
+
+def test_favorite_fade_skips_below_threshold():
+    """Small edge → no fade. Doesn't contrarian-bet on close matches."""
+    from app.api.stats import _simulate_favorite_fade
+
+    rows = [_row(kickoff=_dt(-1), p_h=0.42, p_d=0.30, p_a=0.28,
+                 oh=2.3, od=3.3, oa=3.4, best_h=2.3, best_d=3.3, best_a=3.4)]
+    out = _simulate_favorite_fade(rows, threshold=0.10, starting=100.0)
+    assert out["bets"] == 0
+    assert out["final_units"] == pytest.approx(100.0)
