@@ -27,8 +27,11 @@ export default async function SiteHeader({ lang }: { lang: Lang }) {
           <span className="group-hover:text-neon transition-colors">Prediction Lab</span>
         </Link>
 
-        {/* Center nav — scrollable on mobile, underline slides on hover, active page gets filled underline via NavLinks. */}
-        <div className="relative flex items-center gap-5 font-mono overflow-x-auto min-w-0 px-2 -mx-2">
+        {/* Center nav — 4 dropdown groups fit on every viewport; don't
+            clip with overflow:auto, otherwise the dropdown popover (positioned
+            top-full) gets hidden on desktop because overflow-x:auto implicitly
+            sets overflow-y:auto per the CSS spec. */}
+        <div className="relative flex items-center gap-5 font-mono min-w-0 px-2 -mx-2">
           <NavLinks lang={lang} />
         </div>
 

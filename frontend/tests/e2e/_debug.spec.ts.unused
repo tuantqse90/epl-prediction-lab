@@ -1,0 +1,40 @@
+const { chromium } = require('@playwright/test');
+(async () => {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  page.on('console', msg => console.log('PAGE:', msg.type(), msg.text()));
+  page.on('pageerror', err => console.log('PAGEERROR:', err.message));
+  await page.goto('https://predictor.nullshift.sh/', { waitUntil: 'networkidle' });
+  
+  // Find all top-level nav buttons
+  const buttons = await page.locator('nav button[aria-haspopup="menu"]').all();
+  console.log('nav buttons found:', buttons.length);
+  
+  if (buttons.length > 0) {
+    const txt = await buttons[1].innerText();
+    console.log('clicking 2nd button (Stats):', txt);
+    await buttons[1].click();
+    await page.waitForTimeout(500);
+    
+    // Check dropdown visibility
+    const menu = page.locator('[role="menu"]');
+    const count = await menu.count();
+    console.log('menus present after click:', count);
+    if (count > 0) {
+      const visible = await menu.first().isVisible();
+      const box = await menu.first().boundingBox();
+      console.log('first menu visible:', visible, 'box:', JSON.stringify(box));
+      const html = await menu.first().evaluate(el => el.outerHTML.slice(0, 300));
+      console.log('HTML sample:', html);
+    }
+    await page.screenshot({ path: '/tmp/nav-click.png', fullPage: false });
+  } else {
+    console.log('NO aria-haspopup buttons — nav not hydrated?');
+    // dump what's actually in the header nav
+    const html = await page.locator('header').innerHTML();
+    console.log('header HTML (first 800 chars):');
+    console.log(html.slice(0, 800));
+  }
+  
+  await browser.close();
+})();
