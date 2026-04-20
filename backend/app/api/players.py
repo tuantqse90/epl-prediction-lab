@@ -82,6 +82,116 @@ class PlayerProfile(BaseModel):
     career_games: int
 
 
+class PlayerBrowseRow(BaseModel):
+    """Minimal card row for the /players index browse/search."""
+    slug: str
+    player_name: str
+    team_slug: str
+    team_short: str
+    team_name: str
+    position: str | None
+    goals: int
+    assists: int
+    xg: float
+    games: int
+    photo_url: str | None = None
+    league_code: str | None = None
+
+
+class PlayerBrowseOut(BaseModel):
+    players: list[PlayerBrowseRow]
+    total_returned: int
+    has_next: bool
+
+
+@router.get("", response_model=PlayerBrowseOut)
+async def list_players(
+    request: Request,
+    season: str = "2025-26",
+    q: str = "",
+    league: str | None = None,
+    limit: int = 48,
+    offset: int = 0,
+) -> PlayerBrowseOut:
+    """Paginated + searchable player browse backing /players.
+
+    Search is case-insensitive substring match on player_name. Sort by
+    goals desc so recognisable players surface first. limit capped at 100,
+    offset at 2000 (matches /stats/scorers convention)."""
+    from app.leagues import BY_SLUG
+
+    limit = max(1, min(100, limit))
+    offset = max(0, min(2000, offset))
+    league_code = BY_SLUG[league].code if league and league in BY_SLUG else None
+
+    # Dynamic WHERE pieces with predictable placeholder ordering: season is
+    # always $1, then search if present, league if present, then limit+offset.
+    where_parts = ["p.season = $1"]
+    args: list = [season]
+    if q:
+        args.append(f"%{q}%")
+        where_parts.append(f"p.player_name ILIKE ${len(args)}")
+    if league_code:
+        args.append(league_code)
+        lc_idx = len(args)
+        where_parts.append(
+            f"EXISTS (SELECT 1 FROM matches m "
+            f"WHERE (m.home_team_id = p.team_id OR m.away_team_id = p.team_id) "
+            f"AND m.season = $1 AND m.league_code = ${lc_idx})"
+        )
+    args.append(limit + 1)           # $N for LIMIT — fetch +1 to detect hasNext
+    limit_idx = len(args)
+    args.append(offset)               # $M for OFFSET
+    offset_idx = len(args)
+
+    query = f"""
+    SELECT p.player_name, p.position, p.goals, p.assists, p.xg, p.games,
+           p.photo_url, p.api_football_player_id,
+           t.slug AS team_slug, t.name AS team_name, t.short_name AS team_short,
+           (SELECT league_code FROM matches m
+            WHERE (m.home_team_id = p.team_id OR m.away_team_id = p.team_id)
+              AND m.season = $1
+            LIMIT 1) AS league_code
+    FROM player_season_stats p
+    JOIN teams t ON t.id = p.team_id
+    WHERE {' AND '.join(where_parts)}
+    ORDER BY p.goals DESC NULLS LAST, p.xg DESC NULLS LAST
+    LIMIT ${limit_idx} OFFSET ${offset_idx}
+    """
+
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(query, *args)
+
+    has_next = len(rows) > limit
+    rows = rows[:limit]
+
+    def _slug_for(name: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+    out: list[PlayerBrowseRow] = []
+    for r in rows:
+        af_id = r["api_football_player_id"]
+        photo = f"/api/players/photo/{int(af_id)}" if af_id else r["photo_url"]
+        out.append(
+            PlayerBrowseRow(
+                slug=_slug_for(r["player_name"]),
+                player_name=r["player_name"],
+                team_slug=r["team_slug"],
+                team_short=r["team_short"],
+                team_name=r["team_name"],
+                position=r["position"],
+                goals=int(r["goals"] or 0),
+                assists=int(r["assists"] or 0),
+                xg=round(float(r["xg"] or 0.0), 2),
+                games=int(r["games"] or 0),
+                photo_url=photo,
+                league_code=r["league_code"],
+            )
+        )
+    return PlayerBrowseOut(players=out, total_returned=len(out), has_next=has_next)
+
+
 @router.get("/{slug}", response_model=PlayerProfile)
 async def get_player(slug: str, request: Request) -> PlayerProfile:
     pool = request.app.state.pool
