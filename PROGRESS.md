@@ -2,6 +2,16 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 13:40 +07 — Phase 13 shipped: lineup-sum power rating
+
+`app/models/lineup_strength.py` + 6 TDD tests. `lineup_xg_rating` sums per-player xG/game across confirmed starters (full weight) + bench (BENCH_WEIGHT=0.24, ~22 min typical). Missing players silently contribute 0. `lineup_multiplier` clamps ratio to [0.70, 1.30] — ±30% max swing on any single lineup.
+
+`predict/service._lineup_multiplier` joins match_lineups + player_season_stats + rolling team xG-per-match baseline (leak-safe, excludes current match). Blended into the injury × weather × referee × lineup stack on both teams' λ. Kicks in only when ≥ 11 starters confirmed; no-op otherwise.
+
+`/api/matches/:id/lineup-strength` + chip on match detail page: `XI: H×1.05 / A×0.92`. Live on prod: match 4752 returns home×0.775, away×0.700 — both teams clamp-hit because their starters under-index season averages.
+
+Lineup coverage is only ~10 matches today (ingest_lineups.timer is live but recent). The multiplier hook is wired; it'll accumulate leverage as coverage grows. No backtest numbers this phase — too thin a sample. 145 pytest + 16/16 e2e all green.
+
 ## 2026-04-20 13:25 +07 — Phase 11a shipped: fatigue context chip
 
 `app/models/fatigue.py` + 5 TDD tests. `compute_fixture_context(df, home, away, kickoff)` returns rest_days home/away + rest_diff + 14-day congestion count per team + is_midweek flag. Strict prior-date window so the kickoff match itself never counts.
