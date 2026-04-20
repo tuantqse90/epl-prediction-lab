@@ -10,6 +10,47 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/api/teams", tags=["teams"])
 
 
+class TeamBrief(BaseModel):
+    slug: str
+    name: str
+    short_name: str
+    league_code: str | None = None
+
+
+@router.get("", response_model=list[TeamBrief])
+async def list_teams(
+    request: Request,
+    season: str = Query("2025-26"),
+    league: str | None = Query(None),
+) -> list[TeamBrief]:
+    """Flat list of teams with scheduled/final matches this season. Backs the
+    `/compare` team picker + any UI that needs a canonical team roster.
+
+    `league` is the full league_code (e.g. 'ENG-Premier League') — matching
+    the `matches.league_code` column, not the FE slug. When absent, returns
+    every league in the DB."""
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT DISTINCT t.slug, t.name, t.short_name, m.league_code
+            FROM teams t
+            JOIN matches m ON (m.home_team_id = t.id OR m.away_team_id = t.id)
+            WHERE m.season = $1
+              AND ($2::text IS NULL OR m.league_code = $2)
+            ORDER BY t.name
+            """,
+            season, league,
+        )
+    return [
+        TeamBrief(
+            slug=r["slug"], name=r["name"],
+            short_name=r["short_name"], league_code=r["league_code"],
+        )
+        for r in rows
+    ]
+
+
 class TeamStats(BaseModel):
     played: int
     wins: int
