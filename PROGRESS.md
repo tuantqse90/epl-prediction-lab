@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 13:25 +07 — Phase 11a shipped: fatigue context chip
+
+`app/models/fatigue.py` + 5 TDD tests. `compute_fixture_context(df, home, away, kickoff)` returns rest_days home/away + rest_diff + 14-day congestion count per team + is_midweek flag. Strict prior-date window so the kickoff match itself never counts.
+
+`/api/matches/:id/fatigue` endpoint pulls a 30-day lookback per league (one query covers both rest + congestion). Match detail page now shows a context chip: `Rest: 5d / 3d · congested 3/1 · midweek` — neon/error colour on the rest diff, amber on congested ≥ 3.
+
+Scope split: Phase 11a (this) surfaces context; Phase 11b (future) injects these as new XGBoost features and retrains. Deferred because the current /tmp/xgb.json serves fine and any retrain needs its own walk-forward backtest to justify. Full suite 139 pass; 16/16 e2e still green.
+
 ## 2026-04-20 13:15 +07 — Phase 12 shipped: referee λ adjustment (plan-new)
 
 Referee data backfilled from API-Football /fixtures — 3,634 historical rows across top-5 leagues (2019-20 → 2025-26). EPL 96% coverage, others 94-100%. Two bugs fixed inline: `&page=1` triggers 0 results on API-Football (omit it), and asyncpg `timestamptz` bind needs a `datetime` not an ISO string.
