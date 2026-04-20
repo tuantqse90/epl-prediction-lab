@@ -162,24 +162,34 @@ def _parse_totals_rows(event: dict) -> list[tuple[str, float, str, float]]:
     return out
 
 
-def _parse_btts_rows(event: dict) -> list[tuple[str, str, float]]:
-    """Extract per-book BTTS (yes/no) rows from an event."""
-    out: list[tuple[str, str, float]] = []
+def _parse_spreads_rows(event: dict) -> list[tuple[str, float, str, float]]:
+    """Extract per-book spreads (Asian handicap) rows normalised to the
+    home-side perspective.
+
+    the-odds-api returns spreads as one outcome per TEAM with a `point`
+    field. Home at point=-0.5 and away at point=+0.5 is the same handicap
+    quoted from two sides; we store both so lookups on either side hit."""
+    home = event.get("home_team", "")
+    away = event.get("away_team", "")
+    out: list[tuple[str, float, str, float]] = []
     for bk in event.get("bookmakers", []):
         book_key = bk.get("key") or bk.get("title") or ""
         if not book_key:
             continue
         for mkt in bk.get("markets", []):
-            if mkt.get("key") != "btts":
+            if mkt.get("key") != "spreads":
                 continue
             for o in mkt.get("outcomes", []):
                 price = o.get("price")
-                name = (o.get("name") or "").upper()
-                if not price or price <= 1.0:
+                point = o.get("point")
+                name = o.get("name") or ""
+                if not price or price <= 1.0 or point is None:
                     continue
-                if name not in ("YES", "NO"):
-                    continue
-                out.append((book_key, name, float(price)))
+                if name == home:
+                    out.append((book_key, float(point), "HOME", float(price)))
+                elif name == away:
+                    # Convert to home-perspective line: home +N = away -N
+                    out.append((book_key, -float(point), "AWAY", float(price)))
     return out
 
 
@@ -194,11 +204,12 @@ def _aggregate_totals(event: dict) -> dict[float, dict[str, float]]:
     }
 
 
-def _aggregate_btts(event: dict) -> dict[str, float]:
-    sides: dict[str, list[float]] = {"YES": [], "NO": []}
-    for _, side, price in _parse_btts_rows(event):
-        sides[side].append(price)
-    return {s: sum(ps) / len(ps) for s, ps in sides.items() if ps}
+def _aggregate_spreads(event: dict) -> dict[tuple[float, str], float]:
+    """Per (line, side) average price across books."""
+    buckets: dict[tuple[float, str], list[float]] = {}
+    for _, line, side, price in _parse_spreads_rows(event):
+        buckets.setdefault((line, side), []).append(price)
+    return {k: sum(ps) / len(ps) for k, ps in buckets.items() if ps}
 
 
 def events_to_market_rows(events: list[dict], season: str) -> list[MarketOddsRow]:
@@ -234,21 +245,20 @@ def events_to_market_rows(events: list[dict], season: str) -> list[MarketOddsRow
                     market_code="OU", line=line, outcome_code=side, odds=price,
                 ))
 
-        # --- BTTS ---
-        for book_key, side, price in _parse_btts_rows(e):
+        # --- Spreads (Asian handicap, normalised to home-perspective line) ---
+        for book_key, line, side, price in _parse_spreads_rows(e):
             rows.append(MarketOddsRow(
                 season=season, date=ts,
                 home_name=home_c, away_name=away_c,
                 source=f"odds-api:{book_key}",
-                market_code="BTTS", line=None, outcome_code=side, odds=price,
+                market_code="AH", line=line, outcome_code=side, odds=price,
             ))
-        btts_avg = _aggregate_btts(e)
-        for side, price in btts_avg.items():
+        for (line, side), price in _aggregate_spreads(e).items():
             rows.append(MarketOddsRow(
                 season=season, date=ts,
                 home_name=home_c, away_name=away_c,
                 source="the-odds-api:avg",
-                market_code="BTTS", line=None, outcome_code=side, odds=price,
+                market_code="AH", line=line, outcome_code=side, odds=price,
             ))
     return rows
 
@@ -341,7 +351,9 @@ async def run(season: str, regions: str, leagues: list) -> None:
             # regardless of how many markets are bundled, so grabbing 1X2 +
             # totals + BTTS in one call is free compared to three.
             try:
-                events = _fetch(api_key, lg.the_odds_api_key, regions, markets="h2h,totals,btts")
+                # BTTS is gated above free tier on the-odds-api; spreads
+                # (Asian handicap) is supported and gives us real AH edge.
+                events = _fetch(api_key, lg.the_odds_api_key, regions, markets="h2h,totals,spreads")
             except Exception as e:
                 print(f"[live-odds] {lg.short}: {type(e).__name__}: {e}")
                 continue
