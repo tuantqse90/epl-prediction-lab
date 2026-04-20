@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 12:25 +07 — Phase 6b: real book-odds edge overlay (plan-new)
+
+Migration 017 adds `match_odds_markets (match × source × market × line × outcome)`. `ingest_live_odds.py` now fetches `h2h,totals,spreads` in a single request (still 1 the-odds-api credit per call) and writes dual per-book + pooled-avg rows. Free tier rejects `btts` with 422 so BTTS stays pure-model; spreads (Asian handicap) takes its slot. First prod ingest populated **2,020 market rows across 100 events** in 6 API credits.
+
+New `/api/matches/:id/markets-edge` joins the scoreline-matrix probs with best book odds and returns rows ready for UI — `model_prob · fair_odds · best_book_odds · edge_pp · flagged`. `<MarketsEdge>` rewritten to the edge-table shape with neon rows at ≥5pp. 7 TDD tests (incl. a `_RecordLike` stub that catches an asyncpg.Record attr-vs-subscript bug found by smoke-testing on prod right after ship — fixed in the same commit chain).
+
+First live edges on prod: match 4130 LEC vs FIO — Over 2.5 at onexbet 2.32 = +6.48pp edge; AH Home +0.5 at gtbets 1.70 = +13.12pp. These are REAL edges on fresh pre-kickoff lines, not backtest noise. Phase 5 CLV logging will eventually tell us whether they close profitable.
+
 ## 2026-04-20 11:55 +07 — Phase 7: Kelly virtual bankroll (plan-new)
 
 **Simulator.** `_compute_kelly_bankroll` walks value bets chronologically, sizes via fractional Kelly on current balance, tracks peak + max drawdown. 9 TDD tests cover compounding, cap clamp, drawdown, chronological sort, below-threshold skip, plus a mutual-exclusivity test that caught a shipping bug on the first smoke test (simulator was staking each flagged side independently → 915 bets, 100% DD on real data because H+D both flagged in ~160 matches means >50% at-risk per match; fixed to stake only the highest-edge side per match).
