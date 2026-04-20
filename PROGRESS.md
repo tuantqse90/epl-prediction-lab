@@ -2,6 +2,12 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 11:45 +07 — fix: player photos were all blank
+
+Root cause: `media.api-sports.io/football/players/*.png` returns 403 for anonymous browsers — only responds when the `x-apisports-key` header is injected, which our server holds but `<img src>` from the browser can't send. Additionally all 2,687 player rows had NULL `photo_url` because the photo ingest had never been run on the prod DB.
+
+Fix: new proxy endpoint `GET /api/players/photo/{api_football_id}` that fetches upstream with the server-side key and serves the bytes with `Cache-Control: public, max-age=2592000, immutable` (~one fetch per player per month). Scorers / player-profile / team-top-scorers endpoints now rewrite `photo_url` to point at this proxy whenever `api_football_player_id` is populated. Ran `ingest_player_photos.py --season 2025-26` on the VPS → 117 photos matched across the top-scorer lists of all 10 leagues we track (42% unmatched due to non-scorers + name diacritic mismatches — acceptable for the strip). Daily cron (`ops/daily.sh`) already re-runs this, so it stays fresh.
+
 ## 2026-04-20 11:40 +07 — Phase 6 ship 1: AH + SGP pricing (plan-new)
 
 **Math (TDD).** `prob_asian_handicap(matrix, line, side)` in `app/models/markets.py` — half, integer, and quarter lines; bettor-perspective sign convention (home +0.5 covers draws; away -0.5 needs outright win). `prob_sgp_btts_and_over(matrix, line)` reads the correlated joint directly off matrix cells. 7 new tests in `test_markets.py`; full backend suite 116 green.
