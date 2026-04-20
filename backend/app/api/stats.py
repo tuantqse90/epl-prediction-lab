@@ -389,23 +389,25 @@ def _compute_kelly_bankroll(
         fair_map = {"H": fair[0], "D": fair[1], "A": fair[2]}
         outcome = _outcome(int(_g(r, "home_goals")), int(_g(r, "away_goals")))
 
-        day_pnl = 0.0
-        day_bets = 0
+        # Mutual-exclusivity: H/D/A can't all hit. Staking each flagged side
+        # independently compounds to >cap% per match and destroys the
+        # bankroll. Real Kelly on multi-outcome picks the single best.
+        flagged = []
         for side in "HDA":
-            if p[side] - fair_map[side] < threshold:
+            edge = p[side] - fair_map[side]
+            if edge < threshold:
                 continue
             k = kelly_stake(p[side], float(best[side]), cap=cap)
             if k <= 0.0:
                 continue
-            stake = bankroll * k
-            day_bets += 1
-            if side == outcome:
-                day_pnl += stake * (float(best[side]) - 1.0)
-            else:
-                day_pnl -= stake
-
-        if day_bets == 0:
+            flagged.append((edge, side, k))
+        if not flagged:
             continue
+        flagged.sort(reverse=True)          # highest edge first
+        _, side, k = flagged[0]
+        stake = bankroll * k
+        day_pnl = stake * (float(best[side]) - 1.0) if side == outcome else -stake
+        day_bets = 1
 
         bankroll += day_pnl
         bets += day_bets

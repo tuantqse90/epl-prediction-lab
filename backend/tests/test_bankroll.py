@@ -125,3 +125,25 @@ def test_bankroll_zero_stake_when_edge_below_threshold():
     out = _compute_kelly_bankroll(rows, threshold=0.05, cap=0.25, starting=100.0)
     assert out["bets"] == 0
     assert out["final_units"] == pytest.approx(100.0)
+
+
+def test_bankroll_stakes_only_highest_edge_side_per_match():
+    """Mutual-exclusivity fix: if two sides of the same match both flag
+    edge ≥ threshold, only the higher-edge side is staked. Staking both
+    blindly would exceed the per-match cap and explode drawdown on 1X2."""
+    from app.api.stats import _compute_kelly_bankroll
+    # Construct a match where Home AND Draw both flag edges: model says
+    # H=0.55, D=0.30, A=0.15 but fair is H=0.45, D=0.20, A=0.35.
+    # Edges: H=+10pp, D=+10pp, A=-20pp. Both H and D above threshold.
+    # Away actually wins (hg=0, ag=1) → if we bet BOTH H and D, both lose.
+    # The simulator must bet only ONE side (the higher edge), not two.
+    rows = [_row(
+        kickoff=_dt(-1),
+        p_h=0.55, p_d=0.30, p_a=0.15,
+        oh=2.10, od=3.90, oa=3.10,   # fair devig ≈ (0.45, 0.24, 0.31)
+        best_h=2.20, best_d=4.00, best_a=3.20,
+        hg=0, ag=1,
+    )]
+    out = _compute_kelly_bankroll(rows, threshold=0.05, cap=0.25, starting=100.0)
+    # One bet (not two). Loss of one stake only.
+    assert out["bets"] == 1
