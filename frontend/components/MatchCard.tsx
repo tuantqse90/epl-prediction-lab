@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatKickoff } from "@/lib/date";
 import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
+import { tLang } from "@/lib/i18n-fallback";
 import { colorFor } from "@/lib/team-colors";
 import type { MatchOut } from "@/lib/types";
 import CommitmentBadge from "./CommitmentBadge";
@@ -115,7 +116,8 @@ export default function MatchCard({ match, lang }: { match: MatchOut; lang: Lang
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-2 rounded-full bg-neon/15 px-3 py-1 font-mono text-xs uppercase tracking-wide text-neon">
                   <span aria-hidden>✓</span>
-                  <span>{lang === "vi" ? "Model chọn" : "Model picks"}</span>
+                  <span>{tLang(lang, { en: "Model picks", vi: "Model chọn",
+                                           th: "โมเดลเลือก", zh: "模型选择", ko: "모델 선택" })}</span>
                   <span className="font-semibold">{pickLabel}</span>
                   <span className="text-neon/70">· {Math.round(conf * 100)}%</span>
                 </span>

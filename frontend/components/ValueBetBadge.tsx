@@ -1,5 +1,6 @@
 import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
+import { tLang } from "@/lib/i18n-fallback";
 import type { OddsOut, PredictionOut } from "@/lib/types";
 import AddToBetslip from "./AddToBetslip";
 
@@ -90,10 +91,12 @@ export function OddsPanel({
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.15em] text-neon font-semibold">
               <span aria-hidden>◆</span>
-              {lang === "vi" ? "Cơ hội giá trị" : "Value detected"}
+              {tLang(lang, { en: "Value detected", vi: "Cơ hội giá trị",
+                              th: "พบค่า EV+", zh: "发现价值", ko: "가치 발견" })}
             </span>
             <span className="font-mono text-[10px] uppercase tracking-wide text-neon/70">
-              {lang === "vi" ? "Model > Nhà cái" : "Model beats market"}
+              {tLang(lang, { en: "Model beats market", vi: "Model > Nhà cái",
+                              th: "โมเดลชนะตลาด", zh: "模型跑赢庄家", ko: "모델이 시장 초과" })}
             </span>
           </div>
           <div className="flex items-baseline gap-3 flex-wrap">
@@ -107,13 +110,14 @@ export function OddsPanel({
           <div className="grid grid-cols-3 gap-4 pt-2 border-t border-neon/30">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
-                {lang === "vi" ? "Chênh lệch" : "Edge"}
+                {tLang(lang, { en: "Edge", vi: "Chênh lệch", th: "เอดจ์", zh: "edge", ko: "엣지" })}
               </p>
               <p className="stat text-neon text-xl">{pp(odds.best_edge!)}</p>
             </div>
             <div>
               <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
-                {lang === "vi" ? "Xác suất model" : "Model prob"}
+                {tLang(lang, { en: "Model prob", vi: "Xác suất model",
+                                th: "ความน่าจะเป็นโมเดล", zh: "模型概率", ko: "모델 확률" })}
               </p>
               <p className="stat text-primary text-xl">
                 {bestModelProb != null ? `${Math.round(bestModelProb * 100)}%` : "—"}
@@ -121,7 +125,8 @@ export function OddsPanel({
             </div>
             <div>
               <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
-                {lang === "vi" ? "Stake Kelly" : "Kelly stake"}
+                {tLang(lang, { en: "Kelly stake", vi: "Stake Kelly",
+                                th: "Kelly stake", zh: "凯利注额", ko: "켈리 스테이크" })}
               </p>
               <p className="stat text-neon text-xl">
                 {bestKelly > 0 ? `${(bestKelly * 100).toFixed(1)}%` : "—"}
@@ -129,9 +134,13 @@ export function OddsPanel({
             </div>
           </div>
           <p className="font-mono text-[10px] text-muted leading-relaxed">
-            {lang === "vi"
-              ? "Kelly phân đoạn, tối đa 25% vốn. Chỉ là gợi ý thống kê — không phải lời khuyên cá cược."
-              : "Fractional Kelly, capped at 25% of bankroll. Statistical guidance, not betting advice."}
+            {tLang(lang, {
+              en: "Fractional Kelly, capped at 25% of bankroll. Statistical guidance, not betting advice.",
+              vi: "Kelly phân đoạn, tối đa 25% vốn. Chỉ là gợi ý thống kê — không phải lời khuyên cá cược.",
+              th: "Kelly แบบเศษส่วน เพดาน 25% ของทุน เป็นคำแนะนำทางสถิติเท่านั้น ไม่ใช่คำแนะนำการพนัน",
+              zh: "分数凯利,上限为资金的 25%。仅为统计参考,非投注建议。",
+              ko: "분수 켈리, 뱅크롤의 25% 한도. 통계적 가이드일 뿐 베팅 조언이 아닙니다.",
+            })}
           </p>
         </div>
       )}

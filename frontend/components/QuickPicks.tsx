@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { t as tRaw } from "@/lib/i18n";
 import type { Lang } from "@/lib/i18n";
+import { tLang } from "@/lib/i18n-fallback";
 import type { MatchOut } from "@/lib/types";
 import TeamLogo from "./TeamLogo";
 
@@ -51,9 +52,13 @@ export default function QuickPicks({
 
       {filterApplied && picks.length > 0 && (
         <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
-          {lang === "vi"
-            ? "Chỉ hiện picks từ giải có ROI 30d dương"
-            : "Showing only leagues with positive 30d ROI"}
+          {tLang(lang, {
+            en: "Showing only leagues with positive 30d ROI",
+            vi: "Chỉ hiện picks từ giải có ROI 30d dương",
+            th: "แสดงเฉพาะลีกที่มี ROI 30 วันเป็นบวก",
+            zh: "仅显示近 30 天 ROI 为正的联赛",
+            ko: "최근 30일 ROI가 양수인 리그만 표시",
+          })}
         </p>
       )}
 

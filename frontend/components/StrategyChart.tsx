@@ -1,5 +1,6 @@
 import { tFor } from "@/lib/i18n-server";
 import type { Lang } from "@/lib/i18n";
+import { tLang } from "@/lib/i18n-fallback";
 
 // Shared by every Phase 15 strategy. Forks KellyChart's rendering + chips
 // so new strategies are a 10-line page change, not a chart rewrite.
@@ -87,15 +88,15 @@ export default async function StrategyChart({
         <h2 className="font-display font-semibold uppercase tracking-tight">{title}</h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-6 font-mono text-sm tabular-nums w-full md:w-auto">
           <div>
-            <p className="text-xs text-muted">{lang === "vi" ? "Khởi đầu" : "Start"}</p>
+            <p className="text-xs text-muted">{tLang(lang, { en: "Start", vi: "Khởi đầu", th: "เริ่ม", zh: "起始", ko: "시작" })}</p>
             <p className="stat text-base">{d.starting_units.toFixed(0)}u</p>
           </div>
           <div>
-            <p className="text-xs text-muted">{lang === "vi" ? "Đỉnh" : "Peak"}</p>
+            <p className="text-xs text-muted">{tLang(lang, { en: "Peak", vi: "Đỉnh", th: "จุดสูงสุด", zh: "峰值", ko: "고점" })}</p>
             <p className="stat text-base text-neon">{d.peak_units.toFixed(1)}u</p>
           </div>
           <div>
-            <p className="text-xs text-muted">{lang === "vi" ? "Cuối" : "Final"}</p>
+            <p className="text-xs text-muted">{tLang(lang, { en: "Final", vi: "Cuối", th: "สุดท้าย", zh: "最终", ko: "최종" })}</p>
             <p className="stat text-base" style={{ color: lineColor }}>{d.final_units.toFixed(1)}u</p>
           </div>
           <div>
@@ -105,7 +106,7 @@ export default async function StrategyChart({
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted">{lang === "vi" ? "Drawdown" : "Max DD"}</p>
+            <p className="text-xs text-muted">{tLang(lang, { en: "Max DD", vi: "Drawdown", th: "ดรอว์ดาวน์", zh: "最大回撤", ko: "최대 낙폭" })}</p>
             <p className="stat text-base text-error">−{d.max_drawdown_pct.toFixed(1)}%</p>
           </div>
         </div>
@@ -126,7 +127,7 @@ export default async function StrategyChart({
 
       <div className="flex justify-between font-mono text-[10px] text-muted">
         <span>{d.points[0].date}</span>
-        <span>{d.total_bets} {lang === "vi" ? "kèo" : "bets"}</span>
+        <span>{d.total_bets} {tLang(lang, { en: "bets", vi: "kèo", th: "เดิมพัน", zh: "注", ko: "베팅" })}</span>
         <span>{d.points[d.points.length - 1].date}</span>
       </div>
 
