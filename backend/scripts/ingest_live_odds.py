@@ -47,11 +47,11 @@ def _canon(name: str) -> str:
     return LIVE_NAME_MAP.get(name, name)
 
 
-def _fetch(api_key: str, sport_key: str, regions: str) -> list[dict]:
+def _fetch(api_key: str, sport_key: str, regions: str, markets: str = "h2h") -> list[dict]:
     params = {
         "apiKey": api_key,
         "regions": regions,
-        "markets": "h2h",
+        "markets": markets,
         "oddsFormat": "decimal",
         "dateFormat": "iso",
     }
@@ -121,6 +121,172 @@ def _book_rows(event: dict) -> list[tuple[str, float, float, float]]:
     return out
 
 
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class MarketOddsRow:
+    """One outcome of one market on one match from one source. Matches the
+    match_odds_markets table row shape."""
+    season: str
+    date: pd.Timestamp
+    home_name: str
+    away_name: str
+    source: str                # 'the-odds-api:avg' or 'odds-api:<book_key>'
+    market_code: str           # 'OU' | 'BTTS'
+    line: float | None         # 2.5 for OU, None for BTTS
+    outcome_code: str          # 'OVER'/'UNDER', 'YES'/'NO'
+    odds: float
+
+
+def _parse_totals_rows(event: dict) -> list[tuple[str, float, str, float]]:
+    """Extract per-book totals (O/U) rows from an event. One row per
+    (book_key, line, outcome). Aggregates across all lines a book quotes."""
+    out: list[tuple[str, float, str, float]] = []
+    for bk in event.get("bookmakers", []):
+        book_key = bk.get("key") or bk.get("title") or ""
+        if not book_key:
+            continue
+        for mkt in bk.get("markets", []):
+            if mkt.get("key") != "totals":
+                continue
+            for o in mkt.get("outcomes", []):
+                price = o.get("price")
+                name = (o.get("name") or "").upper()
+                point = o.get("point")
+                if not price or price <= 1.0 or point is None:
+                    continue
+                if name not in ("OVER", "UNDER"):
+                    continue
+                out.append((book_key, float(point), name, float(price)))
+    return out
+
+
+def _parse_btts_rows(event: dict) -> list[tuple[str, str, float]]:
+    """Extract per-book BTTS (yes/no) rows from an event."""
+    out: list[tuple[str, str, float]] = []
+    for bk in event.get("bookmakers", []):
+        book_key = bk.get("key") or bk.get("title") or ""
+        if not book_key:
+            continue
+        for mkt in bk.get("markets", []):
+            if mkt.get("key") != "btts":
+                continue
+            for o in mkt.get("outcomes", []):
+                price = o.get("price")
+                name = (o.get("name") or "").upper()
+                if not price or price <= 1.0:
+                    continue
+                if name not in ("YES", "NO"):
+                    continue
+                out.append((book_key, name, float(price)))
+    return out
+
+
+def _aggregate_totals(event: dict) -> dict[float, dict[str, float]]:
+    """Per-line average over/under prices across all books."""
+    buckets: dict[float, dict[str, list[float]]] = {}
+    for _, line, side, price in _parse_totals_rows(event):
+        buckets.setdefault(line, {"OVER": [], "UNDER": []}).setdefault(side, []).append(price)
+    return {
+        line: {side: sum(ps) / len(ps) for side, ps in sides.items() if ps}
+        for line, sides in buckets.items()
+    }
+
+
+def _aggregate_btts(event: dict) -> dict[str, float]:
+    sides: dict[str, list[float]] = {"YES": [], "NO": []}
+    for _, side, price in _parse_btts_rows(event):
+        sides[side].append(price)
+    return {s: sum(ps) / len(ps) for s, ps in sides.items() if ps}
+
+
+def events_to_market_rows(events: list[dict], season: str) -> list[MarketOddsRow]:
+    """Flatten events into per-outcome match_odds_markets rows (O/U + BTTS).
+
+    Mirrors the dual per-book + aggregate pattern used for 1X2: we write a
+    pooled `source='the-odds-api:avg'` row AND one `source='odds-api:<book>'`
+    row per bookmaker per outcome, so the edge endpoint can pick the best
+    price across books while still having an avg reference for devigging."""
+    rows: list[MarketOddsRow] = []
+    for e in events:
+        try:
+            ts = pd.to_datetime(e["commence_time"])
+        except Exception:
+            continue
+        home_c = _canon(e["home_team"])
+        away_c = _canon(e["away_team"])
+
+        # --- Totals (Over/Under) ---
+        for book_key, line, side, price in _parse_totals_rows(e):
+            rows.append(MarketOddsRow(
+                season=season, date=ts,
+                home_name=home_c, away_name=away_c,
+                source=f"odds-api:{book_key}",
+                market_code="OU", line=line, outcome_code=side, odds=price,
+            ))
+        for line, sides in _aggregate_totals(e).items():
+            for side, price in sides.items():
+                rows.append(MarketOddsRow(
+                    season=season, date=ts,
+                    home_name=home_c, away_name=away_c,
+                    source="the-odds-api:avg",
+                    market_code="OU", line=line, outcome_code=side, odds=price,
+                ))
+
+        # --- BTTS ---
+        for book_key, side, price in _parse_btts_rows(e):
+            rows.append(MarketOddsRow(
+                season=season, date=ts,
+                home_name=home_c, away_name=away_c,
+                source=f"odds-api:{book_key}",
+                market_code="BTTS", line=None, outcome_code=side, odds=price,
+            ))
+        btts_avg = _aggregate_btts(e)
+        for side, price in btts_avg.items():
+            rows.append(MarketOddsRow(
+                season=season, date=ts,
+                home_name=home_c, away_name=away_c,
+                source="the-odds-api:avg",
+                market_code="BTTS", line=None, outcome_code=side, odds=price,
+            ))
+    return rows
+
+
+async def upsert_market_odds(pool, rows):
+    """UPSERT into match_odds_markets keyed by
+    (match_id, source, market_code, line, outcome_code)."""
+    rows = list(rows)
+    n = 0
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            for r in rows:
+                match_id = await conn.fetchval(
+                    """
+                    SELECT m.id FROM matches m
+                    JOIN teams ht ON ht.id = m.home_team_id
+                    JOIN teams at ON at.id = m.away_team_id
+                    WHERE ht.name = $1 AND at.name = $2
+                      AND DATE(m.kickoff_time) = $3
+                    """,
+                    r.home_name, r.away_name, r.date.date(),
+                )
+                if match_id is None:
+                    continue
+                await conn.execute(
+                    """
+                    INSERT INTO match_odds_markets (
+                        match_id, source, market_code, line, outcome_code, odds
+                    ) VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (match_id, source, market_code, line, outcome_code)
+                    DO UPDATE SET odds = EXCLUDED.odds, captured_at = NOW()
+                    """,
+                    match_id, r.source, r.market_code, r.line, r.outcome_code, r.odds,
+                )
+                n += 1
+    return n
+
+
 def events_to_rows(events: list[dict], season: str) -> list[OddsRow]:
     """Emit both the per-bookmaker rows (source='odds-api:<book_key>') and
     the pooled-average row (source='the-odds-api:avg', legacy) so the old
@@ -169,18 +335,26 @@ async def run(season: str, regions: str, leagues: list) -> None:
     try:
         total_events = 0
         total_upserted = 0
+        total_market_rows = 0
         for lg in leagues:
+            # Single combined fetch — the-odds-api charges 1 credit per request
+            # regardless of how many markets are bundled, so grabbing 1X2 +
+            # totals + BTTS in one call is free compared to three.
             try:
-                events = _fetch(api_key, lg.the_odds_api_key, regions)
+                events = _fetch(api_key, lg.the_odds_api_key, regions, markets="h2h,totals,btts")
             except Exception as e:
                 print(f"[live-odds] {lg.short}: {type(e).__name__}: {e}")
                 continue
+
             rows = events_to_rows(events, season=season)
             n = await upsert_odds(pool, rows)
-            print(f"[live-odds] {lg.short}: {len(events)} events · {len(rows)} parsed · {n} upserted")
+            mkt_rows = events_to_market_rows(events, season=season)
+            m = await upsert_market_odds(pool, mkt_rows)
+            print(f"[live-odds] {lg.short}: {len(events)} events · 1X2 {n} upserted · markets {m} upserted")
             total_events += len(events)
             total_upserted += n
-        print(f"[live-odds] total: {total_events} events / {total_upserted} upserted")
+            total_market_rows += m
+        print(f"[live-odds] total: {total_events} events / 1X2 {total_upserted} / markets {total_market_rows}")
     finally:
         await pool.close()
 

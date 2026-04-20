@@ -157,6 +157,32 @@ export async function getMarkets(matchId: number): Promise<Markets | null> {
   return (await res.json()) as Markets | null;
 }
 
+export type MarketEdgeRow = {
+  key: string;
+  label: string;
+  market_code: string;
+  line: number | null;
+  outcome_code: string;
+  model_prob: number;
+  fair_odds: number;
+  best_book_odds: number | null;
+  best_source: string | null;
+  edge_pp: number | null;
+  flagged: boolean;
+};
+
+export type MarketsEdge = {
+  match_id: number;
+  edge_threshold_pp: number;
+  rows: MarketEdgeRow[];
+};
+
+export async function getMarketsEdge(matchId: number): Promise<MarketsEdge | null> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/markets-edge`, { cache: "no-store" });
+  if (!res.ok) return null;
+  return (await res.json()) as MarketsEdge;
+}
+
 export type HalfTimePredictions = {
   p_home_lead: number;
   p_draw: number;

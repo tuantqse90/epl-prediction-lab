@@ -487,6 +487,159 @@ async def match_markets(match_id: int, request: Request) -> MarketsOut | None:
     )
 
 
+class MarketEdgeRow(BaseModel):
+    key: str                     # 'over_2_5', 'btts_yes', 'ah_home_minus_0_5', …
+    label: str                   # 'Over 2.5', 'BTTS Yes', 'AH Home -0.5'
+    market_code: str             # 'OU' | 'BTTS' | 'AH'
+    line: float | None
+    outcome_code: str
+    model_prob: float
+    fair_odds: float
+    best_book_odds: float | None = None
+    best_source: str | None = None
+    edge_pp: float | None = None
+    flagged: bool = False
+
+
+class MarketsEdgeOut(BaseModel):
+    match_id: int
+    edge_threshold_pp: float
+    rows: list[MarketEdgeRow]
+
+
+# (key, market_code, line, outcome_code) — the single source of truth for
+# which markets we price and how they map to stored book-odds rows.
+_MARKET_KEYS = [
+    ("over_2_5",            "OU",   2.5,   "OVER",  "Over 2.5"),
+    ("under_2_5",           "OU",   2.5,   "UNDER", "Under 2.5"),
+    ("over_1_5",            "OU",   1.5,   "OVER",  "Over 1.5"),
+    ("over_3_5",            "OU",   3.5,   "OVER",  "Over 3.5"),
+    ("btts_yes",            "BTTS", None,  "YES",   "BTTS Yes"),
+    ("btts_no",             "BTTS", None,  "NO",    "BTTS No"),
+    ("ah_home_minus_1_5",   "AH",   -1.5,  "HOME",  "AH Home -1.5"),
+    ("ah_home_minus_0_5",   "AH",   -0.5,  "HOME",  "AH Home -0.5"),
+    ("ah_home_plus_0_5",    "AH",   +0.5,  "HOME",  "AH Home +0.5"),
+    ("ah_home_plus_1_5",    "AH",   +1.5,  "HOME",  "AH Home +1.5"),
+]
+
+
+def _build_market_edge_rows(
+    *, probs: dict, book_rows, edge_threshold_pp: float = 5.0,
+) -> list[dict]:
+    """Join model market probs with stored book odds, emit per-outcome rows.
+
+    Best book odds = MAX across per-bookmaker sources (highest price for
+    the bettor). `source LIKE 'odds-api:%'` filters out pooled-average rows
+    so we only compare against real quotes. If no book row matches, the
+    row still comes back with fair_odds and None for book/edge — the UI
+    then falls back to the manual-comparison view.
+    """
+    def _get(r, key):
+        return getattr(r, key, None) if not isinstance(r, dict) else r.get(key)
+
+    by_key: dict[tuple[str, float | None, str], list] = {}
+    for r in book_rows:
+        src = _get(r, "source") or ""
+        if not src.startswith("odds-api:"):
+            continue  # skip pooled avg; best-odds shopping uses real books
+        k = (_get(r, "market_code"), _get(r, "line"), _get(r, "outcome_code"))
+        by_key.setdefault(k, []).append(r)
+
+    out: list[dict] = []
+    for key, market, line, outcome, label in _MARKET_KEYS:
+        prob = probs.get(key)
+        if prob is None or prob <= 0.0:
+            continue
+        row = {
+            "key": key,
+            "label": label,
+            "market_code": market,
+            "line": line,
+            "outcome_code": outcome,
+            "model_prob": round(float(prob), 4),
+            "fair_odds": round(1.0 / float(prob), 3),
+            "best_book_odds": None,
+            "best_source": None,
+            "edge_pp": None,
+            "flagged": False,
+        }
+        matches = by_key.get((market, line, outcome)) or []
+        if matches:
+            best = max(matches, key=lambda r: float(_get(r, "odds")))
+            best_odds = float(_get(best, "odds"))
+            edge_pp = (float(prob) * best_odds - 1.0) * 100.0
+            row["best_book_odds"] = round(best_odds, 3)
+            row["best_source"] = _get(best, "source")
+            row["edge_pp"] = round(edge_pp, 2)
+            row["flagged"] = edge_pp >= edge_threshold_pp
+        out.append(row)
+    return out
+
+
+@router.get("/{match_id}/markets-edge", response_model=MarketsEdgeOut)
+async def match_markets_edge(
+    match_id: int,
+    request: Request,
+    threshold_pp: float = Query(5.0, ge=0.0, le=50.0),
+) -> MarketsEdgeOut:
+    """Per-outcome edge table joining derived-market model probs with stored
+    book odds. Neon-highlighted rows on the FE when edge_pp ≥ threshold_pp."""
+    from app.models.markets import (
+        markets_from_matrix,
+        prob_asian_handicap,
+        prob_sgp_btts_and_over,
+    )
+    from app.models.poisson import apply_dixon_coles, poisson_score_matrix
+
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        pred = await conn.fetchrow(
+            """
+            SELECT expected_home_goals, expected_away_goals
+            FROM predictions WHERE match_id = $1
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            match_id,
+        )
+        if pred is None or pred["expected_home_goals"] is None:
+            return MarketsEdgeOut(match_id=match_id, edge_threshold_pp=threshold_pp, rows=[])
+        book_rows = await conn.fetch(
+            """
+            SELECT source, market_code, line, outcome_code, odds
+            FROM match_odds_markets
+            WHERE match_id = $1
+            """,
+            match_id,
+        )
+
+    lam_h = float(pred["expected_home_goals"])
+    lam_a = float(pred["expected_away_goals"])
+    rho = -0.15
+    base = poisson_score_matrix(lam_h, lam_a, max_goals=5)
+    adjusted = apply_dixon_coles(base, lam_h, lam_a, rho)
+    m = markets_from_matrix(adjusted)
+
+    probs = {
+        "over_2_5":          m.prob_over_2_5,
+        "under_2_5":         1.0 - m.prob_over_2_5,
+        "over_1_5":          m.prob_over_1_5,
+        "over_3_5":          m.prob_over_3_5,
+        "btts_yes":          m.prob_btts,
+        "btts_no":           1.0 - m.prob_btts,
+        "ah_home_minus_1_5": prob_asian_handicap(adjusted, -1.5, "home"),
+        "ah_home_minus_0_5": prob_asian_handicap(adjusted, -0.5, "home"),
+        "ah_home_plus_0_5":  prob_asian_handicap(adjusted, +0.5, "home"),
+        "ah_home_plus_1_5":  prob_asian_handicap(adjusted, +1.5, "home"),
+    }
+
+    rows = _build_market_edge_rows(probs=probs, book_rows=book_rows, edge_threshold_pp=threshold_pp)
+    return MarketsEdgeOut(
+        match_id=match_id,
+        edge_threshold_pp=threshold_pp,
+        rows=[MarketEdgeRow(**r) for r in rows],
+    )
+
+
 @router.get("/{match_id}/weather", response_model=WeatherOut | None)
 async def match_weather(match_id: int, request: Request) -> WeatherOut | None:
     pool = request.app.state.pool

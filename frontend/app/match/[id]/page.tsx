@@ -28,7 +28,7 @@ import ShareButtons from "@/components/ShareButtons";
 import TeamLogo from "@/components/TeamLogo";
 import TerminalBlock from "@/components/TerminalBlock";
 import { OddsPanel } from "@/components/ValueBetBadge";
-import { getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getMarkets, getMatch, getScorerOdds, getWeather } from "@/lib/api";
+import { getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getMarkets, getMarketsEdge, getMatch, getScorerOdds, getWeather } from "@/lib/api";
 import ConfidenceBand from "@/components/ConfidenceBand";
 import { formatKickoff } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
@@ -88,6 +88,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const injuryImpact = await getInjuryImpact(matchId).catch(() => null);
   const weather = await getWeather(matchId).catch(() => null);
   const markets = await getMarkets(matchId).catch(() => null);
+  const marketsEdge = await getMarketsEdge(matchId).catch(() => null);
   const halfTime = await getHalfTime(matchId).catch(() => null);
   // Bootstrap CI is fetched client-side so the match-detail render path
   // doesn't block on the 1.8-s cold bootstrap. See <ConfidenceBand/>.
@@ -376,6 +377,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
                 {markets && (
                   <MarketsEdge
                     markets={markets}
+                    edge={marketsEdge}
                     lang={lang}
                     homeShort={match.home.short_name}
                     awayShort={match.away.short_name}
