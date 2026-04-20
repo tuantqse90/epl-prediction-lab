@@ -142,6 +142,13 @@ export type Markets = {
   prob_away_clean_sheet: number;
   lam_home: number;
   lam_away: number;
+  // Phase 6 correlated-markets extension. Optional because older cached
+  // responses from before the backend rollout won't have them.
+  prob_ah_home_minus_1_5?: number;
+  prob_ah_home_minus_0_5?: number;
+  prob_ah_home_plus_0_5?: number;
+  prob_ah_home_plus_1_5?: number;
+  prob_sgp_btts_over_2_5?: number;
 };
 
 export async function getMarkets(matchId: number): Promise<Markets | null> {

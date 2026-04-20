@@ -115,3 +115,88 @@ def _ensure_sane(x: float) -> float:
     if not math.isfinite(x):
         return 0.0
     return max(0.0, min(1.0, x))
+
+
+# ── Asian handicap + SGP ─────────────────────────────────────────────────────
+
+def _ah_half_line(matrix: np.ndarray, line: float, side: str) -> float:
+    """Half-line AH: no push possible — strict win or strict lose.
+
+    Line is bettor-perspective: it's added to the chosen side's goals, then
+    compared to the opponent's score. `+0.5 home` wins on draw-or-win;
+    `-0.5 away` wins only when away wins by 1+."""
+    rows, cols = matrix.shape
+    total = 0.0
+    for i in range(rows):
+        for j in range(cols):
+            if side == "home":
+                if i + line > j:
+                    total += float(matrix[i, j])
+            else:  # away
+                if j + line > i:
+                    total += float(matrix[i, j])
+    return total
+
+
+def _ah_integer_line(matrix: np.ndarray, line: float, side: str) -> float:
+    """Integer AH: win / push / lose → effective prob = P(win) + 0.5·P(push).
+
+    Push = half stake refund, so the stake-adjusted expected return expressed
+    as an implied win probability is `P(win) + 0.5·P(push)` — directly
+    comparable to fair decimal odds = 1/p for edge detection."""
+    rows, cols = matrix.shape
+    p_win = 0.0
+    p_push = 0.0
+    for i in range(rows):
+        for j in range(cols):
+            if side == "home":
+                delta = i + line - j
+            else:
+                delta = j + line - i
+            cell = float(matrix[i, j])
+            if delta > 0:
+                p_win += cell
+            elif delta == 0:
+                p_push += cell
+    return p_win + 0.5 * p_push
+
+
+def prob_asian_handicap(matrix: np.ndarray, line: float, side: str) -> float:
+    """Effective win probability for an Asian handicap bet.
+
+    Supports half-lines (.5), integer (.0), and quarter-lines (.25, .75) by
+    splitting the stake between the adjacent half and integer lines.
+
+    Returns a single float that can feed `1/p` → fair decimal odds and is
+    directly comparable to book prices for edge detection."""
+    if side not in ("home", "away"):
+        raise ValueError(f"side must be 'home' or 'away', got {side!r}")
+
+    frac = abs(line) - int(abs(line))
+    # Quarter-line (±0.25, ±0.75): split stake in half between the two
+    # neighbouring lines (half-line above and below).
+    if math.isclose(frac, 0.25) or math.isclose(frac, 0.75):
+        sign = 1 if line > 0 else -1
+        lower = sign * (abs(line) - 0.25)   # nearer to 0
+        upper = sign * (abs(line) + 0.25)
+        return 0.5 * prob_asian_handicap(matrix, lower, side) \
+             + 0.5 * prob_asian_handicap(matrix, upper, side)
+
+    if math.isclose(frac, 0.5):
+        return _ah_half_line(matrix, line, side)
+    return _ah_integer_line(matrix, line, side)
+
+
+def prob_sgp_btts_and_over(matrix: np.ndarray, line: float) -> float:
+    """Same-game parlay: P(both teams score AND total > line).
+
+    Summed directly over matrix cells so the natural correlation between
+    BTTS and goal totals is preserved — NOT the naive product of marginals
+    that books sometimes price."""
+    rows, cols = matrix.shape
+    total = 0.0
+    for i in range(1, rows):
+        for j in range(1, cols):
+            if i + j > line:
+                total += float(matrix[i, j])
+    return total

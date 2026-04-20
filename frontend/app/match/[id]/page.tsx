@@ -17,6 +17,7 @@ import MatchTabs from "@/components/MatchTabs";
 import LiveBadge from "@/components/LiveBadge";
 import LivePoller from "@/components/LivePoller";
 import MatchEventsList from "@/components/MatchEventsList";
+import MarketsEdge from "@/components/MarketsEdge";
 import MarketsPanel from "@/components/MarketsPanel";
 import MatchJsonLd from "@/components/MatchJsonLd";
 import ScorerOddsPanel from "@/components/ScorerOddsPanel";
@@ -372,6 +373,14 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
                   />
                 )}
                 {markets && <MarketsPanel markets={markets} lang={lang} />}
+                {markets && (
+                  <MarketsEdge
+                    markets={markets}
+                    lang={lang}
+                    homeShort={match.home.short_name}
+                    awayShort={match.away.short_name}
+                  />
+                )}
                 {match.odds && (
                   <OddsPanel
                     odds={match.odds}

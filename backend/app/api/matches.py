@@ -81,6 +81,14 @@ class MarketsOut(BaseModel):
     prob_away_clean_sheet: float
     lam_home: float
     lam_away: float
+    # Asian handicap (home-perspective; away = 1 − home).
+    # Lines kept compact: the most-traded EU/Asian-book quotes.
+    prob_ah_home_minus_1_5: float = 0.0
+    prob_ah_home_minus_0_5: float = 0.0
+    prob_ah_home_plus_0_5: float = 0.0
+    prob_ah_home_plus_1_5: float = 0.0
+    # Same-game parlay: the correlated bet books most often misprice.
+    prob_sgp_btts_over_2_5: float = 0.0
 
 
 class ScorerOdds(BaseModel):
@@ -435,7 +443,11 @@ async def match_markets(match_id: int, request: Request) -> MarketsOut | None:
     Reuses the pre-computed λ stored in predictions to rebuild the scoreline
     matrix — no DB re-ingest, ~0.5ms per call.
     """
-    from app.models.markets import markets_from_matrix
+    from app.models.markets import (
+        markets_from_matrix,
+        prob_asian_handicap,
+        prob_sgp_btts_and_over,
+    )
     from app.models.poisson import apply_dixon_coles, poisson_score_matrix
 
     pool = request.app.state.pool
@@ -467,6 +479,11 @@ async def match_markets(match_id: int, request: Request) -> MarketsOut | None:
         prob_away_clean_sheet=m.prob_away_clean_sheet,
         lam_home=lam_h,
         lam_away=lam_a,
+        prob_ah_home_minus_1_5=prob_asian_handicap(adjusted, -1.5, "home"),
+        prob_ah_home_minus_0_5=prob_asian_handicap(adjusted, -0.5, "home"),
+        prob_ah_home_plus_0_5=prob_asian_handicap(adjusted, +0.5, "home"),
+        prob_ah_home_plus_1_5=prob_asian_handicap(adjusted, +1.5, "home"),
+        prob_sgp_btts_over_2_5=prob_sgp_btts_and_over(adjusted, 2.5),
     )
 
 
