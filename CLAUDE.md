@@ -8,7 +8,7 @@ Multi-league football prediction app covering **EPL · La Liga · Bundesliga · 
 
 - **Tagline**: *"xG doesn't lie. But the bookies do."*
 - **Live**: [predictor.nullshift.sh](https://predictor.nullshift.sh)
-- **Stack**: Python 3.12 + FastAPI (backend) · Next.js 15 + Tailwind (frontend) · **self-hosted Postgres 16 + pgvector on VPS** (Docker) · Qwen via LiteLLM (LLM) · The Odds API + football-data.co.uk + API-Football (odds / injuries / lineups) · Understat (xG + player stats)
+- **Stack**: Python 3.12 + FastAPI (backend) · Next.js 15 + Tailwind (frontend) · **self-hosted Postgres 16 + pgvector on VPS** (Docker) · Qwen via LiteLLM (LLM) · **API-Football Ultra** (primary odds + injuries + lineups + photos) · the-odds-api free tier (secondary odds) · football-data.co.uk (historical odds) · Understat (xG + player stats)
 - **Deploy**: Git push to bare repo on VPS → `post-receive` hook rebuilds `api` + `web` via docker compose. Frontend served from the same VPS (port 3500), API on 8500, both behind a shared Hostinger Caddy.
 
 ## Current phase
@@ -36,6 +36,7 @@ Multi-league football prediction app covering **EPL · La Liga · Bundesliga · 
 
 ## House rules
 
+- **Odds → API-Football Ultra first.** We have the **Ultra plan (75k requests/day)**; prefer it for any new odds ingest (1X2, O/U, BTTS, Asian handicap, Correct Score, Double Chance, HT/FT, per-book). the-odds-api is the **free-tier fallback** (500/mo, no BTTS) — only use it if API-Football is down or for a market API-Football doesn't cover. Script: `scripts/ingest_apifootball_odds.py`.
 - **Never** ask the LLM for numbers (probabilities, scores, edges). Math engine only. LLM gets the numbers as context and writes prose around them.
 - **Always** ground LLM output in data. Prompt templates in `backend/app/llm/` enforce it.
 - **Cache** LLM outputs in DB. Reasoning rarely changes between scrapes.

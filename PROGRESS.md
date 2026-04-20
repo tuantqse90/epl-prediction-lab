@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 12:40 +07 — Phase 6b upgrade: API-Football Ultra as primary odds
+
+User confirmed we have API-Football Ultra (75k req/day). Switched from the-odds-api free tier to API-Football for multi-market odds: **unlocks BTTS** (free-tier the-odds-api 422'd it), plus full O/U ladder (0.5→7.5) and full AH ladder (-2.5 → +2.5 in 0.25 steps). New `scripts/ingest_apifootball_odds.py` pulls 1X2 + O/U + BTTS + AH (bet ids 1, 5, 8, 4) per league/season/page. One run wrote **~40,600 per-book rows across top-5 leagues** (EPL 12.2k, Serie A 9.9k, Bundesliga 8.9k, Ligue 1 9.2k, LaLiga 0.5k due to low upcoming count this week).
+
+`/api/matches/:id/markets-edge` filter broadened from strict `odds-api:*` to "any per-book" (`odds-api:*` OR `af:*`, excluding `:avg`) so best-odds shopping mixes the-odds-api + API-Football books transparently. Live smoke on CP vs WH: +40pp edge on AH Home -1.5 at Betfair, +30pp on Over 3.5 at Unibet, +7pp BTTS Yes at William Hill — way more flagged rows than Phase 6b ship 1 had.
+
+One matcher bug fixed inline: `/odds` responses don't carry team names, only `fixture.id` + `fixture.date` + `league.id`. Join uses `matches(league_code, kickoff_time)` timestamp equality (precise to the minute) instead of name matching. Systemd timer `football-predict-af-odds.timer` runs every 30 min (~2,880 calls/day = 4% of quota). CLAUDE.md updated so future sessions default to API-Football, not the-odds-api.
+
 ## 2026-04-20 12:25 +07 — Phase 6b: real book-odds edge overlay (plan-new)
 
 Migration 017 adds `match_odds_markets (match × source × market × line × outcome)`. `ingest_live_odds.py` now fetches `h2h,totals,spreads` in a single request (still 1 the-odds-api credit per call) and writes dual per-book + pooled-avg rows. Free tier rejects `btts` with 422 so BTTS stays pure-model; spreads (Asian handicap) takes its slot. First prod ingest populated **2,020 market rows across 100 events** in 6 API credits.
