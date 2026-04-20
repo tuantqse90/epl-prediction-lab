@@ -25,6 +25,7 @@ import urllib.request
 from pathlib import Path
 
 import asyncpg
+from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.core.config import get_settings
@@ -79,15 +80,19 @@ async def run(seasons: list[str]) -> None:
                         # Match on league_code + kickoff timestamp (same join
                         # approach ingest_apifootball_odds uses — deterministic
                         # within a league).
+                        try:
+                            ts = datetime.fromisoformat(kickoff.replace("Z", "+00:00"))
+                        except ValueError:
+                            continue
                         res = await conn.execute(
                             """
                             UPDATE matches
                             SET referee = $1
                             WHERE league_code = $2
-                              AND kickoff_time = $3::timestamptz
+                              AND kickoff_time = $3
                               AND (referee IS NULL OR referee = '')
                             """,
-                            referee, lg.code, kickoff,
+                            referee, lg.code, ts,
                         )
                         # asyncpg returns "UPDATE N" — parse to count
                         if res.endswith("1"):
