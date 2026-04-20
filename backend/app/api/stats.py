@@ -1132,6 +1132,7 @@ class HistorySeason(BaseModel):
     accuracy: float
     mean_log_loss: float
     baseline_home_accuracy: float
+    leagues_covered: list[str] = []   # league_codes present for this season
 
 
 @router.get("/history", response_model=list[HistorySeason])
@@ -1139,7 +1140,11 @@ async def history(
     request: Request,
     league: str | None = Query(None),
 ) -> list[HistorySeason]:
-    """Per-season accuracy across all seasons in the DB, scoped by league."""
+    """Per-season accuracy across all seasons in the DB, scoped by league.
+
+    Returns `leagues_covered` so the FE can flag seasons that only have EPL
+    data (2019-20 → 2024-25) vs the full top-5 coverage we started in 2025-26.
+    Without that flag, weighted averages are deeply misleading."""
     pool = request.app.state.pool
     league_code = _resolve_league_code(league)
     cached = _STATS_CACHE.get(("history", league_code))
@@ -1164,6 +1169,18 @@ async def history(
         scored, correct, baseline_home, ll_sum, _ = _aggregate(rows)
         if scored == 0:
             continue
+        async with pool.acquire() as conn:
+            lg_rows = await conn.fetch(
+                """
+                SELECT DISTINCT league_code FROM matches
+                WHERE status = 'final' AND season = $1
+                  AND league_code IS NOT NULL
+                  AND ($2::text IS NULL OR league_code = $2)
+                ORDER BY league_code
+                """,
+                season, league_code,
+            )
+        leagues_covered = [r["league_code"] for r in lg_rows if r["league_code"]]
         out.append(
             HistorySeason(
                 season=season,
@@ -1172,6 +1189,7 @@ async def history(
                 accuracy=correct / scored,
                 mean_log_loss=ll_sum / scored,
                 baseline_home_accuracy=baseline_home / scored,
+                leagues_covered=leagues_covered,
             )
         )
     _STATS_CACHE.set(("history", league_code), out)
