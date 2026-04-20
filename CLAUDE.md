@@ -1,6 +1,6 @@
 # Football Prediction Lab — CLAUDE.md
 
-> Brief orientation for Claude Code sessions. Depth lives in [`plan.md`](./plan.md) (MVP phases), [`plan-new.md`](./plan-new.md) (sharp-bettor strategies, current phase), the [`docs/`](./docs/) folder, and [`PROGRESS.md`](./PROGRESS.md).
+> Brief orientation for Claude Code sessions. Depth lives in [`plan-new.md`](./plan-new.md) (sharp-bettor strategies, current phase), the [`docs/`](./docs/) folder, and [`PROGRESS.md`](./PROGRESS.md).
 
 ## What this project is
 
@@ -13,14 +13,13 @@ Multi-league football prediction app covering **EPL · La Liga · Bundesliga · 
 
 ## Current phase
 
-**Phase 5+ — sharp-bettor analytics** on top of a live MVP. See [`plan-new.md`](./plan-new.md) for the roadmap. MVP phases 1–4 are closed in [`plan.md`](./plan.md).
+**Phase 5+ — sharp-bettor analytics** on top of a live MVP. See [`plan-new.md`](./plan-new.md) for the roadmap.
 
 ## Where things live
 
 | Topic | File |
 |---|---|
 | Sharp-bettor roadmap (current) | [`plan-new.md`](./plan-new.md) |
-| MVP plan (closed phases 1–4) | [`plan.md`](./plan.md) |
 | Dated progress log (summary only) | [`PROGRESS.md`](./PROGRESS.md) |
 | Project identity, value prop, metrics | [`docs/README.md`](./docs/README.md) |
 | Tech stack + system diagram | [`docs/architecture.md`](./docs/architecture.md) |
