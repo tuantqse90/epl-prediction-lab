@@ -90,8 +90,13 @@ function StatRow({
   label: string; home: number; away: number;
   format?: (n: number) => string; higherIsBetter?: boolean;
 }) {
-  const homeBetter = higherIsBetter ? home > away : home < away;
-  const awayBetter = higherIsBetter ? away > home : away < home;
+  // "Better" only lights up when the numeric gap survives the display
+  // rounding. Otherwise a 0.0006 difference showed as 45.09 vs 45.09 with
+  // one neon and one muted — looks like a rendering bug when it's just
+  // rounding coincidence. Tie on display → both muted.
+  const displayTie = format(home) === format(away);
+  const homeBetter = !displayTie && (higherIsBetter ? home > away : home < away);
+  const awayBetter = !displayTie && (higherIsBetter ? away > home : away < home);
   return (
     <tr className="border-b border-border-muted">
       <td className={`px-3 py-2 text-right tabular-nums font-mono ${homeBetter ? "text-neon" : "text-secondary"}`}>
