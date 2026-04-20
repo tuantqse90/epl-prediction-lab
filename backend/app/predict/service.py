@@ -58,6 +58,65 @@ REFEREE_CAP = 0.10
 REFEREE_MIN_MATCHES = 30
 
 
+async def _lineup_multiplier(
+    conn: asyncpg.Connection, team_id: int, season: str, match_id: int
+) -> float:
+    """Lineup-sum xG-per-match ratio vs team's historical per-match xG.
+
+    Applied when `match_lineups` has a confirmed starting XI for this team on
+    this match. Returns 1.0 when lineup missing, squad too small, or when the
+    team has no historical xG baseline to divide against. Clamped to
+    [0.70, 1.30] so a single lopsided line-up never swings λ by more than 30%.
+    """
+    lineup = await conn.fetch(
+        """
+        SELECT player_name, is_starting
+        FROM match_lineups
+        WHERE match_id = $1
+          AND team_slug = (SELECT slug FROM teams WHERE id = $2)
+        """,
+        match_id, team_id,
+    )
+    if not lineup or sum(1 for r in lineup if r["is_starting"]) < 11:
+        return 1.0
+
+    starters = [r["player_name"] for r in lineup if r["is_starting"]]
+    bench = [r["player_name"] for r in lineup if not r["is_starting"]]
+
+    stats_rows = await conn.fetch(
+        """
+        SELECT player_name, xg, games, position
+        FROM player_season_stats
+        WHERE team_id = $1 AND season = $2
+        """,
+        team_id, season,
+    )
+    stats_by_name = {r["player_name"]: dict(r) for r in stats_rows}
+
+    # Team baseline: historical average xG-per-match played by this team
+    # in the current season (leak-safe: excludes the current match).
+    baseline = await conn.fetchval(
+        """
+        SELECT AVG(xg) FROM (
+            SELECT CASE WHEN home_team_id = $1 THEN home_xg ELSE away_xg END AS xg
+            FROM matches
+            WHERE (home_team_id = $1 OR away_team_id = $1)
+              AND season = $2
+              AND status = 'final'
+              AND home_xg IS NOT NULL
+              AND id <> $3
+        ) t
+        """,
+        team_id, season, match_id,
+    )
+    if not baseline:
+        return 1.0
+
+    from app.models.lineup_strength import lineup_xg_rating, lineup_multiplier
+    xg = lineup_xg_rating(starters=starters, bench=bench, stats_by_name=stats_by_name)
+    return lineup_multiplier(lineup_xg=xg, team_avg_xg=float(baseline))
+
+
 async def _referee_multiplier(
     conn: asyncpg.Connection, match_id: int, league_code: str | None, kickoff
 ) -> float:
@@ -235,8 +294,17 @@ async def predict_and_persist(
             away_hit = await _injury_impact(conn, match["away_team_id"], match["season"], match_id)
             weather_m = await _weather_multiplier(conn, match_id)
             ref_m = await _referee_multiplier(conn, match_id, league_code, match["kickoff_time"])
-        lam_h *= max(0.5, 1.0 - INJURY_ALPHA * home_hit) * weather_m * ref_m
-        lam_a *= max(0.5, 1.0 - INJURY_ALPHA * away_hit) * weather_m * ref_m
+            # Lineup-sum multiplier only kicks in when match_lineups has a
+            # confirmed XI for this side (~T-60min). Falls back to 1.0 when
+            # lineup absent — team-level strength carries the prediction.
+            home_lineup_m = await _lineup_multiplier(
+                conn, match["home_team_id"], match["season"], match_id,
+            )
+            away_lineup_m = await _lineup_multiplier(
+                conn, match["away_team_id"], match["season"], match_id,
+            )
+        lam_h *= max(0.5, 1.0 - INJURY_ALPHA * home_hit) * weather_m * ref_m * home_lineup_m
+        lam_a *= max(0.5, 1.0 - INJURY_ALPHA * away_hit) * weather_m * ref_m * away_lineup_m
 
     # Elo side of the ensemble: walk the same filtered finished-match df up
     # to this kickoff, derive current ratings, convert to 3-way probs.

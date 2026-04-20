@@ -214,6 +214,19 @@ export async function getFatigueContext(matchId: number): Promise<FatigueContext
   return (await res.json()) as FatigueContext | null;
 }
 
+export type LineupStrength = {
+  home_multiplier: number;
+  away_multiplier: number;
+  home_covered: boolean;
+  away_covered: boolean;
+};
+
+export async function getLineupStrength(matchId: number): Promise<LineupStrength | null> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/lineup-strength`, { cache: "no-store" });
+  if (!res.ok) return null;
+  return (await res.json()) as LineupStrength | null;
+}
+
 export type HalfTimePredictions = {
   p_home_lead: number;
   p_draw: number;

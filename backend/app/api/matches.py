@@ -685,6 +685,50 @@ async def match_markets_edge(
     )
 
 
+class LineupStrength(BaseModel):
+    home_multiplier: float
+    away_multiplier: float
+    home_covered: bool          # True = has confirmed starting XI
+    away_covered: bool
+
+
+@router.get("/{match_id}/lineup-strength", response_model=LineupStrength | None)
+async def match_lineup_strength(match_id: int, request: Request) -> LineupStrength | None:
+    """Lineup-sum xG multiplier per side. Shows a "lineup-adjusted" chip on
+    `/match/:id` when either team has a confirmed starting XI."""
+    from app.predict.service import _lineup_multiplier
+
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT home_team_id, away_team_id, season FROM matches WHERE id = $1",
+            match_id,
+        )
+        if row is None:
+            return None
+        covered_home = await conn.fetchval(
+            "SELECT COUNT(*) >= 11 FROM match_lineups ml "
+            "WHERE ml.match_id = $1 AND ml.is_starting "
+            "AND ml.team_slug = (SELECT slug FROM teams WHERE id = $2)",
+            match_id, row["home_team_id"],
+        )
+        covered_away = await conn.fetchval(
+            "SELECT COUNT(*) >= 11 FROM match_lineups ml "
+            "WHERE ml.match_id = $1 AND ml.is_starting "
+            "AND ml.team_slug = (SELECT slug FROM teams WHERE id = $2)",
+            match_id, row["away_team_id"],
+        )
+        mh = await _lineup_multiplier(conn, row["home_team_id"], row["season"], match_id)
+        ma = await _lineup_multiplier(conn, row["away_team_id"], row["season"], match_id)
+
+    return LineupStrength(
+        home_multiplier=round(mh, 4),
+        away_multiplier=round(ma, 4),
+        home_covered=bool(covered_home),
+        away_covered=bool(covered_away),
+    )
+
+
 class FatigueContext(BaseModel):
     rest_days_home: int
     rest_days_away: int

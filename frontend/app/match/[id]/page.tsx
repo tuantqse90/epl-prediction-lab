@@ -28,7 +28,7 @@ import ShareButtons from "@/components/ShareButtons";
 import TeamLogo from "@/components/TeamLogo";
 import TerminalBlock from "@/components/TerminalBlock";
 import { OddsPanel } from "@/components/ValueBetBadge";
-import { getFatigueContext, getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getMarkets, getMarketsEdge, getMatch, getRefereeInfo, getScorerOdds, getWeather } from "@/lib/api";
+import { getFatigueContext, getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getLineupStrength, getMarkets, getMarketsEdge, getMatch, getRefereeInfo, getScorerOdds, getWeather } from "@/lib/api";
 import ConfidenceBand from "@/components/ConfidenceBand";
 import { formatKickoff } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
@@ -91,6 +91,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const marketsEdge = await getMarketsEdge(matchId).catch(() => null);
   const refereeInfo = await getRefereeInfo(matchId).catch(() => null);
   const fatigue = await getFatigueContext(matchId).catch(() => null);
+  const lineupStrength = await getLineupStrength(matchId).catch(() => null);
   const halfTime = await getHalfTime(matchId).catch(() => null);
   // Bootstrap CI is fetched client-side so the match-detail render path
   // doesn't block on the 1.8-s cold bootstrap. See <ConfidenceBand/>.
@@ -195,6 +196,24 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             <p className="font-mono text-xs text-muted">
               {t("detail.breadcrumb", { id: match.id, date: kickoff, status: statusLabel })}
             </p>
+            {lineupStrength && (lineupStrength.home_covered || lineupStrength.away_covered) && (
+              <span className="font-mono text-xs text-muted">
+                · {lang === "vi" ? "Đội hình:" : "XI:"}
+                <span
+                  className={"ml-1 " + (lineupStrength.home_multiplier > 1 ? "text-neon" : lineupStrength.home_multiplier < 1 ? "text-error" : "text-secondary")}
+                  title={lang === "vi" ? "λ chủ × " + lineupStrength.home_multiplier.toFixed(3) : "home λ × " + lineupStrength.home_multiplier.toFixed(3)}
+                >
+                  H×{lineupStrength.home_multiplier.toFixed(2)}
+                </span>
+                <span className="text-muted">/</span>
+                <span
+                  className={(lineupStrength.away_multiplier > 1 ? "text-neon" : lineupStrength.away_multiplier < 1 ? "text-error" : "text-secondary")}
+                  title={lang === "vi" ? "λ khách × " + lineupStrength.away_multiplier.toFixed(3) : "away λ × " + lineupStrength.away_multiplier.toFixed(3)}
+                >
+                  A×{lineupStrength.away_multiplier.toFixed(2)}
+                </span>
+              </span>
+            )}
             {fatigue && (
               <span className="font-mono text-xs text-muted">
                 · {lang === "vi" ? "Nghỉ" : "Rest"}:
