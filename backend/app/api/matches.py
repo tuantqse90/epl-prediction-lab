@@ -547,8 +547,14 @@ def _build_market_edge_rows(
     by_key: dict[tuple[str, float | None, str], list] = {}
     for r in book_rows:
         src = _get(r, "source") or ""
-        if not src.startswith("odds-api:"):
-            continue  # skip pooled avg; best-odds shopping uses real books
+        # Accept any per-book source; skip pooled averages (they understate
+        # best-available prices). Known prefixes: 'odds-api:<book>' (the-odds
+        # -api), 'af:<book>' (API-Football). Everything ending ':avg' is the
+        # pooled aggregate — excluded for best-odds shopping.
+        if src.endswith(":avg"):
+            continue
+        if not (src.startswith("odds-api:") or src.startswith("af:")):
+            continue
         k = (_get(r, "market_code"), _get(r, "line"), _get(r, "outcome_code"))
         by_key.setdefault(k, []).append(r)
 
