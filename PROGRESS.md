@@ -2,6 +2,22 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 13:55 +07 — Phase 11b + 14 shipped: XGB 21 → 27 features + retrain
+
+Extended XGBoost feature set from 21 to 27: 3 new fatigue columns (congestion_home, congestion_away, is_midweek) and 3 new market-line columns (devigged `market_p_home/draw/away` from earliest stored odds — earliest, not closing, so no leak of information a value bettor acting early wouldn't have).
+
+Train script now pre-fetches the earliest `:avg` odds row per match and joins into build_feature_row; falls back to (1/3, 1/3, 1/3) on missing. Live predict path (predict/service.py) does the same lookup at kickoff time. Also prints top-10 feature importance + warns when market features exceed 50% gain share (circular-fit canary).
+
+**Walk-forward retrain 2024-25 holdout (new 27-feature model):**
+
+- Holdout accuracy **55.41%** (+2.1pp vs 53.3% baseline)
+- Holdout log-loss **0.9790** (−0.5% vs 0.984 baseline)
+- Feature importance top-10: market_p_home (8.43), market_p_away (8.17), market_p_draw (2.91), **is_midweek (2.49)** ← new fatigue feature made rank 4, home_def (2.40), elo_home, elo_diff, home_att_home, away_att_home, away_def_away
+- Market features gain share **27.4%** — below the 50% collapse threshold, so xG/Elo/form still carry most signal
+- Saved to /data/football-predict-xgb.json, predict_upcoming re-ran with new model (58 upcoming predictions refreshed)
+
+Both phases' success criteria satisfied. No regressions: 145 pytest + 16/16 e2e.
+
 ## 2026-04-20 13:40 +07 — Phase 13 shipped: lineup-sum power rating
 
 `app/models/lineup_strength.py` + 6 TDD tests. `lineup_xg_rating` sums per-player xG/game across confirmed starters (full weight) + bench (BENCH_WEIGHT=0.24, ~22 min typical). Missing players silently contribute 0. `lineup_multiplier` clamps ratio to [0.70, 1.30] — ±30% max swing on any single lineup.
