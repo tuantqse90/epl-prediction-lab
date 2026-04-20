@@ -39,7 +39,7 @@ export default async function RoiPage({
         </p>
       </header>
 
-      <nav className="flex flex-wrap gap-2">
+      <nav className="flex flex-wrap items-center gap-2">
         {THRESHOLDS.map((thr) => (
           <Link
             key={thr}
@@ -54,6 +54,13 @@ export default async function RoiPage({
             edge ≥ {Math.round(thr * 100)}%
           </Link>
         ))}
+        <span className="text-muted mx-2">·</span>
+        <Link
+          href="/roi/by-league"
+          className="rounded-full px-3 py-1 font-mono text-xs uppercase tracking-wide border border-border text-secondary hover:border-neon hover:text-neon"
+        >
+          {lang === "vi" ? "Tách theo giải →" : "By league →"}
+        </Link>
       </nav>
 
       <RoiChart season={season} threshold={active} league={leagueForApi(league)} lang={lang} />

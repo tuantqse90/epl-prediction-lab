@@ -39,6 +39,22 @@ async function fetchAccuracy(league?: string): Promise<Accuracy | null> {
   }
 }
 
+// Per-league 30d ROI map → set of league codes with positive ROI. QuickPicks
+// uses this to hide value bets from leagues that are bleeding money right now.
+// Returns null on any failure so the UI falls back to unfiltered picks.
+async function fetchPositiveRoiLeagues(): Promise<Set<string> | null> {
+  try {
+    const res = await fetch(`${BASE}/api/stats/roi/by-league?window=30d&threshold=0.05`, {
+      next: { revalidate: 600 },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { leagues: Array<{ league_code: string; roi_vig_pct: number; bets: number }> };
+    return new Set(data.leagues.filter((l) => l.bets >= 10 && l.roi_vig_pct > 0).map((l) => l.league_code));
+  } catch {
+    return null;
+  }
+}
+
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 24;
@@ -74,6 +90,7 @@ export default async function HomePage({
     error = e instanceof Error ? e.message : String(e);
   }
   const acc = await fetchAccuracy(leagueParam);
+  const positiveRoiLeagues = await fetchPositiveRoiLeagues();
   const hasLive = matches.some((m) => m.status === "live");
 
   return (
@@ -131,7 +148,7 @@ export default async function HomePage({
       <RecentResults league={leagueParam} lang={lang} />
 
       {matches.length > 0 && <FavoritesSection matches={matches} />}
-      {matches.length > 0 && <QuickPicks matches={matches} lang={lang} />}
+      {matches.length > 0 && <QuickPicks matches={matches} lang={lang} positiveRoiLeagues={positiveRoiLeagues} />}
       <TelegramCTA lang={lang} />
 
       {acc && acc.scored > 0 && (

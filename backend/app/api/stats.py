@@ -167,7 +167,7 @@ best_odds AS (
     WHERE source LIKE 'odds-api:%'
     GROUP BY match_id
 )
-SELECT m.kickoff_time, m.home_goals, m.away_goals,
+SELECT m.kickoff_time, m.league_code, m.home_goals, m.away_goals,
        l.p_home_win, l.p_draw, l.p_away_win,
        a.odds_home, a.odds_draw, a.odds_away,
        COALESCE(b.best_home, a.odds_home) AS best_home,
@@ -180,6 +180,52 @@ LEFT JOIN best_odds b ON b.match_id = m.id
 WHERE m.status = 'final' AND m.season = $1
   AND m.home_goals IS NOT NULL
   AND ($2::text IS NULL OR m.league_code = $2)
+ORDER BY m.kickoff_time ASC
+"""
+
+
+# Variant of _ROI_QUERY that supports a rolling time window instead of a
+# fixed season. Used by /roi/by-league with window=7d|30d|season.
+_ROI_QUERY_WINDOW = """
+WITH latest AS (
+    SELECT DISTINCT ON (p.match_id)
+        p.match_id, p.p_home_win, p.p_draw, p.p_away_win
+    FROM predictions p
+    ORDER BY p.match_id, p.created_at DESC
+),
+avg_odds AS (
+    SELECT DISTINCT ON (match_id) match_id, odds_home, odds_draw, odds_away
+    FROM match_odds
+    WHERE source LIKE '%:avg'
+       OR source LIKE 'odds-api:%'
+    ORDER BY match_id,
+             CASE WHEN source = 'the-odds-api:avg' THEN 0
+                  WHEN source = 'football-data:avg' THEN 1
+                  ELSE 2 END,
+             captured_at DESC
+),
+best_odds AS (
+    SELECT match_id,
+           MAX(odds_home) AS best_home,
+           MAX(odds_draw) AS best_draw,
+           MAX(odds_away) AS best_away
+    FROM match_odds
+    WHERE source LIKE 'odds-api:%'
+    GROUP BY match_id
+)
+SELECT m.kickoff_time, m.league_code, m.home_goals, m.away_goals,
+       l.p_home_win, l.p_draw, l.p_away_win,
+       a.odds_home, a.odds_draw, a.odds_away,
+       COALESCE(b.best_home, a.odds_home) AS best_home,
+       COALESCE(b.best_draw, a.odds_draw) AS best_draw,
+       COALESCE(b.best_away, a.odds_away) AS best_away
+FROM matches m
+JOIN latest l ON l.match_id = m.id
+JOIN avg_odds a ON a.match_id = m.id
+LEFT JOIN best_odds b ON b.match_id = m.id
+WHERE m.status = 'final'
+  AND m.home_goals IS NOT NULL
+  AND m.kickoff_time >= NOW() - ($1 || ' days')::INTERVAL
 ORDER BY m.kickoff_time ASC
 """
 
@@ -228,6 +274,87 @@ WHERE m.status = 'final'
   AND ($2::text IS NULL OR m.league_code = $2)
 ORDER BY m.kickoff_time ASC
 """
+
+def _compute_roi_metrics(rows, threshold: float) -> dict:
+    """Flat 1-unit stake PnL across every model side with edge ≥ threshold.
+
+    ``rows`` is any iterable of asyncpg-like rows exposing the prediction
+    probabilities, reference + best odds, and final goals. Accepts attr-style
+    access (asyncpg Record, SimpleNamespace) and mapping-style (dict) rows.
+    """
+    from app.ingest.odds import fair_probs
+
+    pnl_vig = 0.0
+    pnl_nov = 0.0
+    bets = 0
+    wins = 0
+    ll_sum = 0.0
+    ll_n = 0
+
+    for r in rows:
+        p = {"H": float(_g(r, "p_home_win")),
+             "D": float(_g(r, "p_draw")),
+             "A": float(_g(r, "p_away_win"))}
+        avg = {"H": _g(r, "odds_home"), "D": _g(r, "odds_draw"), "A": _g(r, "odds_away")}
+        best = {"H": _g(r, "best_home"), "D": _g(r, "best_draw"), "A": _g(r, "best_away")}
+        if any(v is None for v in avg.values()) or any(v is None for v in best.values()):
+            continue
+        fair = fair_probs(avg["H"], avg["D"], avg["A"])
+        if fair is None:
+            continue
+        fair_map = {"H": fair[0], "D": fair[1], "A": fair[2]}
+        outcome = _outcome(int(_g(r, "home_goals")), int(_g(r, "away_goals")))
+        ll_sum += -math.log(max(p[outcome], 1e-12))
+        ll_n += 1
+        for side in "HDA":
+            edge = p[side] - fair_map[side]
+            if edge < threshold:
+                continue
+            bets += 1
+            hit = side == outcome
+            if hit:
+                wins += 1
+            pnl_vig += (float(best[side]) - 1.0) if hit else -1.0
+            if fair_map[side] > 0:
+                nv_odds = 1.0 / fair_map[side]
+                pnl_nov += (nv_odds - 1.0) if hit else -1.0
+
+    return {
+        "bets": bets,
+        "wins": wins,
+        "pnl_vig": round(pnl_vig, 4),
+        "pnl_nov": round(pnl_nov, 4),
+        "roi_vig_pct": (pnl_vig / bets * 100.0) if bets else 0.0,
+        "roi_nov_pct": (pnl_nov / bets * 100.0) if bets else 0.0,
+        "mean_log_loss": (ll_sum / ll_n) if ll_n else 0.0,
+        "scored": ll_n,
+    }
+
+
+def _compute_roi_by_league(rows, threshold: float) -> list[dict]:
+    """Group rows by league_code, run _compute_roi_metrics per group, sort
+    by bets desc. Leagues with zero bets are kept so the caller can show the
+    full universe; sort still places the busier markets first."""
+    buckets: dict[str, list] = {}
+    for r in rows:
+        lg = _g(r, "league_code") or "unknown"
+        buckets.setdefault(lg, []).append(r)
+
+    out: list[dict] = []
+    for lg, sub in buckets.items():
+        metrics = _compute_roi_metrics(sub, threshold)
+        out.append({"league_code": lg, **metrics})
+    out.sort(key=lambda x: (-x["bets"], x["league_code"]))
+    return out
+
+
+def _g(r, key):
+    """Row-accessor that works with both asyncpg Records (attr + subscript)
+    and SimpleNamespace test stand-ins (attr only)."""
+    if hasattr(r, key):
+        return getattr(r, key)
+    return r[key]
+
 
 _CAL_BINS: list[tuple[float, float]] = [
     (0.33, 0.40),
@@ -700,6 +827,63 @@ async def history(
             )
         )
     _STATS_CACHE.set(("history", league_code), out)
+    return out
+
+
+class RoiLeagueOut(BaseModel):
+    """Per-league ROI row for /api/stats/roi/by-league."""
+    league_code: str
+    bets: int
+    wins: int
+    pnl_vig: float
+    pnl_nov: float
+    roi_vig_pct: float
+    roi_nov_pct: float
+    mean_log_loss: float
+    scored: int
+
+
+class RoiByLeagueOut(BaseModel):
+    window: str        # 'season' | '7d' | '30d' | '90d'
+    threshold: float
+    season: str | None # only set when window == 'season'
+    leagues: list[RoiLeagueOut]
+
+
+_ROI_WINDOWS = {"7d": 7, "30d": 30, "90d": 90}
+
+
+@router.get("/roi/by-league", response_model=RoiByLeagueOut)
+async def roi_by_league(
+    request: Request,
+    window: str = Query("season", pattern="^(season|7d|30d|90d)$"),
+    season: str = Query("2025-26", description="Only used when window=season"),
+    threshold: float = Query(0.05, ge=0.0, le=0.5),
+) -> RoiByLeagueOut:
+    """Per-league flat-stake ROI. Edge ≥ `threshold` on devigged market fair,
+    PnL at best available price. Window is either the fixed season or a
+    rolling N-day interval from now.
+    """
+    pool = request.app.state.pool
+    cache_key = ("roi_by_league", window, season if window == "season" else None, threshold)
+    cached = _STATS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    async with pool.acquire() as conn:
+        if window == "season":
+            rows = await conn.fetch(_ROI_QUERY, season, None)
+        else:
+            rows = await conn.fetch(_ROI_QUERY_WINDOW, str(_ROI_WINDOWS[window]))
+
+    leagues = _compute_roi_by_league(rows, threshold)
+    out = RoiByLeagueOut(
+        window=window,
+        threshold=threshold,
+        season=season if window == "season" else None,
+        leagues=[RoiLeagueOut(**lg) for lg in leagues],
+    )
+    _STATS_CACHE.set(cache_key, out)
     return out
 
 

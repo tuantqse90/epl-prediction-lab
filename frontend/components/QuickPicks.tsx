@@ -18,13 +18,27 @@ function pp(x: number) {
   return `${x > 0 ? "+" : ""}${(x * 100).toFixed(1)}pp`;
 }
 
-export default function QuickPicks({ matches, lang }: { matches: MatchOut[]; lang: Lang }) {
+export default function QuickPicks({
+  matches,
+  lang,
+  positiveRoiLeagues,
+}: {
+  matches: MatchOut[];
+  lang: Lang;
+  // When provided, only matches whose league_code is in this set are
+  // eligible — hides picks from leagues where 30d rolling ROI is negative.
+  // Omit or pass null to keep all picks.
+  positiveRoiLeagues?: Set<string> | null;
+}) {
   const t = (k: string) => tRaw(lang, k);
 
   const picks = matches
     .filter((m) => m.odds && m.odds.best_edge != null && m.odds.best_edge >= THRESHOLD && m.odds.best_outcome)
+    .filter((m) => !positiveRoiLeagues || positiveRoiLeagues.has(m.league_code))
     .sort((a, b) => (b.odds!.best_edge ?? 0) - (a.odds!.best_edge ?? 0))
     .slice(0, MAX);
+
+  const filterApplied = !!positiveRoiLeagues;
 
   return (
     <section className="card space-y-4">
@@ -34,6 +48,14 @@ export default function QuickPicks({ matches, lang }: { matches: MatchOut[]; lan
           edge ≥ {Math.round(THRESHOLD * 100)}pp
         </span>
       </div>
+
+      {filterApplied && picks.length > 0 && (
+        <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
+          {lang === "vi"
+            ? "Chỉ hiện picks từ giải có ROI 30d dương"
+            : "Showing only leagues with positive 30d ROI"}
+        </p>
+      )}
 
       {picks.length === 0 ? (
         <p className="text-muted text-sm">{t("quick.empty")}</p>
