@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from datetime import date
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from app.core.cache import TTLCache
@@ -430,6 +430,91 @@ def _compute_kelly_bankroll(
         "max_drawdown_pct": round(max_dd_pct, 2),
         "points": points,
     }
+
+
+# ── Strategy simulators (Phase 15) ───────────────────────────────────────────
+#
+# Each simulator walks historical value-bet rows and returns a uniform dict:
+#   {bets, starting_units, final_units, peak_units, max_drawdown_pct, points}
+# so the FE chart can render any strategy without branching. _compute_kelly_bankroll
+# above follows the same contract; the helpers below reuse the match-walk logic.
+
+
+def _walk_bets(rows, *, threshold: float):
+    """Iterate `rows` in kickoff order, yielding `(kickoff, side, best_odds,
+    won, edge_pp)` for every model side whose edge ≥ threshold on that match.
+
+    Skips the mutual-exclusivity trap by picking only the single highest-edge
+    side per match (same rule as the Kelly simulator — see Phase 7 PROGRESS).
+    """
+    from app.ingest.odds import fair_probs
+
+    for r in sorted(rows, key=lambda x: _g(x, "kickoff_time")):
+        p = {"H": float(_g(r, "p_home_win")),
+             "D": float(_g(r, "p_draw")),
+             "A": float(_g(r, "p_away_win"))}
+        avg = {"H": _g(r, "odds_home"), "D": _g(r, "odds_draw"), "A": _g(r, "odds_away")}
+        best = {"H": _g(r, "best_home"), "D": _g(r, "best_draw"), "A": _g(r, "best_away")}
+        if any(v is None for v in avg.values()) or any(v is None for v in best.values()):
+            continue
+        fair = fair_probs(avg["H"], avg["D"], avg["A"])
+        if fair is None:
+            continue
+        fair_map = {"H": fair[0], "D": fair[1], "A": fair[2]}
+        outcome = _outcome(int(_g(r, "home_goals")), int(_g(r, "away_goals")))
+        flagged = []
+        for side in "HDA":
+            edge = p[side] - fair_map[side]
+            if edge >= threshold:
+                flagged.append((edge, side))
+        if not flagged:
+            continue
+        flagged.sort(reverse=True)
+        edge, side = flagged[0]
+        kickoff = _g(r, "kickoff_time")
+        yield kickoff, side, float(best[side]), (side == outcome), edge * 100.0  # edge_pp
+
+
+def _wrap_result(points, starting: float, final: float, peak: float, bets: int):
+    """Common shape used by every Phase 15 strategy + Kelly."""
+    dd_pct = ((peak - final) / peak * 100.0) if peak > 0 else 0.0
+    roi_pct = ((final - starting) / starting * 100.0) if starting else 0.0
+    return {
+        "bets": bets,
+        "starting_units": round(starting, 4),
+        "final_units": round(final, 4),
+        "peak_units": round(peak, 4),
+        "max_drawdown_pct": round(dd_pct, 2),
+        "roi_percent": round(roi_pct, 2),
+        "points": points,
+    }
+
+
+def _simulate_value_ladder(
+    rows, *, threshold: float, starting: float,
+    base_unit: float = 1.0, cap_mult: float = 5.0,
+) -> dict:
+    """Stake = base_unit × (edge_pp / 5), clamped to [0, cap_mult × base_unit].
+
+    Middle-ground between flat-1u (no scaling) and Kelly (compound on
+    bankroll). Stake is bankroll-invariant — it scales with edge confidence
+    only, so a cold streak doesn't compound down like Kelly does."""
+    bankroll = float(starting)
+    peak = bankroll
+    bets = 0
+    points: list[dict] = []
+    for kickoff, side, best_odds, won, edge_pp in _walk_bets(rows, threshold=threshold):
+        mult = min(cap_mult, max(0.0, edge_pp / 5.0))
+        stake = base_unit * mult
+        if stake <= 0:
+            continue
+        bankroll += stake * (best_odds - 1.0) if won else -stake
+        bets += 1
+        if bankroll > peak:
+            peak = bankroll
+        day = kickoff.date() if hasattr(kickoff, "date") else kickoff
+        points.append({"date": day, "bankroll": round(bankroll, 4), "bets": bets})
+    return _wrap_result(points, starting, bankroll, peak, bets)
 
 
 def _compute_roi_by_league(rows, threshold: float) -> list[dict]:
@@ -1120,6 +1205,70 @@ async def roi_by_league(
         threshold=threshold,
         season=season if window == "season" else None,
         leagues=[RoiLeagueOut(**lg) for lg in leagues],
+    )
+    _STATS_CACHE.set(cache_key, out)
+    return out
+
+
+class StrategySimOut(BaseModel):
+    """Uniform response for every Phase 15 strategy simulator."""
+    name: str
+    season: str
+    threshold: float
+    starting_units: float
+    final_units: float
+    peak_units: float
+    max_drawdown_pct: float
+    total_bets: int
+    roi_percent: float
+    points: list[KellyPoint]
+
+
+_STRATEGIES = ("value-ladder",)   # grows as 15.2 / 15.3 / 15.4 ship
+
+
+@router.get("/strategy-sim", response_model=StrategySimOut)
+async def strategy_sim(
+    request: Request,
+    name: str = Query("value-ladder", pattern=r"^[a-z][a-z0-9-]*$"),
+    season: str = Query("2025-26"),
+    threshold: float = Query(0.05, ge=0.0, le=0.5),
+    starting: float = Query(100.0, ge=1.0, le=1_000_000.0),
+    league: str | None = Query(None),
+) -> StrategySimOut:
+    """Dispatcher for named strategy simulators.
+
+    Shares the same `_ROI_QUERY` data source as /roi + /roi/kelly so every
+    strategy is comparable on the same bet universe."""
+    if name not in _STRATEGIES:
+        raise HTTPException(status_code=400, detail=f"unknown strategy: {name}")
+
+    pool = request.app.state.pool
+    league_code = _resolve_league_code(league)
+    cache_key = ("strategy_sim", name, season, threshold, starting, league_code)
+    cached = _STATS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(_ROI_QUERY, season, league_code)
+
+    if name == "value-ladder":
+        m = _simulate_value_ladder(rows, threshold=threshold, starting=starting)
+    else:  # pragma: no cover — guarded above
+        raise HTTPException(status_code=500, detail="strategy missing dispatcher")
+
+    out = StrategySimOut(
+        name=name,
+        season=season,
+        threshold=threshold,
+        starting_units=m["starting_units"],
+        final_units=m["final_units"],
+        peak_units=m["peak_units"],
+        max_drawdown_pct=m["max_drawdown_pct"],
+        total_bets=m["bets"],
+        roi_percent=m["roi_percent"],
+        points=[KellyPoint(**p) for p in m["points"]],
     )
     _STATS_CACHE.set(cache_key, out)
     return out
