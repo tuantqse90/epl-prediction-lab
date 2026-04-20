@@ -2,6 +2,16 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-20 13:15 +07 — Phase 12 shipped: referee λ adjustment (plan-new)
+
+Referee data backfilled from API-Football /fixtures — 3,634 historical rows across top-5 leagues (2019-20 → 2025-26). EPL 96% coverage, others 94-100%. Two bugs fixed inline: `&page=1` triggers 0 results on API-Football (omit it), and asyncpg `timestamptz` bind needs a `datetime` not an ISO string.
+
+`app/models/referee.py` + 6 TDD tests. `referee_tendencies()` groups a sample by ref, returns `{goals_delta, n}` for refs with ≥ 30 matches. `referee_multiplier(delta, league_avg, cap=0.10)` applied symmetrically to both team λ in `predict/service.py` alongside injury + weather shrinks.
+
+New endpoint `/api/matches/:id/referee` with 2-year rolling sample. Match detail chip shows "+0.38 g/game" next to the ref name (neon above, red below). Live samples: A. Taylor 31 matches × +0.09 Δ → λ×1.031; M. Oliver 38 × −0.07 → λ×0.978. Multipliers stay within ±5% in the sample, well under cap.
+
+Backtest delta pending — next predict_upcoming run picks it up automatically. Full test suite 134 → all pass; 16/16 playwright e2e still green.
+
 ## 2026-04-20 13:05 +07 — Phase 9 replaced: Pinnacle sharp column + Polymarket nope
 
 Polymarket probed for a per-fixture no-vig reference (plan-new Phase 9): `tag_slug=soccer` returns 100 events, **0 individual-match markets** (all outrights — EPL Winner, Relegation, 2nd Place). Not useful when our surface is per-fixture 1X2/OU/BTTS/AH. Phase 9 Betfair Exchange also redundant: API-Football Ultra already gives us `af:Betfair` + `af:Pinnacle` + 20+ retail books.
