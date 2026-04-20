@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import KellyChart from "@/components/KellyChart";
 import RoiChart from "@/components/RoiChart";
 import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
 import { getLeague } from "@/lib/leagues";
@@ -7,11 +8,13 @@ import { getLeague } from "@/lib/leagues";
 export const dynamic = "force-dynamic";
 
 const THRESHOLDS = [0.03, 0.05, 0.07, 0.1] as const;
+const STAKING_MODES = ["flat", "kelly"] as const;
+type StakingMode = (typeof STAKING_MODES)[number];
 
 export default async function RoiPage({
   searchParams,
 }: {
-  searchParams: Promise<{ threshold?: string; season?: string }>;
+  searchParams: Promise<{ threshold?: string; season?: string; staking?: string }>;
 }) {
   const sp = await searchParams;
   const season = sp.season ?? "2025-26";
@@ -19,6 +22,9 @@ export default async function RoiPage({
   const active = THRESHOLDS.includes(threshold as (typeof THRESHOLDS)[number])
     ? threshold
     : 0.05;
+  const staking: StakingMode = (STAKING_MODES as readonly string[]).includes(sp.staking ?? "")
+    ? (sp.staking as StakingMode)
+    : "flat";
   const lang = await getLang();
   const league = await getLeagueSlug();
   const leagueInfo = getLeague(league);
@@ -43,7 +49,7 @@ export default async function RoiPage({
         {THRESHOLDS.map((thr) => (
           <Link
             key={thr}
-            href={`/roi?threshold=${thr}`}
+            href={`/roi?threshold=${thr}&staking=${staking}`}
             className={
               "rounded-full px-3 py-1 font-mono text-xs uppercase tracking-wide border " +
               (Math.abs(thr - active) < 0.0001
@@ -63,7 +69,38 @@ export default async function RoiPage({
         </Link>
       </nav>
 
-      <RoiChart season={season} threshold={active} league={leagueForApi(league)} lang={lang} />
+      <nav className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-wide text-muted mr-1">
+          {lang === "vi" ? "Staking" : "Staking"}
+        </span>
+        {STAKING_MODES.map((m) => (
+          <Link
+            key={m}
+            href={`/roi?threshold=${active}&staking=${m}`}
+            className={
+              "rounded-full px-3 py-1 font-mono text-xs uppercase tracking-wide border " +
+              (staking === m
+                ? "border-neon bg-neon text-on-neon"
+                : "border-border text-secondary hover:border-neon hover:text-neon")
+            }
+          >
+            {m === "flat" ? (lang === "vi" ? "1u cố định" : "Flat 1u") : "Kelly"}
+          </Link>
+        ))}
+      </nav>
+
+      {staking === "kelly" ? (
+        <KellyChart
+          season={season}
+          threshold={active}
+          cap={0.25}
+          starting={100}
+          league={leagueForApi(league)}
+          lang={lang}
+        />
+      ) : (
+        <RoiChart season={season} threshold={active} league={leagueForApi(league)} lang={lang} />
+      )}
     </main>
   );
 }

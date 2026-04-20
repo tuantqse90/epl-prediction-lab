@@ -114,6 +114,25 @@ class RoiOut(BaseModel):
     points: list[RoiPoint]
 
 
+class KellyPoint(BaseModel):
+    date: date
+    bets: int
+    bankroll: float
+
+
+class KellyRoiOut(BaseModel):
+    season: str
+    threshold: float
+    cap: float
+    starting_units: float
+    final_units: float
+    peak_units: float
+    max_drawdown_pct: float
+    total_bets: int
+    roi_percent: float
+    points: list[KellyPoint]
+
+
 class ScorerOut(BaseModel):
     rank: int
     player_name: str
@@ -328,6 +347,86 @@ def _compute_roi_metrics(rows, threshold: float) -> dict:
         "roi_nov_pct": (pnl_nov / bets * 100.0) if bets else 0.0,
         "mean_log_loss": (ll_sum / ll_n) if ll_n else 0.0,
         "scored": ll_n,
+    }
+
+
+def _compute_kelly_bankroll(
+    rows,
+    *,
+    threshold: float,
+    cap: float,
+    starting: float,
+) -> dict:
+    """Walk historical value bets chronologically, size via fractional Kelly
+    on the current bankroll, settle via match result. Tracks peak + drawdown.
+
+    Uses the same edge definition and best-odds rules as `_compute_roi_metrics`
+    but replaces flat 1u with compounded Kelly-sized stakes.
+    """
+    from app.ingest.odds import fair_probs
+    from app.models.markets import kelly_stake
+
+    bankroll = float(starting)
+    peak = bankroll
+    max_dd_pct = 0.0
+    bets = 0
+    points: list[dict] = []
+
+    # Sort chronologically; simulator is meaningless out of order.
+    sortable = sorted(rows, key=lambda r: _g(r, "kickoff_time"))
+
+    for r in sortable:
+        p = {"H": float(_g(r, "p_home_win")),
+             "D": float(_g(r, "p_draw")),
+             "A": float(_g(r, "p_away_win"))}
+        avg = {"H": _g(r, "odds_home"), "D": _g(r, "odds_draw"), "A": _g(r, "odds_away")}
+        best = {"H": _g(r, "best_home"), "D": _g(r, "best_draw"), "A": _g(r, "best_away")}
+        if any(v is None for v in avg.values()) or any(v is None for v in best.values()):
+            continue
+        fair = fair_probs(avg["H"], avg["D"], avg["A"])
+        if fair is None:
+            continue
+        fair_map = {"H": fair[0], "D": fair[1], "A": fair[2]}
+        outcome = _outcome(int(_g(r, "home_goals")), int(_g(r, "away_goals")))
+
+        day_pnl = 0.0
+        day_bets = 0
+        for side in "HDA":
+            if p[side] - fair_map[side] < threshold:
+                continue
+            k = kelly_stake(p[side], float(best[side]), cap=cap)
+            if k <= 0.0:
+                continue
+            stake = bankroll * k
+            day_bets += 1
+            if side == outcome:
+                day_pnl += stake * (float(best[side]) - 1.0)
+            else:
+                day_pnl -= stake
+
+        if day_bets == 0:
+            continue
+
+        bankroll += day_pnl
+        bets += day_bets
+        if bankroll > peak:
+            peak = bankroll
+        if peak > 0:
+            dd_pct = (peak - bankroll) / peak * 100.0
+            if dd_pct > max_dd_pct:
+                max_dd_pct = dd_pct
+
+        kickoff = _g(r, "kickoff_time")
+        day = kickoff.date() if hasattr(kickoff, "date") else kickoff
+        points.append({"date": day, "bankroll": round(bankroll, 4), "bets": bets})
+
+    return {
+        "bets": bets,
+        "starting_units": round(float(starting), 4),
+        "final_units": round(bankroll, 4),
+        "peak_units": round(peak, 4),
+        "max_drawdown_pct": round(max_dd_pct, 2),
+        "points": points,
     }
 
 
@@ -1019,6 +1118,46 @@ async def roi_by_league(
         threshold=threshold,
         season=season if window == "season" else None,
         leagues=[RoiLeagueOut(**lg) for lg in leagues],
+    )
+    _STATS_CACHE.set(cache_key, out)
+    return out
+
+
+@router.get("/roi/kelly", response_model=KellyRoiOut)
+async def roi_kelly(
+    request: Request,
+    season: str = Query("2025-26"),
+    threshold: float = Query(0.05, ge=0.0, le=0.5),
+    cap: float = Query(0.25, ge=0.0, le=1.0),
+    starting: float = Query(100.0, ge=1.0, le=1_000_000.0),
+    league: str | None = Query(None),
+) -> KellyRoiOut:
+    """Virtual-bankroll curve if every ≥threshold edge bet were sized via
+    fractional Kelly on the current balance. Analytics only — no custody."""
+    pool = request.app.state.pool
+    league_code = _resolve_league_code(league)
+    cache_key = ("roi_kelly", season, threshold, cap, starting, league_code)
+    cached = _STATS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(_ROI_QUERY, season, league_code)
+
+    m = _compute_kelly_bankroll(rows, threshold=threshold, cap=cap, starting=starting)
+    roi_pct = ((m["final_units"] - m["starting_units"]) / m["starting_units"] * 100.0) if m["starting_units"] else 0.0
+
+    out = KellyRoiOut(
+        season=season,
+        threshold=threshold,
+        cap=cap,
+        starting_units=m["starting_units"],
+        final_units=m["final_units"],
+        peak_units=m["peak_units"],
+        max_drawdown_pct=m["max_drawdown_pct"],
+        total_bets=m["bets"],
+        roi_percent=round(roi_pct, 2),
+        points=[KellyPoint(**p) for p in m["points"]],
     )
     _STATS_CACHE.set(cache_key, out)
     return out
