@@ -21,11 +21,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Ping /health
+      - name: Ping /api/health
         id: ping
         run: |
           code=$(curl -s -o /tmp/body.txt -w "%{http_code}" \
-            --max-time 10 https://predictor.nullshift.sh/health)
+            --max-time 10 https://predictor.nullshift.sh/api/health)
           body=$(cat /tmp/body.txt)
           echo "status=$code" >> "$GITHUB_OUTPUT"
           echo "body=$body" >> "$GITHUB_OUTPUT"

@@ -50,7 +50,12 @@ app.include_router(compare_router.router)
 
 
 @app.get("/health")
+@app.get("/api/health")
 async def health() -> dict[str, str]:
+    """Liveness probe — used by the GH Actions external watchdog and any
+    internal health check. Dual-mounted so it works both in-cluster
+    (`/health` direct to the api container) and via Caddy path routing
+    on the shared VPS (`/api/*` → api, anything else → web)."""
     pool = app.state.pool
     async with pool.acquire() as conn:
         await conn.execute("SELECT 1")
