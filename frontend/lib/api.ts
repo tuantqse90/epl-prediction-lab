@@ -169,6 +169,8 @@ export type MarketEdgeRow = {
   best_source: string | null;
   edge_pp: number | null;
   flagged: boolean;
+  pinnacle_prob: number | null;
+  sharp_disagreement_pp: number | null;
 };
 
 export type MarketsEdge = {

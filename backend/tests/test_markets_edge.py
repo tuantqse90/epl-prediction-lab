@@ -134,3 +134,56 @@ def test_edge_builder_reads_asyncpg_record_style_rows():
     over = next(r for r in rows if r["key"] == "over_2_5")
     assert over["best_book_odds"] == pytest.approx(2.10)
     assert over["edge_pp"] == pytest.approx(5.0, abs=1e-6)
+
+
+# ── Pinnacle sharp reference ─────────────────────────────────────────────────
+
+
+def test_edge_builder_devigs_pinnacle_2way_market():
+    """Over 2.5 @ 1.95 + Under 2.5 @ 1.95 → overround ~2.56% → devig probs
+    both 0.5 exactly. Pinnacle's vig is the tightest on retail, so the
+    devigged prob is our best sharp reference for each outcome."""
+    from app.api.matches import _build_market_edge_rows
+    probs = {"over_2_5": 0.58, "under_2_5": 0.42}
+    book_rows = [
+        _odds_row("af:Pinnacle", "OU", 2.5, "OVER",  1.95),
+        _odds_row("af:Pinnacle", "OU", 2.5, "UNDER", 1.95),
+        # A retail book at wider vig — should NOT drive pinnacle_prob
+        _odds_row("af:Betway",   "OU", 2.5, "OVER",  2.00),
+        _odds_row("af:Betway",   "OU", 2.5, "UNDER", 1.80),
+    ]
+    rows = _build_market_edge_rows(probs=probs, book_rows=book_rows)
+    over = next(r for r in rows if r["key"] == "over_2_5")
+    assert over["pinnacle_prob"] == pytest.approx(0.5, abs=1e-6)
+    # model 0.58 vs pinnacle 0.50 → +8pp disagreement
+    assert over["sharp_disagreement_pp"] == pytest.approx(8.0, abs=1e-6)
+
+
+def test_edge_builder_devigs_pinnacle_3way_market_when_full_triple_present():
+    """1X2 is 3-way: home/draw/away must devig together, not in pairs."""
+    # 1X2 isn't currently in _MARKET_KEYS (we only price derived markets
+    # there), but the Pinnacle devigger must handle 2-way OU/BTTS and 3-way
+    # correctly for edge cases.
+    from app.api.matches import _build_market_edge_rows
+    probs = {"btts_yes": 0.60, "btts_no": 0.40}
+    book_rows = [
+        _odds_row("af:Pinnacle", "BTTS", None, "YES", 1.67),
+        _odds_row("af:Pinnacle", "BTTS", None, "NO",  2.30),
+    ]
+    rows = _build_market_edge_rows(probs=probs, book_rows=book_rows)
+    yes = next(r for r in rows if r["key"] == "btts_yes")
+    # raw implied: 1/1.67 = 0.599, 1/2.30 = 0.435. sum = 1.034. devigged
+    # YES = 0.599/1.034 ≈ 0.579
+    assert yes["pinnacle_prob"] == pytest.approx(0.579, abs=1e-3)
+    # model 0.60 vs sharp 0.579 → +2.1pp
+    assert yes["sharp_disagreement_pp"] == pytest.approx(2.1, abs=0.1)
+
+
+def test_edge_builder_pinnacle_prob_null_when_no_pinnacle_data():
+    from app.api.matches import _build_market_edge_rows
+    probs = {"over_2_5": 0.50}
+    book_rows = [_odds_row("af:Bet365", "OU", 2.5, "OVER", 2.10)]
+    rows = _build_market_edge_rows(probs=probs, book_rows=book_rows)
+    over = next(r for r in rows if r["key"] == "over_2_5")
+    assert over["pinnacle_prob"] is None
+    assert over["sharp_disagreement_pp"] is None

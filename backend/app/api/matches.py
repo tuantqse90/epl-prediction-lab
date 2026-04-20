@@ -499,6 +499,12 @@ class MarketEdgeRow(BaseModel):
     best_source: str | None = None
     edge_pp: float | None = None
     flagged: bool = False
+    # Sharp-consensus reference: devigged probability from Pinnacle (lowest
+    # retail vig, ~2%) for the same outcome. When our model disagrees with
+    # Pinnacle by more than `sharp_disagreement_pp`, it's worth second-
+    # guessing the pick.
+    pinnacle_prob: float | None = None
+    sharp_disagreement_pp: float | None = None
 
 
 class MarketsEdgeOut(BaseModel):
@@ -545,18 +551,36 @@ def _build_market_edge_rows(
             return getattr(r, key, None)
 
     by_key: dict[tuple[str, float | None, str], list] = {}
+    # Pinnacle-only index for devig → sharp reference probability. Grouped
+    # by (market, line) so we can pair H/A outcomes for OU/BTTS/AH devig.
+    pinnacle_by_family: dict[tuple[str, float | None], dict[str, float]] = {}
     for r in book_rows:
         src = _get(r, "source") or ""
-        # Accept any per-book source; skip pooled averages (they understate
-        # best-available prices). Known prefixes: 'odds-api:<book>' (the-odds
-        # -api), 'af:<book>' (API-Football). Everything ending ':avg' is the
-        # pooled aggregate — excluded for best-odds shopping.
         if src.endswith(":avg"):
-            continue
+            continue  # pooled avg excluded — best-odds shopping uses real books
         if not (src.startswith("odds-api:") or src.startswith("af:")):
             continue
         k = (_get(r, "market_code"), _get(r, "line"), _get(r, "outcome_code"))
         by_key.setdefault(k, []).append(r)
+
+        # Separately index Pinnacle (sharp) rows by market family.
+        if src == "af:Pinnacle":
+            fam = (_get(r, "market_code"), _get(r, "line"))
+            pinnacle_by_family.setdefault(fam, {})[_get(r, "outcome_code")] = float(_get(r, "odds"))
+
+    # Devig each Pinnacle family: raw implied = 1/odds each outcome; divide
+    # by sum → probabilities sum to 1 after overround is removed. Handles
+    # 2-way (OU/BTTS) and 3-way (1X2) uniformly.
+    pinnacle_probs: dict[tuple[str, float | None, str], float] = {}
+    for (market, line), outcomes in pinnacle_by_family.items():
+        if not outcomes:
+            continue
+        implied = {o: 1.0 / v for o, v in outcomes.items() if v > 0}
+        s = sum(implied.values())
+        if s <= 0:
+            continue
+        for o, p in implied.items():
+            pinnacle_probs[(market, line, o)] = p / s
 
     out: list[dict] = []
     for key, market, line, outcome, label in _MARKET_KEYS:
@@ -575,6 +599,8 @@ def _build_market_edge_rows(
             "best_source": None,
             "edge_pp": None,
             "flagged": False,
+            "pinnacle_prob": None,
+            "sharp_disagreement_pp": None,
         }
         matches = by_key.get((market, line, outcome)) or []
         if matches:
@@ -585,6 +611,12 @@ def _build_market_edge_rows(
             row["best_source"] = _get(best, "source")
             row["edge_pp"] = round(edge_pp, 2)
             row["flagged"] = edge_pp >= edge_threshold_pp
+
+        pinnacle_p = pinnacle_probs.get((market, line, outcome))
+        if pinnacle_p is not None:
+            row["pinnacle_prob"] = round(pinnacle_p, 4)
+            row["sharp_disagreement_pp"] = round((float(prob) - pinnacle_p) * 100.0, 2)
+
         out.append(row)
     return out
 

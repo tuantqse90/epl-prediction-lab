@@ -60,9 +60,12 @@ export default function MarketsEdge({
             <thead className="text-[10px] uppercase tracking-wide text-muted">
               <tr className="text-left">
                 <th className="py-2 pr-4">{lang === "vi" ? "Cửa" : "Selection"}</th>
-                <th className="py-2 pr-4 text-right">{lang === "vi" ? "Xác suất model" : "Model prob"}</th>
-                <th className="py-2 pr-4 text-right">{lang === "vi" ? "Giá fair" : "Fair odds"}</th>
-                <th className="py-2 pr-4 text-right">{lang === "vi" ? "Best book" : "Best book"}</th>
+                <th className="py-2 pr-4 text-right">Model</th>
+                <th className="py-2 pr-4 text-right" title="Pinnacle devigged — sharp reference">
+                  Sharp
+                </th>
+                <th className="py-2 pr-4 text-right">{lang === "vi" ? "Giá fair" : "Fair"}</th>
+                <th className="py-2 pr-4 text-right">{lang === "vi" ? "Best book" : "Best"}</th>
                 <th className="py-2 pr-4 text-right">Edge</th>
                 <th className="py-2 pr-4">{lang === "vi" ? "Nguồn" : "Source"}</th>
               </tr>
@@ -76,6 +79,9 @@ export default function MarketsEdge({
                   : r.edge_pp >= 0
                   ? "text-secondary"
                   : "text-error";
+                // Sharp disagreement: > 3pp either way = model diverges from
+                // the sharp consensus, worth second-guessing the pick.
+                const disagrees = r.sharp_disagreement_pp != null && Math.abs(r.sharp_disagreement_pp) >= 3.0;
                 return (
                   <tr key={r.key} className={"border-t border-border-muted " + (r.flagged ? "bg-high/60" : "")}>
                     <td className="py-1.5 pr-4 font-mono text-xs text-secondary">
@@ -83,6 +89,12 @@ export default function MarketsEdge({
                       {prettyLabel(r.label)}
                     </td>
                     <td className="py-1.5 pr-4 text-right font-mono tabular-nums">{pct(r.model_prob)}</td>
+                    <td
+                      className={"py-1.5 pr-4 text-right font-mono tabular-nums " + (disagrees ? "text-warning" : "text-muted")}
+                      title={r.sharp_disagreement_pp != null ? `model − sharp = ${signedPp(r.sharp_disagreement_pp)}` : ""}
+                    >
+                      {r.pinnacle_prob != null ? pct(r.pinnacle_prob) : "—"}
+                    </td>
                     <td className="py-1.5 pr-4 text-right font-mono tabular-nums text-muted">{r.fair_odds.toFixed(2)}</td>
                     <td className="py-1.5 pr-4 text-right font-mono tabular-nums">
                       {r.best_book_odds != null ? r.best_book_odds.toFixed(2) : "—"}
@@ -91,7 +103,7 @@ export default function MarketsEdge({
                       {r.edge_pp != null ? signedPp(r.edge_pp) : "—"}
                     </td>
                     <td className="py-1.5 pr-4 font-mono text-[10px] text-muted">
-                      {r.best_source?.replace("odds-api:", "") ?? ""}
+                      {r.best_source?.replace("odds-api:", "").replace("af:", "") ?? ""}
                     </td>
                   </tr>
                 );
@@ -120,8 +132,8 @@ export default function MarketsEdge({
       <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
         {hasBookData
           ? lang === "vi"
-            ? `Viền neon = edge ≥ ${threshold}pp tại best book đang theo dõi`
-            : `Neon row = edge ≥ ${threshold}pp at the best tracked book`
+            ? `Viền neon = edge ≥ ${threshold}pp tại best book · Sharp = Pinnacle devigged (vig thấp nhất retail) · Màu cam = model lệch sharp ≥ 3pp`
+            : `Neon row = edge ≥ ${threshold}pp at best book · Sharp = Pinnacle devigged (lowest retail vig) · Amber = model diverges from sharp by ≥ 3pp`
           : lang === "vi"
           ? "Chưa có book odds cho các market này — so thủ công với book của bạn"
           : "No book odds stored yet for these markets — compare manually vs your book"}
