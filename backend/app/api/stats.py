@@ -498,14 +498,19 @@ def _simulate_value_ladder(
 
     Middle-ground between flat-1u (no scaling) and Kelly (compound on
     bankroll). Stake is bankroll-invariant — it scales with edge confidence
-    only, so a cold streak doesn't compound down like Kelly does."""
+    only, so a cold streak doesn't compound down like Kelly does.
+
+    Stops when bankroll would go negative (you can't bet more than you have).
+    """
     bankroll = float(starting)
     peak = bankroll
     bets = 0
     points: list[dict] = []
     for kickoff, side, best_odds, won, edge_pp in _walk_bets(rows, threshold=threshold):
+        if bankroll <= 0:
+            break  # depleted — can't stake any further
         mult = min(cap_mult, max(0.0, edge_pp / 5.0))
-        stake = base_unit * mult
+        stake = min(base_unit * mult, bankroll)   # cap final bet at remaining bankroll
         if stake <= 0:
             continue
         bankroll += stake * (best_odds - 1.0) if won else -stake
@@ -513,7 +518,9 @@ def _simulate_value_ladder(
         if bankroll > peak:
             peak = bankroll
         day = kickoff.date() if hasattr(kickoff, "date") else kickoff
-        points.append({"date": day, "bankroll": round(bankroll, 4), "bets": bets})
+        points.append({"date": day, "bankroll": round(max(bankroll, 0.0), 4), "bets": bets})
+    # Guarantee non-negative display
+    bankroll = max(bankroll, 0.0)
     return _wrap_result(points, starting, bankroll, peak, bets)
 
 
