@@ -573,6 +573,45 @@ def _simulate_high_confidence(
     return _wrap_result(points, starting, bankroll, peak, bets)
 
 
+def _simulate_martingale(
+    rows, *, threshold: float, starting: float, base_unit: float = 1.0,
+) -> dict:
+    """Double-stake-after-loss classic. Pedagogical only — shows ruin on
+    real data so users never try it live.
+
+    Resets to base_unit after every win. Loop exits when the required next
+    stake would exceed current bankroll (the classic Martingale failure
+    mode: table limit / bankroll runs out before a win lands).
+    """
+    bankroll = float(starting)
+    peak = bankroll
+    bets = 0
+    points: list[dict] = []
+    next_stake = base_unit
+    for kickoff, side, best_odds, won, edge_pp in _walk_bets(rows, threshold=threshold):
+        if bankroll <= 0:
+            break
+        if next_stake > bankroll:
+            # Can't follow the Martingale rule — bet what's left and exit.
+            next_stake = bankroll
+        stake = next_stake
+        if won:
+            bankroll += stake * (best_odds - 1.0)
+            next_stake = base_unit  # reset on win
+        else:
+            bankroll -= stake
+            next_stake = stake * 2.0  # double on loss
+        bets += 1
+        if bankroll > peak:
+            peak = bankroll
+        day = kickoff.date() if hasattr(kickoff, "date") else kickoff
+        points.append({"date": day, "bankroll": round(max(bankroll, 0.0), 4), "bets": bets})
+        if bankroll <= 0:
+            break
+    bankroll = max(bankroll, 0.0)
+    return _wrap_result(points, starting, bankroll, peak, bets)
+
+
 def _compute_roi_by_league(rows, threshold: float) -> list[dict]:
     """Group rows by league_code, run _compute_roi_metrics per group, sort
     by bets desc. Leagues with zero bets are kept so the caller can show the
@@ -1280,7 +1319,7 @@ class StrategySimOut(BaseModel):
     points: list[KellyPoint]
 
 
-_STRATEGIES = ("value-ladder", "high-confidence")   # grows as 15.3 / 15.4 ship
+_STRATEGIES = ("value-ladder", "high-confidence", "martingale")   # grows as 15.4 ships
 
 
 @router.get("/strategy-sim", response_model=StrategySimOut)
@@ -1313,6 +1352,8 @@ async def strategy_sim(
         m = _simulate_value_ladder(rows, threshold=threshold, starting=starting)
     elif name == "high-confidence":
         m = _simulate_high_confidence(rows, threshold=threshold, starting=starting)
+    elif name == "martingale":
+        m = _simulate_martingale(rows, threshold=threshold, starting=starting)
     else:  # pragma: no cover — guarded above
         raise HTTPException(status_code=500, detail="strategy missing dispatcher")
 

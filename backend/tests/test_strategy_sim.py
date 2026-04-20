@@ -115,3 +115,35 @@ def test_highconf_filter_takes_bet_when_confidence_met():
     assert out["bets"] == 1
     # Flat 1u win @ 1.9 → +0.9
     assert out["final_units"] == pytest.approx(100.9, abs=1e-3)
+
+
+# ── 15.3 Martingale ──────────────────────────────────────────────────────────
+
+
+def test_martingale_doubles_after_loss_resets_on_win():
+    """Stake: 1, 2, 4 (three losses in a row)... then win clears to 1 again."""
+    from app.api.stats import _simulate_martingale
+
+    rows = [
+        _row(kickoff=_dt(-4), p_h=0.6, best_h=2.0, hg=0, ag=1),  # lose @ stake 1 → -1
+        _row(kickoff=_dt(-3), p_h=0.6, best_h=2.0, hg=0, ag=1),  # lose @ stake 2 → -2
+        _row(kickoff=_dt(-2), p_h=0.6, best_h=2.0, hg=0, ag=1),  # lose @ stake 4 → -4
+        _row(kickoff=_dt(-1), p_h=0.6, best_h=2.0, hg=1, ag=0),  # win  @ stake 8 → +8
+    ]
+    out = _simulate_martingale(rows, threshold=0.05, starting=100.0, base_unit=1.0)
+    # After all four: 100 - 1 - 2 - 4 + 8 = 101
+    assert out["final_units"] == pytest.approx(101.0, abs=0.01)
+    assert out["bets"] == 4
+
+
+def test_martingale_stops_at_bankroll_depleted():
+    """Losing streak that would require a stake > current bankroll → sim
+    clamps to remaining and loop exits."""
+    from app.api.stats import _simulate_martingale
+
+    # 6 losses in a row at base=10 → stakes 10,20,40,80 takes us past 100
+    rows = [_row(kickoff=_dt(-6 + i), p_h=0.6, best_h=2.0, hg=0, ag=1) for i in range(6)]
+    out = _simulate_martingale(rows, threshold=0.05, starting=100.0, base_unit=10.0)
+    assert out["final_units"] == pytest.approx(0.0)
+    # Not every row was bet — loop bailed early.
+    assert out["bets"] < 6

@@ -30,7 +30,16 @@ const STRATEGIES = [
     explainer_en: "Flat 1u, but only when model_prob ≥ 60% AND edge ≥ threshold. Cuts low-conviction spray bets.",
     explainer_vi: "Stake cố định 1u, chỉ đặt khi model_prob ≥ 60% VÀ edge ≥ ngưỡng. Lọc kèo ít tự tin.",
   },
-  // 15.3/15.4 slot in here as they ship
+  {
+    slug: "martingale",
+    label_en: "Martingale (do not try)",
+    label_vi: "Martingale (đừng thử)",
+    explainer_en: "Double stake after every loss, reset on win. Pedagogical — runs to ruin on real data.",
+    explainer_vi: "Double stake sau mỗi lần thua, reset khi thắng. Minh họa — sẽ cháy tài khoản trên data thật.",
+    warning_en: "Never attempt live. Bankroll runs out before the eventual win lands — the textbook Martingale failure mode.",
+    warning_vi: "KHÔNG làm thật. Bankroll cháy trước khi trận thắng tiếp theo về — thất bại điển hình của Martingale.",
+  },
+  // 15.4 slots in here as it ships
 ] as const;
 
 const THRESHOLDS = [0.03, 0.05, 0.07, 0.10] as const;
@@ -53,6 +62,9 @@ export default async function StrategiesPage({
 
   const title = lang === "vi" ? current.label_vi : current.label_en;
   const explainer = lang === "vi" ? current.explainer_vi : current.explainer_en;
+  const warning = (current as { warning_en?: string; warning_vi?: string }).warning_en
+    ? (lang === "vi" ? (current as { warning_vi: string }).warning_vi : (current as { warning_en: string }).warning_en)
+    : undefined;
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12 space-y-8">
@@ -121,6 +133,7 @@ export default async function StrategiesPage({
         name={name}
         title={title}
         explainer={explainer}
+        warning={warning}
         season={season}
         threshold={threshold}
         starting={100}
