@@ -685,6 +685,69 @@ async def match_markets_edge(
     )
 
 
+class FatigueContext(BaseModel):
+    rest_days_home: int
+    rest_days_away: int
+    rest_diff: int
+    congestion_home: int
+    congestion_away: int
+    is_midweek: bool
+
+
+@router.get("/{match_id}/fatigue", response_model=FatigueContext | None)
+async def match_fatigue(match_id: int, request: Request) -> FatigueContext | None:
+    """Rest + 14-day congestion + midweek flag. Displayed as a chip on
+    /match/:id so users can weight predictions for tired teams."""
+    from app.models.fatigue import compute_fixture_context
+
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT ht.name AS home_name, at.name AS away_name, m.kickoff_time,
+                   m.league_code
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            WHERE m.id = $1
+            """,
+            match_id,
+        )
+        if row is None:
+            return None
+        prior = await conn.fetch(
+            """
+            SELECT m.kickoff_time AS date, ht.name AS home_team, at.name AS away_team
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            WHERE m.league_code = $1
+              AND m.kickoff_time < $2
+              AND m.kickoff_time >= $2 - INTERVAL '30 days'
+            """,
+            row["league_code"], row["kickoff_time"],
+        )
+
+    import pandas as pd
+    df = pd.DataFrame(
+        [(r["date"], r["home_team"], r["away_team"]) for r in prior],
+        columns=["date", "home_team", "away_team"],
+    )
+    # Ensure pandas-native Timestamp comparisons (asyncpg returns aware datetimes).
+    if not df.empty:
+        df["date"] = pd.to_datetime(df["date"])
+    kickoff = pd.to_datetime(row["kickoff_time"])
+    ctx = compute_fixture_context(df, home=row["home_name"], away=row["away_name"], kickoff=kickoff)
+    return FatigueContext(
+        rest_days_home=ctx.rest_days_home,
+        rest_days_away=ctx.rest_days_away,
+        rest_diff=ctx.rest_diff,
+        congestion_home=ctx.congestion_home,
+        congestion_away=ctx.congestion_away,
+        is_midweek=ctx.is_midweek,
+    )
+
+
 class RefereeInfo(BaseModel):
     name: str
     n: int

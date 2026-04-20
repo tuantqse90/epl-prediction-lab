@@ -199,6 +199,21 @@ export async function getRefereeInfo(matchId: number): Promise<RefereeInfo | nul
   return (await res.json()) as RefereeInfo | null;
 }
 
+export type FatigueContext = {
+  rest_days_home: number;
+  rest_days_away: number;
+  rest_diff: number;
+  congestion_home: number;
+  congestion_away: number;
+  is_midweek: boolean;
+};
+
+export async function getFatigueContext(matchId: number): Promise<FatigueContext | null> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/fatigue`, { cache: "no-store" });
+  if (!res.ok) return null;
+  return (await res.json()) as FatigueContext | null;
+}
+
 export type HalfTimePredictions = {
   p_home_lead: number;
   p_draw: number;

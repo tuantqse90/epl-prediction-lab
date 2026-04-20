@@ -28,7 +28,7 @@ import ShareButtons from "@/components/ShareButtons";
 import TeamLogo from "@/components/TeamLogo";
 import TerminalBlock from "@/components/TerminalBlock";
 import { OddsPanel } from "@/components/ValueBetBadge";
-import { getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getMarkets, getMarketsEdge, getMatch, getRefereeInfo, getScorerOdds, getWeather } from "@/lib/api";
+import { getFatigueContext, getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getMarkets, getMarketsEdge, getMatch, getRefereeInfo, getScorerOdds, getWeather } from "@/lib/api";
 import ConfidenceBand from "@/components/ConfidenceBand";
 import { formatKickoff } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
@@ -90,6 +90,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const markets = await getMarkets(matchId).catch(() => null);
   const marketsEdge = await getMarketsEdge(matchId).catch(() => null);
   const refereeInfo = await getRefereeInfo(matchId).catch(() => null);
+  const fatigue = await getFatigueContext(matchId).catch(() => null);
   const halfTime = await getHalfTime(matchId).catch(() => null);
   // Bootstrap CI is fetched client-side so the match-detail render path
   // doesn't block on the 1.8-s cold bootstrap. See <ConfidenceBand/>.
@@ -194,6 +195,24 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             <p className="font-mono text-xs text-muted">
               {t("detail.breadcrumb", { id: match.id, date: kickoff, status: statusLabel })}
             </p>
+            {fatigue && (
+              <span className="font-mono text-xs text-muted">
+                · {lang === "vi" ? "Nghỉ" : "Rest"}:
+                <span className={"ml-1 " + (fatigue.rest_diff > 0 ? "text-neon" : fatigue.rest_diff < 0 ? "text-error" : "text-secondary")}>
+                  {fatigue.rest_days_home}d / {fatigue.rest_days_away}d
+                </span>
+                {(fatigue.congestion_home >= 3 || fatigue.congestion_away >= 3) && (
+                  <span className="ml-2 text-warning" title={lang === "vi" ? "Đá nhiều trong 14d qua" : "High match load in last 14d"}>
+                    {lang === "vi" ? "kẹt lịch" : "congested"} {fatigue.congestion_home}/{fatigue.congestion_away}
+                  </span>
+                )}
+                {fatigue.is_midweek && (
+                  <span className="ml-2 text-muted" title={lang === "vi" ? "Giữa tuần (Tue/Wed/Thu)" : "Midweek kickoff"}>
+                    · {lang === "vi" ? "giữa tuần" : "midweek"}
+                  </span>
+                )}
+              </span>
+            )}
             {match.referee && (
               <span className="font-mono text-xs text-muted">
                 · {lang === "vi" ? "TT" : "Ref"}: {match.referee}
