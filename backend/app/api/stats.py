@@ -524,6 +524,55 @@ def _simulate_value_ladder(
     return _wrap_result(points, starting, bankroll, peak, bets)
 
 
+def _simulate_high_confidence(
+    rows, *, threshold: float, starting: float,
+    base_unit: float = 1.0, min_confidence: float = 0.60,
+) -> dict:
+    """Flat-1u stake, but only when the flagged side's model_prob meets a
+    conviction floor. Cuts low-confidence "spray" bets — user sees what
+    sharpening the filter does to the bankroll curve."""
+    from app.ingest.odds import fair_probs
+
+    bankroll = float(starting)
+    peak = bankroll
+    bets = 0
+    points: list[dict] = []
+    for r in sorted(rows, key=lambda x: _g(x, "kickoff_time")):
+        if bankroll <= 0:
+            break
+        p = {"H": float(_g(r, "p_home_win")),
+             "D": float(_g(r, "p_draw")),
+             "A": float(_g(r, "p_away_win"))}
+        avg = {"H": _g(r, "odds_home"), "D": _g(r, "odds_draw"), "A": _g(r, "odds_away")}
+        best = {"H": _g(r, "best_home"), "D": _g(r, "best_draw"), "A": _g(r, "best_away")}
+        if any(v is None for v in avg.values()) or any(v is None for v in best.values()):
+            continue
+        fair = fair_probs(avg["H"], avg["D"], avg["A"])
+        if fair is None:
+            continue
+        fair_map = {"H": fair[0], "D": fair[1], "A": fair[2]}
+        outcome = _outcome(int(_g(r, "home_goals")), int(_g(r, "away_goals")))
+        flagged = []
+        for side in "HDA":
+            if p[side] >= min_confidence and p[side] - fair_map[side] >= threshold:
+                flagged.append((p[side] - fair_map[side], side))
+        if not flagged:
+            continue
+        flagged.sort(reverse=True)
+        _, side = flagged[0]
+        stake = min(base_unit, bankroll)
+        won = side == outcome
+        bankroll += stake * (float(best[side]) - 1.0) if won else -stake
+        bets += 1
+        if bankroll > peak:
+            peak = bankroll
+        kickoff = _g(r, "kickoff_time")
+        day = kickoff.date() if hasattr(kickoff, "date") else kickoff
+        points.append({"date": day, "bankroll": round(max(bankroll, 0.0), 4), "bets": bets})
+    bankroll = max(bankroll, 0.0)
+    return _wrap_result(points, starting, bankroll, peak, bets)
+
+
 def _compute_roi_by_league(rows, threshold: float) -> list[dict]:
     """Group rows by league_code, run _compute_roi_metrics per group, sort
     by bets desc. Leagues with zero bets are kept so the caller can show the
@@ -1231,7 +1280,7 @@ class StrategySimOut(BaseModel):
     points: list[KellyPoint]
 
 
-_STRATEGIES = ("value-ladder",)   # grows as 15.2 / 15.3 / 15.4 ship
+_STRATEGIES = ("value-ladder", "high-confidence")   # grows as 15.3 / 15.4 ship
 
 
 @router.get("/strategy-sim", response_model=StrategySimOut)
@@ -1262,6 +1311,8 @@ async def strategy_sim(
 
     if name == "value-ladder":
         m = _simulate_value_ladder(rows, threshold=threshold, starting=starting)
+    elif name == "high-confidence":
+        m = _simulate_high_confidence(rows, threshold=threshold, starting=starting)
     else:  # pragma: no cover — guarded above
         raise HTTPException(status_code=500, detail="strategy missing dispatcher")
 

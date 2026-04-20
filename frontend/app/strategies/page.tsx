@@ -23,7 +23,14 @@ const STRATEGIES = [
     explainer_en: "Stake = 1u × (edge_pp / 5), capped at 5u. Bigger edge → bigger stake; no compounding.",
     explainer_vi: "Stake = 1u × (edge_pp / 5), cap 5u. Edge càng lớn → stake càng lớn; không compound.",
   },
-  // 15.2/15.3/15.4 slot in here as they ship
+  {
+    slug: "high-confidence",
+    label_en: "High-confidence filter",
+    label_vi: "Lọc tự tin cao",
+    explainer_en: "Flat 1u, but only when model_prob ≥ 60% AND edge ≥ threshold. Cuts low-conviction spray bets.",
+    explainer_vi: "Stake cố định 1u, chỉ đặt khi model_prob ≥ 60% VÀ edge ≥ ngưỡng. Lọc kèo ít tự tin.",
+  },
+  // 15.3/15.4 slot in here as they ship
 ] as const;
 
 const THRESHOLDS = [0.03, 0.05, 0.07, 0.10] as const;

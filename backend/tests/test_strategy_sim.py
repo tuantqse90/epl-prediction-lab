@@ -84,3 +84,34 @@ def test_value_ladder_tracks_peak_and_drawdown():
                                  base_unit=1.0, cap_mult=5.0)
     assert out["peak_units"] >= out["starting_units"]
     assert 0 <= out["max_drawdown_pct"] <= 100
+
+
+# ── 15.2 High-confidence filter ──────────────────────────────────────────────
+
+
+def test_highconf_filter_skips_low_confidence_bets():
+    """Filter: model_prob ≥ 0.60 AND edge ≥ threshold. Low model_prob → skip."""
+    from app.api.stats import _simulate_high_confidence
+
+    # p_h=0.52 → below 60% confidence floor → skipped even with edge ≥ 5pp
+    rows = [_row(kickoff=_dt(-1), p_h=0.52, p_d=0.25, p_a=0.23,
+                 oh=2.2, od=3.5, oa=3.8, best_h=2.2, best_d=3.5, best_a=3.8,
+                 hg=1, ag=0)]
+    out = _simulate_high_confidence(rows, threshold=0.05, starting=100.0,
+                                    min_confidence=0.60)
+    assert out["bets"] == 0
+    assert out["final_units"] == pytest.approx(100.0)
+
+
+def test_highconf_filter_takes_bet_when_confidence_met():
+    """p_h=0.65, edge well above 5pp → flat 1u bet."""
+    from app.api.stats import _simulate_high_confidence
+
+    rows = [_row(kickoff=_dt(-1), p_h=0.65, p_d=0.20, p_a=0.15,
+                 oh=1.8, od=3.5, oa=5.5, best_h=1.9, best_d=3.6, best_a=5.7,
+                 hg=1, ag=0)]
+    out = _simulate_high_confidence(rows, threshold=0.05, starting=100.0,
+                                    min_confidence=0.60)
+    assert out["bets"] == 1
+    # Flat 1u win @ 1.9 → +0.9
+    assert out["final_units"] == pytest.approx(100.9, abs=1e-3)
