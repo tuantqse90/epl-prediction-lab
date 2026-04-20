@@ -854,10 +854,13 @@ async def calibration(
 @router.get("/recent", response_model=RecentWindowOut)
 async def recent(
     request: Request,
-    days: int = Query(7, ge=1, le=30),
+    days: int = Query(7, ge=1, le=365),
     league: str | None = Query(None),
 ) -> RecentWindowOut:
-    """Finals in the last N days with how the model scored each pick."""
+    """Finals in the last N days with how the model scored each pick.
+
+    Upper bound 365 so /benchmark's 90d tile + year-to-date rollups work.
+    The /last-weekend page still caps its own selector at 30 in the UI."""
     pool = request.app.state.pool
     league_code = _resolve_league_code(league)
     async with pool.acquire() as conn:
