@@ -7,12 +7,50 @@ return all rows matching the slug across seasons, teams grouped.
 
 from __future__ import annotations
 
+import os
 import re
+import urllib.request
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/players", tags=["players"])
+
+
+# ── Photo proxy ──────────────────────────────────────────────────────────────
+# api-sports.io's player-photo CDN is API-key-gated: anonymous requests get
+# 403 even from browsers. Proxying with our server-side key unlocks them and
+# lets us set long cache headers so the heavy lifting is done once per player.
+_PHOTO_CDN = "https://media.api-sports.io/football/players/{id}.png"
+
+
+@router.get("/photo/{api_football_id}")
+async def player_photo(api_football_id: int) -> Response:
+    key = os.environ.get("API_FOOTBALL_KEY")
+    if not key:
+        raise HTTPException(status_code=503, detail="API_FOOTBALL_KEY not configured")
+    try:
+        req = urllib.request.Request(
+            _PHOTO_CDN.format(id=api_football_id),
+            headers={"x-apisports-key": key, "User-Agent": "football-predict/photo-proxy"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as upstream:
+            body = upstream.read()
+            content_type = upstream.headers.get("content-type", "image/png")
+    except urllib.error.HTTPError as e:
+        raise HTTPException(status_code=e.code, detail="upstream photo unavailable") from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"photo fetch failed: {type(e).__name__}") from e
+
+    # Player photos are effectively static — cache aggressively on both the
+    # browser and any shared proxy. 30 days with stale-while-revalidate.
+    return Response(
+        content=body,
+        media_type=content_type,
+        headers={
+            "Cache-Control": "public, max-age=2592000, stale-while-revalidate=86400, immutable",
+        },
+    )
 
 
 def _slugify(name: str) -> str:
@@ -54,6 +92,7 @@ async def get_player(slug: str, request: Request) -> PlayerProfile:
             """
             SELECT p.player_name, p.season, p.games, p.goals, p.assists,
                    p.xg, p.xa, p.npxg, p.key_passes, p.position, p.photo_url,
+                   p.api_football_player_id,
                    t.slug AS team_slug, t.short_name AS team_short
             FROM player_season_stats p
             JOIN teams t ON t.id = p.team_id
@@ -89,11 +128,20 @@ async def get_player(slug: str, request: Request) -> PlayerProfile:
         for r in rows if r["player_name"] == canonical
     ]
 
-    # First non-null photo URL across this player's rows.
-    photo_url = next(
-        (r["photo_url"] for r in rows if r["player_name"] == canonical and r["photo_url"]),
+    # Prefer the api-football id (served via our proxy — CDN is key-gated).
+    # Fall back to any stored photo_url only if the proxy route is unavailable.
+    canonical_rows = [r for r in rows if r["player_name"] == canonical]
+    af_id = next(
+        (r["api_football_player_id"] for r in canonical_rows if r["api_football_player_id"]),
         None,
     )
+    if af_id:
+        photo_url: str | None = f"/api/players/photo/{int(af_id)}"
+    else:
+        photo_url = next(
+            (r["photo_url"] for r in canonical_rows if r["photo_url"]),
+            None,
+        )
 
     return PlayerProfile(
         slug=_slugify(canonical),

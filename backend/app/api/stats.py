@@ -1108,7 +1108,7 @@ async def scorers(
     }[sort]
     query = f"""
     SELECT p.player_name, p.position, p.goals, p.xg, p.npxg, p.assists, p.xa,
-           p.key_passes, p.games, p.photo_url,
+           p.key_passes, p.games, p.photo_url, p.api_football_player_id,
            t.slug AS team_slug, t.name AS team_name, t.short_name AS team_short,
            (SELECT league_code FROM matches m
             WHERE (m.home_team_id = p.team_id OR m.away_team_id = p.team_id)
@@ -1132,6 +1132,12 @@ async def scorers(
     for i, r in enumerate(rows, 1):
         goals = int(r["goals"] or 0)
         xg = float(r["xg"] or 0.0)
+        # api-sports.io CDN is 403 for anonymous browsers — rewrite any stored
+        # photo_url to our server-side proxy whenever we have an api-football id.
+        photo_url: str | None = r["photo_url"]
+        af_id = r["api_football_player_id"]
+        if af_id:
+            photo_url = f"/api/players/photo/{int(af_id)}"
         out.append(
             ScorerOut(
                 rank=i,
@@ -1149,7 +1155,7 @@ async def scorers(
                 xa=round(float(r["xa"] or 0.0), 2),
                 key_passes=int(r["key_passes"] or 0),
                 goals_minus_xg=round(goals - xg, 2),
-                photo_url=r["photo_url"],
+                photo_url=photo_url,
                 league_code=r["league_code"],
             )
         )
