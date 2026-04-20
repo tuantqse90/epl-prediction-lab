@@ -1539,7 +1539,8 @@ async def scorers(
     request: Request,
     season: str = Query("2025-26"),
     sort: str = Query("goals", pattern="^(goals|xg|assists|goals_minus_xg)$"),
-    limit: int = Query(25, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0, le=2000),
     league: str | None = Query(None),
 ) -> list[ScorerOut]:
     pool = request.app.state.pool
@@ -1568,23 +1569,21 @@ async def scorers(
             AND m.league_code = $3
       ))
     ORDER BY {sort_col}
-    LIMIT $2
+    LIMIT $2 OFFSET $4
     """
     async with pool.acquire() as conn:
-        rows = await conn.fetch(query, season, limit, league_code)
+        rows = await conn.fetch(query, season, limit, league_code, offset)
     out: list[ScorerOut] = []
     for i, r in enumerate(rows, 1):
         goals = int(r["goals"] or 0)
         xg = float(r["xg"] or 0.0)
-        # api-sports.io CDN is 403 for anonymous browsers — rewrite any stored
-        # photo_url to our server-side proxy whenever we have an api-football id.
         photo_url: str | None = r["photo_url"]
         af_id = r["api_football_player_id"]
         if af_id:
             photo_url = f"/api/players/photo/{int(af_id)}"
         out.append(
             ScorerOut(
-                rank=i,
+                rank=offset + i,     # absolute position across pages
                 player_name=r["player_name"],
                 position=r["position"],
                 team_slug=r["team_slug"],
