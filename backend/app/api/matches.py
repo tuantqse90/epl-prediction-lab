@@ -685,6 +685,60 @@ async def match_markets_edge(
     )
 
 
+class RefereeInfo(BaseModel):
+    name: str
+    n: int
+    goals_delta: float      # goals/match above/below the rolling 2-season league avg
+    league_avg: float
+    multiplier: float       # applied to both teams' λ; clamped to ±10%
+
+
+@router.get("/{match_id}/referee", response_model=RefereeInfo | None)
+async def match_referee(match_id: int, request: Request) -> RefereeInfo | None:
+    """Per-match referee tendency. Returns None when no ref assigned or
+    the ref has < 30 matches in the rolling 2-season window."""
+    from app.models.referee import referee_multiplier, referee_tendencies
+
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT referee, league_code, kickoff_time FROM matches WHERE id = $1",
+            match_id,
+        )
+        if row is None or not row["referee"] or not row["league_code"]:
+            return None
+        sample = await conn.fetch(
+            """
+            SELECT referee, home_goals, away_goals
+            FROM matches
+            WHERE league_code = $1
+              AND status = 'final'
+              AND home_goals IS NOT NULL
+              AND referee IS NOT NULL
+              AND kickoff_time < $2
+              AND kickoff_time >= $2 - INTERVAL '730 days'
+              AND id <> $3
+            """,
+            row["league_code"], row["kickoff_time"], match_id,
+        )
+    if not sample:
+        return None
+    tendencies = referee_tendencies(sample, min_matches=30)
+    info = tendencies.get(row["referee"])
+    if info is None:
+        return None
+    totals = [int(r["home_goals"]) + int(r["away_goals"]) for r in sample]
+    league_avg = sum(totals) / len(totals) if totals else 2.8
+    m = referee_multiplier(info["goals_delta"], league_avg=league_avg, cap=0.10)
+    return RefereeInfo(
+        name=row["referee"],
+        n=info["n"],
+        goals_delta=round(info["goals_delta"], 3),
+        league_avg=round(league_avg, 3),
+        multiplier=round(m, 4),
+    )
+
+
 @router.get("/{match_id}/weather", response_model=WeatherOut | None)
 async def match_weather(match_id: int, request: Request) -> WeatherOut | None:
     pool = request.app.state.pool

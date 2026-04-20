@@ -52,6 +52,57 @@ WIND_MULTIPLIER = 0.92          # ~-8% λ in strong wind
 RAIN_THRESHOLD_MM = 2.0
 RAIN_MULTIPLIER = 0.95          # ~-5% λ in heavy rain
 
+# Referee tendency cap: ±10% on total-goal environment. Sparse refs (< 30
+# matches in rolling window) get multiplier 1.0 (no-op).
+REFEREE_CAP = 0.10
+REFEREE_MIN_MATCHES = 30
+
+
+async def _referee_multiplier(
+    conn: asyncpg.Connection, match_id: int, league_code: str | None, kickoff
+) -> float:
+    """Look up the assigned referee for this match, compute their delta
+    against the league-wide goals average over the prior two full seasons,
+    return the multiplicative λ adjustment. Returns 1.0 if no referee
+    assigned or sparse sample."""
+    if not league_code:
+        return 1.0
+    row = await conn.fetchrow(
+        "SELECT referee FROM matches WHERE id = $1", match_id,
+    )
+    if row is None or not row["referee"]:
+        return 1.0
+    ref_name = row["referee"]
+
+    # Rolling 2-season window looking BACKWARDS from this kickoff. Excludes
+    # the current match (WHERE id <> $1) so future-leak stays zero.
+    sample = await conn.fetch(
+        """
+        SELECT referee, home_goals, away_goals
+        FROM matches
+        WHERE league_code = $2
+          AND status = 'final'
+          AND home_goals IS NOT NULL
+          AND referee IS NOT NULL
+          AND kickoff_time < $3
+          AND kickoff_time >= $3 - INTERVAL '730 days'
+          AND id <> $1
+        """,
+        match_id, league_code, kickoff,
+    )
+    if not sample:
+        return 1.0
+
+    from app.models.referee import referee_tendencies, referee_multiplier
+    tendencies = referee_tendencies(sample, min_matches=REFEREE_MIN_MATCHES)
+    info = tendencies.get(ref_name)
+    if info is None:
+        return 1.0
+    # League avg from the same rolling sample so backtest/live stay consistent.
+    totals = [int(r["home_goals"]) + int(r["away_goals"]) for r in sample]
+    league_avg = sum(totals) / len(totals) if totals else 2.8
+    return referee_multiplier(info["goals_delta"], league_avg=league_avg, cap=REFEREE_CAP)
+
 
 async def _weather_multiplier(conn: asyncpg.Connection, match_id: int) -> float:
     row = await conn.fetchrow(
@@ -183,8 +234,9 @@ async def predict_and_persist(
             home_hit = await _injury_impact(conn, match["home_team_id"], match["season"], match_id)
             away_hit = await _injury_impact(conn, match["away_team_id"], match["season"], match_id)
             weather_m = await _weather_multiplier(conn, match_id)
-        lam_h *= max(0.5, 1.0 - INJURY_ALPHA * home_hit) * weather_m
-        lam_a *= max(0.5, 1.0 - INJURY_ALPHA * away_hit) * weather_m
+            ref_m = await _referee_multiplier(conn, match_id, league_code, match["kickoff_time"])
+        lam_h *= max(0.5, 1.0 - INJURY_ALPHA * home_hit) * weather_m * ref_m
+        lam_a *= max(0.5, 1.0 - INJURY_ALPHA * away_hit) * weather_m * ref_m
 
     # Elo side of the ensemble: walk the same filtered finished-match df up
     # to this kickoff, derive current ratings, convert to 3-way probs.

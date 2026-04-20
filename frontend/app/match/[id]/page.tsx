@@ -28,7 +28,7 @@ import ShareButtons from "@/components/ShareButtons";
 import TeamLogo from "@/components/TeamLogo";
 import TerminalBlock from "@/components/TerminalBlock";
 import { OddsPanel } from "@/components/ValueBetBadge";
-import { getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getMarkets, getMarketsEdge, getMatch, getScorerOdds, getWeather } from "@/lib/api";
+import { getH2H, getHalfTime, getInjuries, getInjuryImpact, getLineups, getMarkets, getMarketsEdge, getMatch, getRefereeInfo, getScorerOdds, getWeather } from "@/lib/api";
 import ConfidenceBand from "@/components/ConfidenceBand";
 import { formatKickoff } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
@@ -89,6 +89,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const weather = await getWeather(matchId).catch(() => null);
   const markets = await getMarkets(matchId).catch(() => null);
   const marketsEdge = await getMarketsEdge(matchId).catch(() => null);
+  const refereeInfo = await getRefereeInfo(matchId).catch(() => null);
   const halfTime = await getHalfTime(matchId).catch(() => null);
   // Bootstrap CI is fetched client-side so the match-detail render path
   // doesn't block on the 1.8-s cold bootstrap. See <ConfidenceBand/>.
@@ -196,6 +197,20 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             {match.referee && (
               <span className="font-mono text-xs text-muted">
                 · {lang === "vi" ? "TT" : "Ref"}: {match.referee}
+                {refereeInfo && refereeInfo.n >= 30 && (
+                  <span
+                    className={
+                      "ml-2 " +
+                      (refereeInfo.goals_delta > 0 ? "text-neon" : "text-error")
+                    }
+                    title={lang === "vi"
+                      ? `${refereeInfo.n} trận, λ × ${refereeInfo.multiplier.toFixed(3)}`
+                      : `${refereeInfo.n} matches, λ × ${refereeInfo.multiplier.toFixed(3)}`}
+                  >
+                    {refereeInfo.goals_delta > 0 ? "+" : ""}
+                    {refereeInfo.goals_delta.toFixed(2)} {lang === "vi" ? "bàn/trận" : "g/game"}
+                  </span>
+                )}
               </span>
             )}
           </div>

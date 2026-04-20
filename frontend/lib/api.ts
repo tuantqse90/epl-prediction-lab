@@ -185,6 +185,20 @@ export async function getMarketsEdge(matchId: number): Promise<MarketsEdge | nul
   return (await res.json()) as MarketsEdge;
 }
 
+export type RefereeInfo = {
+  name: string;
+  n: number;
+  goals_delta: number;
+  league_avg: number;
+  multiplier: number;
+};
+
+export async function getRefereeInfo(matchId: number): Promise<RefereeInfo | null> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/referee`, { cache: "no-store" });
+  if (!res.ok) return null;
+  return (await res.json()) as RefereeInfo | null;
+}
+
 export type HalfTimePredictions = {
   p_home_lead: number;
   p_draw: number;
