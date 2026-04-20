@@ -39,17 +39,13 @@ def _fetch(key: str, path: str) -> dict:
 
 
 def _iter_fixtures(key: str, league_id: int, season_year: int):
-    page = 1
-    while True:
-        body = _fetch(key, f"/fixtures?league={league_id}&season={season_year}&page={page}")
-        for ev in body.get("response", []) or []:
-            yield ev
-        paging = body.get("paging", {}) or {}
-        total = int(paging.get("total") or 1)
-        if page >= total:
-            return
-        page += 1
-        time.sleep(0.2)
+    # API-Football /fixtures returns the entire season in a single response
+    # (no pagination in practice — `paging.total` is always 1). Passing
+    # `&page=1` explicitly triggers a 0-result response, so we deliberately
+    # omit it on the first call.
+    body = _fetch(key, f"/fixtures?league={league_id}&season={season_year}")
+    for ev in body.get("response", []) or []:
+        yield ev
 
 
 async def run(seasons: list[str]) -> None:
