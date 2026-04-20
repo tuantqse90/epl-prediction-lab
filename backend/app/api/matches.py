@@ -535,7 +535,14 @@ def _build_market_edge_rows(
     then falls back to the manual-comparison view.
     """
     def _get(r, key):
-        return getattr(r, key, None) if not isinstance(r, dict) else r.get(key)
+        # asyncpg.Record: subscript OK, attr NOT. SimpleNamespace: attr OK.
+        # Plain dict: .get. Try them in that order.
+        if isinstance(r, dict):
+            return r.get(key)
+        try:
+            return r[key]
+        except (KeyError, TypeError):
+            return getattr(r, key, None)
 
     by_key: dict[tuple[str, float | None, str], list] = {}
     for r in book_rows:

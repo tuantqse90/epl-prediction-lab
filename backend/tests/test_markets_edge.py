@@ -108,3 +108,29 @@ def test_edge_builder_flags_beyond_threshold():
     # edge = 0.60 * 2.00 − 1 = +20pp → flagged
     assert over["edge_pp"] == pytest.approx(20.0)
     assert over["flagged"] is True
+
+
+class _RecordLike:
+    """Duck-types asyncpg.Record: subscript access only, NO attribute access.
+    Regression guard: the real Record rejects `getattr(r, 'col')`."""
+    def __init__(self, **kv):
+        self._d = dict(kv)
+    def __getitem__(self, k):
+        return self._d[k]
+    def __repr__(self):
+        return f"<Record {self._d!r}>"
+
+
+def test_edge_builder_reads_asyncpg_record_style_rows():
+    """Regression: asyncpg.Record doesn't support attr access — getattr
+    returns None silently. Builder must fall through to subscript."""
+    from app.api.matches import _build_market_edge_rows
+    probs = {"over_2_5": 0.50}
+    book_rows = [
+        _RecordLike(source="odds-api:bet365", market_code="OU",
+                    line=2.5, outcome_code="OVER", odds=2.10),
+    ]
+    rows = _build_market_edge_rows(probs=probs, book_rows=book_rows)
+    over = next(r for r in rows if r["key"] == "over_2_5")
+    assert over["best_book_odds"] == pytest.approx(2.10)
+    assert over["edge_pp"] == pytest.approx(5.0, abs=1e-6)
