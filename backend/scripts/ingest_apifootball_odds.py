@@ -115,22 +115,25 @@ def _iter_pages(key: str, league_id: int, season_year: int, bet: int):
         time.sleep(0.2)  # polite — stays well under the 450 req/min limit
 
 
-async def _find_match_id(conn, home_name: str, away_name: str, kickoff_iso: str) -> int | None:
-    """Resolve an AF fixture to matches.id by name + date (Understat-canonical)."""
+async def _find_match_id(conn, league_code: str, kickoff_iso: str) -> int | None:
+    """Resolve an AF fixture to matches.id by league + exact kickoff timestamp.
+
+    /odds doesn't carry team names (only fixture.id + league.id + fixture.date),
+    so we match on timestamp. Kickoff times are precise enough that collisions
+    within a league are essentially impossible — max 10 fixtures per weekend
+    per league, all spaced by at least 15 minutes."""
     try:
-        d = pd.to_datetime(kickoff_iso).date()
+        ts = pd.to_datetime(kickoff_iso)
     except Exception:
         return None
     return await conn.fetchval(
         """
-        SELECT m.id FROM matches m
-        JOIN teams ht ON ht.id = m.home_team_id
-        JOIN teams at ON at.id = m.away_team_id
-        WHERE ht.name = $1 AND at.name = $2
-          AND DATE(m.kickoff_time) = $3
+        SELECT id FROM matches
+        WHERE league_code = $1
+          AND kickoff_time = $2
         LIMIT 1
         """,
-        _canon(home_name), _canon(away_name), d,
+        league_code, ts.to_pydatetime(),
     )
 
 
@@ -269,12 +272,10 @@ async def run(season: str, leagues: list) -> None:
                     try:
                         for ev in _iter_pages(key, lg.api_football_id, season_year, bet_id):
                             fx = ev.get("fixture") or {}
-                            home = (ev.get("teams") or {}).get("home", {}).get("name") or ""
-                            away = (ev.get("teams") or {}).get("away", {}).get("name") or ""
                             kickoff = fx.get("date")
-                            if not (home and away and kickoff):
+                            if not kickoff:
                                 continue
-                            match_id = await _find_match_id(conn, home, away, kickoff)
+                            match_id = await _find_match_id(conn, lg.code, kickoff)
                             if match_id is None:
                                 continue
 
