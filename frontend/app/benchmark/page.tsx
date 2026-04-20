@@ -22,6 +22,9 @@ type RecentWindow = {
   scored: number;
   correct: number;
   accuracy: number;
+  accuracy_excl_draws: number;
+  scored_excl_draws: number;
+  draws_in_window: number;
   mean_log_loss: number;
 };
 
@@ -43,12 +46,18 @@ function Tile({
   label,
   accuracy,
   matches,
+  accuracyExclDraws,
+  draws,
   accent = false,
+  lang,
 }: {
   label: string;
   accuracy: number | null;
   matches: number | null;
+  accuracyExclDraws?: number | null;
+  draws?: number | null;
   accent?: boolean;
+  lang: "en" | "vi" | "th" | "zh" | "ko";
 }) {
   return (
     <div className="card">
@@ -59,6 +68,18 @@ function Tile({
       <p className="text-xs text-muted tabular-nums">
         {matches != null ? `${matches} matches` : "pending"}
       </p>
+      {/* Excl-draws second row: model argmax rarely picks D, so pure accuracy
+          is structurally capped. Showing hit-rate on decisive matches only
+          gives the honest read of the model's ceiling. */}
+      {accuracyExclDraws != null && matches && matches > 0 && (
+        <p className="text-[10px] font-mono text-muted mt-1 tabular-nums">
+          {lang === "vi" ? "Bỏ hoà" : "Excl. draws"}:
+          <span className="text-secondary ml-1">{pct(accuracyExclDraws)}</span>
+          {draws != null && draws > 0 && (
+            <span className="text-muted ml-1">({draws} {lang === "vi" ? "hoà" : "draws"})</span>
+          )}
+        </p>
+      )}
     </div>
   );
 }
@@ -97,11 +118,47 @@ export default async function BenchmarkPage() {
         </p>
       </header>
 
+      {(day7?.draws_in_window ?? 0) > 0 && (
+        <p className="font-mono text-[11px] text-muted leading-relaxed max-w-3xl">
+          {lang === "vi"
+            ? "Argmax model hiếm khi pick \"Hoà\" nên ~25% trận hoà bị miss cứng → accuracy bị đè xuống. \"Bỏ hoà\" là hit-rate trên trận có thắng-thua rõ ràng, phản ánh trần thực sự của model."
+            : "Argmax rarely picks \"Draw\", so ~25% of actual draws are structurally missed — raw accuracy is capped. \"Excl. draws\" is the hit-rate on decisive matches, which reflects the model's real ceiling."}
+        </p>
+      )}
+
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Tile label="Last 7d" accuracy={day7?.accuracy ?? null} matches={day7?.scored ?? null} accent />
-        <Tile label="Last 30d" accuracy={day30?.accuracy ?? null} matches={day30?.scored ?? null} accent />
-        <Tile label="Last 90d" accuracy={day90?.accuracy ?? null} matches={day90?.scored ?? null} />
-        <Tile label="Full season" accuracy={season?.accuracy ?? null} matches={season?.scored ?? null} />
+        <Tile
+          label="Last 7d"
+          accuracy={day7?.accuracy ?? null}
+          matches={day7?.scored ?? null}
+          accuracyExclDraws={day7?.accuracy_excl_draws ?? null}
+          draws={day7?.draws_in_window ?? null}
+          accent
+          lang={lang}
+        />
+        <Tile
+          label="Last 30d"
+          accuracy={day30?.accuracy ?? null}
+          matches={day30?.scored ?? null}
+          accuracyExclDraws={day30?.accuracy_excl_draws ?? null}
+          draws={day30?.draws_in_window ?? null}
+          accent
+          lang={lang}
+        />
+        <Tile
+          label="Last 90d"
+          accuracy={day90?.accuracy ?? null}
+          matches={day90?.scored ?? null}
+          accuracyExclDraws={day90?.accuracy_excl_draws ?? null}
+          draws={day90?.draws_in_window ?? null}
+          lang={lang}
+        />
+        <Tile
+          label="Full season"
+          accuracy={season?.accuracy ?? null}
+          matches={season?.scored ?? null}
+          lang={lang}
+        />
       </section>
 
       {season && season.scored > 0 && (
