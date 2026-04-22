@@ -30,6 +30,7 @@ import logging
 import os
 import sys
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 import asyncpg
@@ -116,14 +117,18 @@ async def _backfill(pool: asyncpg.Pool, key: str, days: int) -> tuple[int, int]:
             iso = (fix.get("date") or "").strip()
             ref = (fix.get("referee") or "").strip() or None
             if h and a and fid and iso:
-                by_pair[(h, a)] = (int(fid), iso, ref)
+                try:
+                    ts = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                by_pair[(h, a)] = (int(fid), ts, ref)
 
         async with pool.acquire() as conn:
             for r in bucket:
                 info = by_pair.get((r["home_name"], r["away_name"]))
                 if info is None:
                     continue
-                fid, iso, ref = info
+                fid, ts, ref = info
                 # Always normalise api_football_fixture_id; correct kickoff
                 # only when it drifted by >1 minute — protects against tz
                 # round-tripping noise but catches the Man City case.
@@ -131,26 +136,21 @@ async def _backfill(pool: asyncpg.Pool, key: str, days: int) -> tuple[int, int]:
                     """
                     UPDATE matches
                     SET api_football_fixture_id = $1,
-                        kickoff_time = $2::timestamptz,
+                        kickoff_time = $2,
                         referee = COALESCE($3::text, referee)
                     WHERE id = $4
                       AND (
                         api_football_fixture_id IS DISTINCT FROM $1
-                        OR ABS(EXTRACT(EPOCH FROM (kickoff_time - $2::timestamptz))) > 60
+                        OR ABS(EXTRACT(EPOCH FROM (kickoff_time - $2))) > 60
                         OR ($3::text IS NOT NULL AND referee IS DISTINCT FROM $3::text)
                       )
                     """,
-                    fid, iso, ref, r["id"],
+                    fid, ts, ref, r["id"],
                 )
                 if result.endswith(" 1"):
-                    # row actually changed
                     if r["api_football_fixture_id"] != fid:
                         ids_set += 1
-                    # Can't cheaply tell if the kickoff correction applied
-                    # without a second query; approximate by flagging when
-                    # the incoming ISO differs from what we had.
-                    existing_iso = r["kickoff_time"].isoformat()
-                    if existing_iso[:16] != iso[:16]:
+                    if abs((r["kickoff_time"] - ts).total_seconds()) > 60:
                         kickoffs_corrected += 1
 
     return (ids_set, kickoffs_corrected)
