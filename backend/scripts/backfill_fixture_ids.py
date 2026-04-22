@@ -132,12 +132,12 @@ async def _backfill(pool: asyncpg.Pool, key: str, days: int) -> tuple[int, int]:
                     UPDATE matches
                     SET api_football_fixture_id = $1,
                         kickoff_time = $2::timestamptz,
-                        referee = COALESCE($3, referee)
+                        referee = COALESCE($3::text, referee)
                     WHERE id = $4
                       AND (
                         api_football_fixture_id IS DISTINCT FROM $1
                         OR ABS(EXTRACT(EPOCH FROM (kickoff_time - $2::timestamptz))) > 60
-                        OR ($3 IS NOT NULL AND referee IS DISTINCT FROM $3)
+                        OR ($3::text IS NOT NULL AND referee IS DISTINCT FROM $3::text)
                       )
                     """,
                     fid, iso, ref, r["id"],
