@@ -278,9 +278,18 @@ async def _upsert_events(
 ) -> list[int]:
     """Upsert events into match_events; return event IDs that were *actually* inserted
     (i.e. not silenced by the ON CONFLICT DO NOTHING idempotency guard).
+
+    Dedup tolerance: API-Football occasionally revises an event's minute by ±1
+    between polls (e.g. 38' → 37' for the same goal). The DB's unique index
+    keys off exact minute, so a revised row would sneak in as a new event and
+    re-trigger Telegram notification. We SELECT for a near-duplicate first
+    (same match / type / player / detail / within ±EVENT_MINUTE_TOLERANCE
+    minutes) and skip insert when found — optionally patching the minute on
+    the existing row so the UI shows the latest value.
     """
     if not events:
         return []
+    EVENT_MINUTE_TOLERANCE = 3
     inserted_ids: list[int] = []
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -296,6 +305,39 @@ async def _upsert_events(
                 assist_info = e.get("assist") or {}
                 team_name = _canon(team_info.get("name", "").strip())
                 team_slug = by_name.get(team_name)
+                minute = time_info.get("elapsed")
+                extra = time_info.get("extra")
+                player = (player_info.get("name") or "").strip() or None
+                assist = (assist_info.get("name") or "").strip() or None
+                event_type = e.get("type", "").strip()
+                event_detail = (e.get("detail") or "").strip() or None
+
+                # Tolerance dedup: match_id + event_type + player + detail
+                # within ±N minutes collapses two polls' worth of the same
+                # event into one row. Non-matching players are still inserted
+                # as new events (so two unrelated yellow cards at 35' vs 37'
+                # both land).
+                existing_id = None
+                if minute is not None:
+                    existing_id = await conn.fetchval(
+                        """
+                        SELECT id FROM match_events
+                        WHERE match_id = $1
+                          AND event_type = $2
+                          AND COALESCE(player_name, '') = COALESCE($3, '')
+                          AND COALESCE(event_detail, '') = COALESCE($4, '')
+                          AND COALESCE(team_slug, '') = COALESCE($5, '')
+                          AND minute BETWEEN $6 - $7 AND $6 + $7
+                        ORDER BY id ASC
+                        LIMIT 1
+                        """,
+                        match_id, event_type, player, event_detail, team_slug,
+                        minute, EVENT_MINUTE_TOLERANCE,
+                    )
+                if existing_id is not None:
+                    # Keep the canonical (earliest) row; don't re-notify.
+                    continue
+
                 new_id = await conn.fetchval(
                     """
                     INSERT INTO match_events (
@@ -305,14 +347,8 @@ async def _upsert_events(
                     ON CONFLICT DO NOTHING
                     RETURNING id
                     """,
-                    match_id,
-                    time_info.get("elapsed"),
-                    time_info.get("extra"),
-                    team_slug,
-                    (player_info.get("name") or "").strip() or None,
-                    (assist_info.get("name") or "").strip() or None,
-                    e.get("type", "").strip(),
-                    (e.get("detail") or "").strip() or None,
+                    match_id, minute, extra, team_slug,
+                    player, assist, event_type, event_detail,
                 )
                 if new_id is not None:
                     inserted_ids.append(int(new_id))
