@@ -16,6 +16,11 @@ run() {
   docker compose exec -T api "$@"
 }
 
+# Sync fixture IDs + kickoff times against API-Football's canonical
+# schedule. TV-broadcast reschedules (e.g. Man City shifted a day) and
+# missing af_ids otherwise silently break live tracking. ~5 API calls.
+run python scripts/backfill_fixture_ids.py --days 30 || true
+
 # News headlines (RSS, no API cost)
 run python scripts/ingest_news.py || true
 
