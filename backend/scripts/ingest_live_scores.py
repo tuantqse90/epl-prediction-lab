@@ -319,6 +319,12 @@ async def _upsert_events(
                 # both land).
                 existing_id = None
                 if minute is not None:
+                    # asyncpg serialises bare ints as "unknown" type and
+                    # postgres refuses to pick an operator for unknown-unknown
+                    # arithmetic. Pre-compute the tolerance window in Python
+                    # so the SQL sees two concrete ints.
+                    low = int(minute) - EVENT_MINUTE_TOLERANCE
+                    high = int(minute) + EVENT_MINUTE_TOLERANCE
                     existing_id = await conn.fetchval(
                         """
                         SELECT id FROM match_events
@@ -327,12 +333,12 @@ async def _upsert_events(
                           AND COALESCE(player_name, '') = COALESCE($3, '')
                           AND COALESCE(event_detail, '') = COALESCE($4, '')
                           AND COALESCE(team_slug, '') = COALESCE($5, '')
-                          AND minute BETWEEN $6 - $7 AND $6 + $7
+                          AND minute BETWEEN $6 AND $7
                         ORDER BY id ASC
                         LIMIT 1
                         """,
                         match_id, event_type, player, event_detail, team_slug,
-                        minute, EVENT_MINUTE_TOLERANCE,
+                        low, high,
                     )
                 if existing_id is not None:
                     # Keep the canonical (earliest) row; don't re-notify.
