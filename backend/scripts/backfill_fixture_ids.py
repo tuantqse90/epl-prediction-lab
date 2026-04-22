@@ -79,7 +79,7 @@ async def _backfill(pool: asyncpg.Pool, key: str, days: int) -> tuple[int, int]:
             FROM matches m
             JOIN teams ht ON ht.id = m.home_team_id
             JOIN teams at ON at.id = m.away_team_id
-            WHERE m.status = 'scheduled'
+            WHERE m.status IN ('scheduled', 'live')
               AND m.kickoff_time BETWEEN NOW() - INTERVAL '2 days'
                                      AND NOW() + ($1 || ' days')::INTERVAL
             ORDER BY m.kickoff_time ASC
