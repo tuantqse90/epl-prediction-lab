@@ -31,8 +31,15 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import asyncpg
+
+
+def _records_to_ns(rows) -> list:
+    """asyncpg.Record only supports subscript access; pure checkers use
+    attribute access so tests can pass SimpleNamespace rows. Normalise."""
+    return [SimpleNamespace(**dict(r)) for r in rows]
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.core.config import get_settings
@@ -166,7 +173,7 @@ async def _load_candidates(pool: asyncpg.Pool):
               AND m.kickoff_time BETWEEN NOW() AND NOW() + INTERVAL '48 hours'
             """,
         )
-    return fixture_rows, prediction_rows
+    return _records_to_ns(fixture_rows), _records_to_ns(prediction_rows)
 
 
 async def _ensure_alert_table(pool: asyncpg.Pool) -> None:
