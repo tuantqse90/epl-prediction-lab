@@ -1,10 +1,34 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
 import SiteHeader from "@/components/SiteHeader";
 import { LangProvider } from "@/lib/i18n-client";
+import type { Lang } from "@/lib/i18n";
 import { getLang } from "@/lib/i18n-server";
 
 import "./globals.css";
+
+
+async function ChromeOrEmbed({
+  lang,
+  children,
+}: {
+  lang: Lang;
+  children: React.ReactNode;
+}) {
+  // Embed routes skip SiteHeader so partner iframes render just the card,
+  // not the whole site chrome. Next 15 middleware sets x-next-pathname
+  // for us; fall back to x-url / referer for safety.
+  const hdr = await headers();
+  const pathname = hdr.get("x-pathname") ?? "";
+  const isEmbed = pathname.startsWith("/embed") || pathname.includes("/embed/");
+  return (
+    <>
+      {!isEmbed && <SiteHeader lang={lang} />}
+      {children}
+    </>
+  );
+}
 
 const SITE = "https://predictor.nullshift.sh";
 
@@ -57,8 +81,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           />
         )}
         <LangProvider lang={lang}>
-          <SiteHeader lang={lang} />
-          {children}
+          <ChromeOrEmbed lang={lang}>{children}</ChromeOrEmbed>
         </LangProvider>
       </body>
     </html>

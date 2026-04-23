@@ -40,8 +40,20 @@ const NO_CACHE: RegExp[] = [
 ];
 
 export function middleware(req: NextRequest) {
-  const res = NextResponse.next();
   const { pathname } = req.nextUrl;
+  // Forward pathname as a request header so server components (root layout)
+  // can branch on it — e.g. skip SiteHeader on /embed/*.
+  const reqHeaders = new Headers(req.headers);
+  reqHeaders.set("x-pathname", pathname);
+  const res = NextResponse.next({ request: { headers: reqHeaders } });
+
+  // Embed routes: allow iframing from any origin.
+  if (pathname.startsWith("/embed/")) {
+    res.headers.set("Content-Security-Policy", "frame-ancestors *");
+    res.headers.delete("X-Frame-Options");
+    res.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=600");
+    return res;
+  }
 
   if (NO_CACHE.some((r) => r.test(pathname))) {
     res.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
