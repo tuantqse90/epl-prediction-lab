@@ -172,17 +172,105 @@ If CLV mean is still negative after Phase 5 data accumulates: stop model-quality
 
 **Done when.** Next stale kickoff / dead feed gets a Telegram ping within 5 min, and `/ops` shows exactly what's broken without ssh.
 
-## 17. Sprint 17 — Telegram bot interactive
+## 17–20. Roadmap blocks (Sprint 16 done · blocks ship in priority order)
 
-Shifts the bot from broadcast-only to query-driven. `/pick today`, `/pick PSG`, `/edge`, `/clv`, `/roi 30d`, `/subscribe arsenal`. Same data as the web, second distribution channel at near-zero cost. Blocked by Sprint 16 (don't ship interactive UI over data we can't monitor).
+The roadmap from here is organised into four **blocks** (not strict sprints). Each block is 4–6 days of shippable commits, each item inside a block is independently shippable (~0.5–1 day) so nothing is all-or-nothing.
 
-## 18. Sprint 18 — Personal bet tracking
-
-Non-custodial: `localStorage` my-picks list + optional 6-digit PIN sync for cross-device. Compares user's actual bets against model recommendation so retention = "my ROI vs the model's ROI". No auth stack, no custody. Blocked by Sprint 16.
+Ship order top-to-bottom. Within a block, order can be swapped without breaking anything.
 
 ---
 
-## 19. Out of scope (explicit)
+### Block 17 — Distribution (~5 days) · "get the data in front of more eyeballs"
+
+Currently: predictor.nullshift.sh is the only surface. This block adds three second-channel distributions that all reuse existing APIs — minimal data work, maximal reach.
+
+| # | Ship | Hours | Surface |
+|---|---|---|---|
+| 17.1 | **Telegram bot interactive** — `/pick today`, `/pick PSG`, `/edge`, `/clv`, `/roi 30d` | 6 | `@worldcup_predictor_bot` |
+| 17.2 | **Telegram team subscriptions** — `/subscribe arsenal` → HT/FT/goal pings for that team | 4 | stored in `telegram_subscriptions` table |
+| 17.3 | **Discord webhook poster** — daily digest + goal-time pings into any guild | 3 | `discord_webhooks` table (user-posted URLs) |
+| 17.4 | **Email weekly digest** — opt-in, Mon 09:00 UTC, top picks + last week's hits/misses | 6 | `email_subscriptions` + Resend/SES transport |
+| 17.5 | **Embed widget** — iframe + 12KB JS snippet for a single match prediction card | 4 | `/embed/match/:id` + `embed-loader.js` |
+
+**Done when.** Three distinct surfaces beyond the web pulling the same data. Embed widget loads on a test blog without CSS bleed.
+
+---
+
+### Block 18 — Viral / engagement (~6 days) · "content people share without prompting"
+
+Plenty of users open /table or /scorers once a week. This block adds high-interest seasonal pieces that drive repeat visits and social shares.
+
+| # | Ship | Hours | Surface |
+|---|---|---|---|
+| 18.1 | **Title race Monte Carlo** — per league: P(champions), P(top-4), top-4 odds from simulated remaining fixtures | 8 | `/api/stats/title-race` · `/title-race` page |
+| 18.2 | **Relegation race Monte Carlo** — same engine, bottom-3 probability + drama chart | 3 | reuse 18.1 · `/relegation` page |
+| 18.3 | **Top-scorer race projection** — Golden Boot / Pichichi / Capocannoniere / Torschützenkönig / Soulier d'Or via per-player xG × remaining games | 5 | `/api/stats/top-scorer-race` · `/scorers-race` page |
+| 18.4 | **Power rankings** — pure-elo-sorted league table with week-over-week arrows; "biggest movers" strip | 4 | `/power-rankings` page |
+| 18.5 | **H2H on /compare** — "last 10 meetings, model accuracy on this pairing" block | 4 | extends `/compare/:home/:away` |
+| 18.6 | **Per-team SEO page** — `/team/manchester-city` with 2k-word auto-generated story (Qwen-Plus once/week), JSON-LD `SportsTeam` schema, xG trend, upcoming | 8 | 100 new indexable pages (~20/league × 5) |
+| 18.7 | **Weekly auto-blog** — every Mon 10:00 UTC, Qwen-Plus drafts "Week N: what the model learned" → `/blog/:slug` | 5 | `blog_posts` table + RSS feed |
+
+**Done when.** Each viral piece shares a clean URL suited for Twitter/Telegram post embed. 18.6 + 18.7 compound over weeks → organic search growth.
+
+---
+
+### Block 19 — Sharp-bettor credibility (~5 days) · "show the homework"
+
+Sharp users want to see receipts before trusting stake sizing. This block surfaces exactly how the model performs, where it's over-confident, and where the sharpest books disagree with it.
+
+| # | Ship | Hours | Surface |
+|---|---|---|---|
+| 19.1 | **Calibration curve** — per prob-decile hit rate (predicted 60% → actual 58%) with Brier breakdown | 6 | `/calibration` page + `/benchmark` widget |
+| 19.2 | **Team-specific model accuracy** — "Model hits Arsenal 62% · Crystal Palace 38%" cross-table | 4 | `/benchmark/by-team` page |
+| 19.3 | **Ensemble disagreement flag** — Poisson/Elo/XGB three-leg vote; surface "tricky" matches where they disagree | 4 | flag on `/match/:id` + filter chip on homepage |
+| 19.4 | **Line movement chart** — home odds from T-24h → T-0 per bookmaker, visible steam moves | 6 | `/match/:id` new tab · needs 30-min snapshots into new `odds_history` table |
+| 19.5 | **Sharp vs square divergence** — when Pinnacle and Bet365 diverge ≥ 5%, explain what that means | 3 | adds column to `<MarketsEdge>` |
+| 19.6 | **Season-over-season equity curve** — 7-year flat-Kelly P&L chart on `/benchmark` | 3 | `/api/stats/equity-curve` |
+
+**Done when.** A user can answer "is the model actually sharp?" in under 60 seconds on the site.
+
+---
+
+### Block 20 — Personal layer (~5 days) · "your view, your ROI"
+
+Non-custodial, no auth stack. Everything stored client-side by default; optional 6-digit PIN if the user wants cross-device sync.
+
+| # | Ship | Hours | Surface |
+|---|---|---|---|
+| 20.1 | **My picks (localStorage)** — user logs their real bets per match; compares their pick to model pick | 5 | `/my-picks` page, existing `betslip.ts` foundation |
+| 20.2 | **Personal ROI vs model ROI** — "You +4.2% · Model +1.8% · Flat 0%" comparison chart | 4 | extends 20.1 |
+| 20.3 | **Watchlist / favourites** — pin teams; everything else on the site filters to those by default | 3 | `favorites.ts` localStorage helper + UI chip |
+| 20.4 | **Optional PIN sync** — 6-digit code maps localStorage → `user_sync` table, pull/push across devices | 6 | no email, no password — PIN collision rare at this scale |
+| 20.5 | **PWA install + push** — manifest already present, add service worker + Web Push VAPID for goal/FT pings | 8 | "Add to Home Screen" works on iOS 17.4+ |
+
+**Done when.** User has a reason to come back beyond curiosity: their own log.
+
+---
+
+## 21. Stretch / maybe-never (~one-offs worth considering)
+
+Listed so they don't get re-raised. Scope-creep defence.
+
+- **Multi-league expansion** (Championship / Eredivisie / Liga Portugal) — blocked until current 5 leagues show clean positive CLV. Adds ingest + maintenance without proportional demand.
+- **iOS native app** — PWA (20.5) ships 80% of the value at 10% of the cost.
+- **AI live commentary** — Qwen-Plus running text during live matches. Cool, but cost unbounded and adds zero signal beyond the score/event feed we already have.
+- **Voice / podcast summary** — TTS audio recap per match. Interesting; needs ElevenLabs budget.
+- **Scrape pundits for model-vs-expert leaderboard** — legal grey (scraping Sky/BBC column text), small signal.
+- **Paid tier / API keys** — not until there's real demand pulling us there. Current infra easily handles one VPS.
+
+---
+
+## 22. Sequencing rule
+
+Blocks 17 → 18 → 19 → 20 is the default ship order, but swap if data tells you to:
+
+1. If **/ops flags a model issue** (CLV stays negative, calibration poor), **Block 19 jumps first** — diagnose before distributing broken signal.
+2. If a **Telegram channel pulls >100 subs in the first week** of 17.1, **defer 17.4+17.5** and push directly into 18 — users are already here.
+3. If **SEO traffic flatlines after 18.6+18.7**, **deprioritise 17.4 email** — send the energy into 20.x personal layer for retention.
+
+---
+
+## 23. Out of scope (explicit)
 
 - Live stake placement / API bridge to any book or exchange
 - Handling real user money
