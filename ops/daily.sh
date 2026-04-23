@@ -45,6 +45,13 @@ run python scripts/ingest_full_squad_photos.py --season "$SEASON" || true
 # Weather forecast for matches in the next 48h (open-meteo, no key)
 run python scripts/ingest_weather.py --window-minutes 2880 || true
 
+# Player season stats (xG, goals, assists) refresh — weekly was leaving
+# /scorers and /players 4-7 days stale after a gameweek. Understat is
+# free + rate-limited so 5 league calls daily is cheap.
+for LG in epl laliga seriea bundesliga ligue1; do
+  run python scripts/ingest_players.py --season "$SEASON" --league "$LG" || true
+done
+
 # Ensure every scheduled match in window has a prediction + reasoning.
 # predict_all_upcoming iterates league-agnostic by match.league_code.
 run python scripts/predict_upcoming.py --horizon-days "$HORIZON_DAYS" --with-reasoning
