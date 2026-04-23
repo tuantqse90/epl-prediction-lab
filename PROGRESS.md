@@ -2,6 +2,18 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 02:15 +07 — Block 18 done: viral / engagement (7 items)
+
+1. **18.1 Title race MC** — `app/models/title_race.py` + 6 TDD tests + `/api/stats/title-race` + `/title-race` page. EPL: Arsenal 58.9% vs Man City 41.1% title.
+2. **18.2 Relegation race** — same engine, `/relegation` page. Burnley + Wolves locked-in, Tottenham 65.5% at risk.
+3. **18.3 Top-scorer race** — `app/models/top_scorer_race.py` + 5 tests + `/api/stats/top-scorer-race` + `/scorers-race` page. Haaland 28 projected, Thiago 24.4 (gap 3.6).
+4. **18.4 Power rankings** — elo recomputed from match log twice per request (now vs 7d ago). `/power-rankings` shows week-over-week Δ + top-3 risers/fallers. MC overtook Arsenal +12.7, Chelsea biggest faller −24.1.
+5. **18.5 H2H on /compare** — `/api/compare/history`; compare page renders last 10 meetings + model hit rate. ARS vs TOT: 8W-1D-1L, model 80% on this derby.
+6. **18.6 Per-team SEO pages** — JSON-LD SportsTeam schema + `generateStaticParams` + 500-700-word Qwen narratives per team stored in new `team_narratives` table. Weekly cron seeds all 96 teams.
+7. **18.7 Weekly auto-blog** — `generate_weekly_blog.py` + `auto_blog_posts` table + `/api/blog` endpoint; `lib/blog.ts` merges file-based + DB-based transparently. First post `week-17-2026` live (42% accuracy, 21/50).
+
+Total block: ~30 hours over one burst. No test regressions. Block 19 next (Sharp credibility).
+
 ## 2026-04-24 01:45 +07 — Block 17 done: distribution (telegram bot + discord + email + embed)
 
 Five items, end-to-end:
