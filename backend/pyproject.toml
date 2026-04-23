@@ -18,6 +18,7 @@ dependencies = [
     "tweepy>=4.14",
     "xgboost>=2.1",
     "scikit-learn>=1.4",
+    "email-validator>=2.2",
 ]
 
 [project.optional-dependencies]

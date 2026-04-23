@@ -9,6 +9,7 @@ from app.api import admin as admin_router
 from app.api import chat as chat_router
 from app.api import compare as compare_router
 from app.api import discord as discord_router
+from app.api import email as email_router
 from app.api import fpl as fpl_router
 from app.api import matches as matches_router
 from app.api import news as news_router
@@ -53,6 +54,7 @@ app.include_router(compare_router.router)
 app.include_router(ops_router.router)
 app.include_router(telegram_router.router)
 app.include_router(discord_router.router)
+app.include_router(email_router.router)
 
 
 @app.get("/health")
