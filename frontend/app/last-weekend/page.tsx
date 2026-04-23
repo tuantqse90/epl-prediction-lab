@@ -89,7 +89,7 @@ function pct(x: number) {
   return `${Math.round(x * 100)}%`;
 }
 
-const WINDOWS = [7, 14, 30] as const;
+const WINDOWS = [3, 7, 14, 30] as const;
 
 export default async function LastWeekendPage({
   searchParams,
@@ -124,15 +124,35 @@ export default async function LastWeekendPage({
         {t("common.back")}
       </Link>
 
-      <header className="space-y-3">
-        <p className="font-mono text-xs text-muted">
-          {leagueInfo.emoji} {leagueLabel}
-        </p>
-        <h1 className="headline-section">{t("recent.title")}</h1>
-        <p className="max-w-2xl text-secondary">
-          {t("recent.subhead", { days })}
-        </p>
-      </header>
+      {(() => {
+        // Concrete window so users know EXACTLY which days are being
+        // scored. "last-weekend" + default 7d was confusing when a midweek
+        // round bulked the count to 49 matches.
+        const ms = matches.length ? matches.map((m) => new Date(m.kickoff_time).getTime()) : [];
+        const earliest = ms.length ? new Date(Math.min(...ms)).toISOString().slice(0, 10) : null;
+        const latest = ms.length ? new Date(Math.max(...ms)).toISOString().slice(0, 10) : null;
+        const rangeLine = earliest && latest
+          ? (lang === "vi"
+              ? `${matches.length} trận · ${earliest} → ${latest}`
+              : `${matches.length} matches · ${earliest} → ${latest}`)
+          : "";
+        return (
+          <header className="space-y-3">
+            <p className="font-mono text-xs text-muted">
+              {leagueInfo.emoji} {leagueLabel}
+            </p>
+            <h1 className="headline-section">{t("recent.title")}</h1>
+            <p className="max-w-2xl text-secondary">
+              {t("recent.subhead", { days })}
+            </p>
+            {rangeLine && (
+              <p className="font-mono text-[11px] uppercase tracking-wide text-muted">
+                {rangeLine}
+              </p>
+            )}
+          </header>
+        );
+      })()}
 
       {/* Day-window selector */}
       <nav className="flex gap-2">
