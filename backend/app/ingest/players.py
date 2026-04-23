@@ -74,7 +74,26 @@ async def upsert_player_stats(
     team_names = sorted({r.team_name for r in rows})
     async with pool.acquire() as conn:
         async with conn.transaction():
+            # Cache photo_url + api_football_player_id keyed on
+            # (team_id, player_name) BEFORE the DELETE so daily re-ingest
+            # doesn't wipe them — Understat doesn't know about photos or
+            # AF ids, only ingest_player_photos.py does.
+            photo_cache: dict[tuple[int, str], tuple[str | None, int | None]] = {}
             if team_names:
+                cached = await conn.fetch(
+                    """
+                    SELECT team_id, player_name, photo_url, api_football_player_id
+                    FROM player_season_stats
+                    WHERE season = $1
+                      AND team_id IN (SELECT id FROM teams WHERE name = ANY($2::text[]))
+                      AND (photo_url IS NOT NULL OR api_football_player_id IS NOT NULL)
+                    """,
+                    season, team_names,
+                )
+                for r in cached:
+                    photo_cache[(r["team_id"], r["player_name"])] = (
+                        r["photo_url"], r["api_football_player_id"],
+                    )
                 await conn.execute(
                     """
                     DELETE FROM player_season_stats
@@ -90,18 +109,21 @@ async def upsert_player_stats(
                 )
                 if team_id is None:
                     continue
+                photo_url, af_id = photo_cache.get((team_id, r.player_name), (None, None))
                 await conn.execute(
                     """
                     INSERT INTO player_season_stats (
                         player_name, team_id, season, games, goals, assists,
-                        xg, xa, npxg, key_passes, position
+                        xg, xa, npxg, key_passes, position,
+                        photo_url, api_football_player_id
                     )
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
                     """,
                     r.player_name, team_id, r.season,
                     r.games, r.goals, r.assists,
                     r.xg, r.xa, r.npxg,
                     r.key_passes, r.position,
+                    photo_url, af_id,
                 )
                 inserted += 1
     return inserted
