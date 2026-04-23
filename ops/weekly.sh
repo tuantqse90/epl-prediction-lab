@@ -40,4 +40,9 @@ run python scripts/post_telegram_recap.py --days 7 || true
 run python scripts/predict_upcoming.py    --horizon-days "$HORIZON_DAYS" --with-reasoning
 run python scripts/post_telegram.py       --horizon-days "$HORIZON_DAYS" || true
 
+# Per-team SEO narratives — Qwen-Plus writes 500-700-word stories per
+# team once a week. Keyed on (team_slug, season); skips teams refreshed
+# in the last 6 days so a mid-week re-run of weekly.sh costs nothing.
+run python scripts/generate_team_narratives.py --limit 200 || true
+
 echo "[weekly] done"

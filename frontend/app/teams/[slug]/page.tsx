@@ -88,6 +88,42 @@ async function fetchProfile(slug: string): Promise<TeamProfile | null> {
   return res.json();
 }
 
+type TeamNarrative = {
+  team_slug: string;
+  season: string;
+  lang: string;
+  story: string;
+  generated_at: string;
+};
+
+async function fetchNarrative(slug: string, season: string): Promise<TeamNarrative | null> {
+  try {
+    const res = await fetch(
+      `${BASE}/api/teams/${slug}/narrative?season=${encodeURIComponent(season)}`,
+      { next: { revalidate: 3600 } },
+    );
+    if (!res.ok) return null;
+    const body = await res.json();
+    return body as TeamNarrative | null;
+  } catch {
+    return null;
+  }
+}
+
+export async function generateStaticParams() {
+  // Prerender a stub for every team we know about so Google can index
+  // all 100+ team pages without hitting the origin for each one. Pages
+  // still revalidate through `dynamic = "force-dynamic"` for live stats.
+  try {
+    const res = await fetch(`${BASE}/api/teams`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const teams = await res.json();
+    return teams.map((t: { slug: string }) => ({ slug: t.slug }));
+  } catch {
+    return [];
+  }
+}
+
 function playerSlug(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
@@ -115,6 +151,28 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
   const t = tFor(lang);
   const p = await fetchProfile(slug);
   if (!p) notFound();
+  const narrative = await fetchNarrative(slug, p.season);
+
+  const SITE = "https://predictor.nullshift.sh";
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SportsTeam",
+    "name": p.name,
+    "alternateName": p.short_name,
+    "url": `${SITE}/teams/${p.slug}`,
+    "sport": "Football",
+    "memberOf": p.league_code
+      ? { "@type": "SportsOrganization", name: p.league_code }
+      : undefined,
+    "description":
+      `${p.season}: ${p.stats.played}P · ${p.stats.wins}W-${p.stats.draws}D-${p.stats.losses}L · ` +
+      `${p.stats.points} pts · xG Δ ${(p.stats.xg_for - p.stats.xg_against).toFixed(1)}.`,
+    "athlete": p.top_scorers.slice(0, 5).map((s) => ({
+      "@type": "Person",
+      "name": s.player_name,
+      "jobTitle": s.position,
+    })),
+  };
 
   const s = p.stats;
   const xgDiff = s.xg_for - s.xg_against;
@@ -134,6 +192,11 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 space-y-10">
+      {/* JSON-LD structured data — helps Google render rich results for the team */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <nav className="flex items-center gap-2 font-mono text-xs text-muted" aria-label="Breadcrumb">
         <Link href="/" className="hover:text-neon">Home</Link>
         {leagueInfo && (
@@ -325,6 +388,24 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
       </section>
 
       <SeasonTrajectoryChart slug={p.slug} season={p.season} lang={lang} />
+
+      {narrative && narrative.story && (
+        <section className="card space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h2 className="label">
+              {lang === "vi" ? "Câu chuyện mùa giải" : "Season story"}
+            </h2>
+            <p className="font-mono text-[10px] text-muted">
+              {new Date(narrative.generated_at).toISOString().slice(0, 10)} · Qwen-Plus
+            </p>
+          </div>
+          <div className="prose prose-invert max-w-none text-secondary leading-relaxed space-y-3">
+            {narrative.story.split(/\n\n+/).map((para, i) => (
+              <p key={i} className="text-[15px]">{para}</p>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Top scorer spotlight */}
       {topScorer && (

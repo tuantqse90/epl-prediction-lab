@@ -243,6 +243,38 @@ async def _fixtures(conn, team_id: int, season: str) -> tuple[list[FixtureBrief]
     return recent[-5:][::-1], upcoming[:5]
 
 
+class TeamNarrative(BaseModel):
+    team_slug: str
+    season: str
+    lang: str
+    story: str
+    generated_at: datetime
+
+
+@router.get("/{slug}/narrative", response_model=TeamNarrative | None)
+async def get_team_narrative(
+    slug: str,
+    request: Request,
+    season: str = Query("2025-26"),
+    lang: str = Query("en"),
+) -> TeamNarrative | None:
+    """Long-form auto-generated story for the team page. Null if not yet
+    generated — team page should then hide the section gracefully."""
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT team_slug, season, lang, story, generated_at
+            FROM team_narratives
+            WHERE team_slug = $1 AND season = $2 AND lang = $3
+            """,
+            slug, season, lang,
+        )
+    if not row:
+        return None
+    return TeamNarrative(**dict(row))
+
+
 @router.get("/{slug}/trajectory", response_model=TrajectoryOut)
 async def get_trajectory(
     slug: str,
