@@ -2,6 +2,18 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 01:45 +07 — Block 17 done: distribution (telegram bot + discord + email + embed)
+
+Five items, end-to-end:
+
+1. **17.1 Telegram bot interactive** — `app/telegram/bot.py` + `app/api/telegram.py`. Parser + 10 TDD tests + 6 handlers (/help /pick /edge /roi /clv /subscribe /subs). Webhook registered at predictor.nullshift.sh/api/telegram/webhook with secret-token validation. Announcement msg_id 143 posted on @worldcup_predictor.
+2. **17.2 Team subscriptions** — `telegram_subscriptions` table + `/subscribe ARS` + `fan_out_to_team_subscribers` hook on goal + FT events in ingest_live_scores. End-to-end smoke OK: subscribe ARS → subs list → unsubscribe → list updates.
+3. **17.3 Discord webhook** — `discord_webhooks` table + POST/DELETE `/api/discord/register` + `fan_out_to_discord` parallel to the telegram fanout. Rejects non-discord.com URLs; tracks last_ok_at + last_error.
+4. **17.4 Email weekly digest** — `email_subscriptions` + `/api/email/subscribe` → token email → `/confirm` / `/unsubscribe`. Pure `render_digest_html()` (testable); `scripts/post_email_digest.py` + systemd timer `football-predict-email.timer` Mon 09:00 UTC. Dry run: 14 top-picks + 49 graded last week. `/subscribe` page in 5 langs.
+5. **17.5 Embed widget** — `/embed/match/:id` self-contained card (SiteHeader skipped via middleware x-pathname + layout branch) + 1.5 KB `embed.js` loader + `/embed-docs` page with live preview iframe. `frame-ancestors: *` header set at middleware for cross-origin iframing.
+
+Everything shipped via `git push vps main`. No test regressions (23 bot tests green + prior 10 watchdog tests green).
+
 ## 2026-04-24 00:55 +07 — Sprint 16: ops watchdog + /ops status page
 
 Built `ops_watchdog.py` with 5 pure checkers (fixture_drift, stale_live, missing_recap, low_quota, stale_predictions) + Telegram dedup via `ops_alerts` table + systemd 5-min timer. First tick caught 3 real drift cases (Brighton-Chelsea, RM-Alaves, Girona-Betis stuck at scheduled 46h past kickoff). 10/10 TDD tests green.
