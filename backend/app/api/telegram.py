@@ -133,26 +133,23 @@ WITH latest AS (
     ORDER BY p.match_id, p.created_at DESC
 ),
 best AS (
-    SELECT o.match_id, o.outcome,
-           MAX(o.odds) AS best_odds,
-           AVG(CASE WHEN o.source LIKE 'odds-api:%' THEN 1.0 / o.odds END) AS avg_imp
+    SELECT o.match_id,
+           MAX(o.odds_home) AS best_home,
+           MAX(o.odds_draw) AS best_draw,
+           MAX(o.odds_away) AS best_away
     FROM match_odds o
-    GROUP BY o.match_id, o.outcome
+    GROUP BY o.match_id
 )
 SELECT m.id,
        ht.short_name AS home_short, at.short_name AS away_short,
        m.league_code, m.kickoff_time,
        l.p_home_win, l.p_draw, l.p_away_win,
-       bh.best_odds AS best_home,
-       bd.best_odds AS best_draw,
-       ba.best_odds AS best_away
+       b.best_home, b.best_draw, b.best_away
 FROM matches m
 JOIN teams ht ON ht.id = m.home_team_id
 JOIN teams at ON at.id = m.away_team_id
 LEFT JOIN latest l ON l.match_id = m.id
-LEFT JOIN best bh ON bh.match_id = m.id AND bh.outcome = 'HOME'
-LEFT JOIN best bd ON bd.match_id = m.id AND bd.outcome = 'DRAW'
-LEFT JOIN best ba ON ba.match_id = m.id AND ba.outcome = 'AWAY'
+LEFT JOIN best b ON b.match_id = m.id
 WHERE m.status = 'scheduled'
   AND l.p_home_win IS NOT NULL
 """
@@ -229,19 +226,21 @@ async def _handle_roi(pool, args: list[str]) -> str:
                 ORDER BY p.match_id, p.created_at DESC
             ),
             best AS (
-                SELECT o.match_id, o.outcome, MAX(o.odds) AS best_odds
-                FROM match_odds o GROUP BY o.match_id, o.outcome
+                SELECT o.match_id,
+                       MAX(o.odds_home) AS bh,
+                       MAX(o.odds_draw) AS bd,
+                       MAX(o.odds_away) AS ba
+                FROM match_odds o
+                GROUP BY o.match_id
             ),
             graded AS (
                 SELECT m.id,
                   l.p_home_win, l.p_draw, l.p_away_win,
-                  bh.best_odds AS bh, bd.best_odds AS bd, ba.best_odds AS ba,
+                  b.bh, b.bd, b.ba,
                   m.home_goals, m.away_goals
                 FROM matches m
                 JOIN latest l ON l.match_id = m.id
-                LEFT JOIN best bh ON bh.match_id = m.id AND bh.outcome = 'HOME'
-                LEFT JOIN best bd ON bd.match_id = m.id AND bd.outcome = 'DRAW'
-                LEFT JOIN best ba ON ba.match_id = m.id AND ba.outcome = 'AWAY'
+                LEFT JOIN best b ON b.match_id = m.id
                 WHERE m.status = 'final'
                   AND m.kickoff_time > NOW() - ($1 || ' days')::INTERVAL
                   AND m.home_goals IS NOT NULL
@@ -282,23 +281,28 @@ async def _handle_roi(pool, args: list[str]) -> str:
 
 
 async def _handle_clv(pool) -> str:
+    # Model pick vs devigged closing line. Positive mean CLV = model is
+    # picking outcomes the market later agrees with → healthy signal.
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
+            WITH latest AS (
+                SELECT DISTINCT ON (match_id)
+                  match_id, p_home_win, p_draw, p_away_win
+                FROM predictions ORDER BY match_id, created_at DESC
+            )
             SELECT COUNT(*) AS n, AVG(clv_pct) AS mean_clv
             FROM (
                 SELECT
-                  ((co.home_odds + co.draw_odds + co.away_odds) / 3.0 - 1.0) * 0
-                    + CASE
-                        WHEN p.p_home_win * co.home_odds > 1
-                          THEN (p.p_home_win * co.home_odds - 1) * 100.0
-                        ELSE NULL
-                      END AS clv_pct
+                  CASE
+                    WHEN l.p_home_win >= l.p_draw AND l.p_home_win >= l.p_away_win
+                      THEN (l.p_home_win * co.odds_home - 1) * 100.0
+                    WHEN l.p_away_win >= l.p_home_win AND l.p_away_win >= l.p_draw
+                      THEN (l.p_away_win * co.odds_away - 1) * 100.0
+                    ELSE (l.p_draw * co.odds_draw - 1) * 100.0
+                  END AS clv_pct
                 FROM closing_odds co
-                JOIN (
-                  SELECT DISTINCT ON (match_id) match_id, p_home_win
-                  FROM predictions ORDER BY match_id, created_at DESC
-                ) p ON p.match_id = co.match_id
+                JOIN latest l ON l.match_id = co.match_id
             ) x
             WHERE clv_pct IS NOT NULL
             """,
