@@ -21,6 +21,11 @@ run() {
 # missing af_ids otherwise silently break live tracking. ~5 API calls.
 run python scripts/backfill_fixture_ids.py --days 30 || true
 
+# Resolve any match stuck in 'scheduled' past kickoff. Catches matches
+# the live ingest never saw (quota, outage) so the ops watchdog doesn't
+# flag them forever. ~1 API call per stuck match, bounded to 20/tick.
+run python scripts/finalise_missed_matches.py --max 20 || true
+
 # News headlines (RSS, no API cost)
 run python scripts/ingest_news.py || true
 
