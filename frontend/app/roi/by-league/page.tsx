@@ -83,13 +83,26 @@ function copy(lang: Lang) {
       zh: "总体 ROI 可能持平,但内部 P&L 分布非常不均。本页按联赛拆分 flat-stake ROI,让您看到 edge 真实来自哪里。",
       ko: "전체 ROI는 평평해 보여도 내부 P&L은 매우 불균일할 수 있습니다. 이 페이지는 ROI를 리그별로 분리해 실제 엣지가 어디서 오는지 보여줍니다.",
     }),
-    summary: (pos: number, total: number) => tLang(lang, {
-      en: `${pos}/${total} leagues have positive ROI (≥ 20 bets in sample). Leagues with fewer bets are marked "noisy" (10-19) or "sparse" (<10) — not trustworthy yet.`,
-      vi: `${pos}/${total} giải có ROI dương (≥ 20 kèo). Giải ít kèo hơn bị đánh dấu "ồn" (10-19) hoặc "ít mẫu" (<10) — chưa đủ tin.`,
-      th: `${pos}/${total} ลีกมี ROI เป็นบวก (≥ 20 เดิมพัน) ลีกที่เดิมพันน้อยกว่าจะติดป้าย "noisy" (10-19) หรือ "sparse" (<10) — ยังเชื่อไม่ได้`,
-      zh: `${pos}/${total} 个联赛 ROI 为正 (≥ 20 注)。样本较少的联赛标记为 "noisy" (10-19) 或 "sparse" (<10) — 暂不可信。`,
-      ko: `${pos}/${total}개 리그의 ROI 양수 (≥ 20 베팅). 표본이 적은 리그는 "noisy" (10-19) 또는 "sparse" (<10)로 표시 — 아직 신뢰할 수 없음.`,
-    }),
+    summary: (pos: number, total: number, noisyPos: number, noisyTotal: number) => {
+      if (total > 0) {
+        return tLang(lang, {
+          en: `${pos}/${total} leagues have positive ROI with a trusted sample (≥ 20 bets). Leagues marked "noisy" (10-19) or "sparse" (<10) are directional only.`,
+          vi: `${pos}/${total} giải có ROI dương ở mẫu đủ tin (≥ 20 kèo). Giải đánh dấu "ồn" (10-19) hoặc "ít mẫu" (<10) chỉ mang tính xu hướng.`,
+          th: `${pos}/${total} ลีกมี ROI บวกบนตัวอย่างที่เชื่อถือได้ (≥ 20) ลีก "noisy" (10-19) หรือ "sparse" (<10) เป็นเพียงทิศทาง`,
+          zh: `${pos}/${total} 个联赛在可信样本 (≥ 20) 下 ROI 为正。"noisy" (10-19) 或 "sparse" (<10) 仅表方向。`,
+          ko: `신뢰 표본 (≥ 20)에서 ${pos}/${total} 리그가 ROI 양수. "noisy" (10-19) 또는 "sparse" (<10)는 방향성만.`,
+        });
+      }
+      // No league has hit the trust threshold yet — report the directional
+      // read so "all 5 positive but small sample" doesn't render as "0/0".
+      return tLang(lang, {
+        en: `No league has ≥ 20 bets yet at this threshold+window. Directional read (≥ 10 bets): ${noisyPos}/${noisyTotal} positive. Widen the window or threshold to build a trusted sample.`,
+        vi: `Chưa giải nào đạt ≥ 20 kèo ở ngưỡng+cửa sổ này. Đọc xu hướng (≥ 10 kèo): ${noisyPos}/${noisyTotal} dương. Mở rộng cửa sổ hoặc ngưỡng để có mẫu đủ tin.`,
+        th: `ยังไม่มีลีกใดถึง ≥ 20 เดิมพันที่ threshold+window นี้ ทิศทาง (≥ 10): ${noisyPos}/${noisyTotal} เป็นบวก`,
+        zh: `当前阈值+窗口下,尚无联赛达到 ≥ 20 注。趋势读数 (≥ 10):${noisyPos}/${noisyTotal} 为正。`,
+        ko: `현재 임계값+윈도우에서 ≥ 20 베팅 리그 없음. 방향성 (≥ 10): ${noisyPos}/${noisyTotal} 양수.`,
+      });
+    },
     summaryTitle: tLang(lang, { en: "Summary", vi: "Tóm tắt", th: "สรุป", zh: "摘要", ko: "요약" }),
     window: tLang(lang, { en: "window", vi: "cửa sổ", th: "ช่วงเวลา", zh: "窗口", ko: "기간" }),
     edge: "edge",
@@ -150,6 +163,8 @@ export default async function RoiByLeaguePage({
 
   const positives = data.leagues.filter((l) => l.bets >= TRUSTED_BETS && l.roi_vig_pct > 0).length;
   const total = data.leagues.filter((l) => l.bets >= TRUSTED_BETS).length;
+  const noisyPositives = data.leagues.filter((l) => l.bets >= MIN_BETS && l.roi_vig_pct > 0).length;
+  const noisyTotal = data.leagues.filter((l) => l.bets >= MIN_BETS).length;
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12 space-y-10">
@@ -204,7 +219,7 @@ export default async function RoiByLeaguePage({
 
       <section className="card space-y-3">
         <p className="font-mono text-[10px] uppercase tracking-wide text-muted">{c.summaryTitle}</p>
-        <p className="text-secondary">{c.summary(positives, total)}</p>
+        <p className="text-secondary">{c.summary(positives, total, noisyPositives, noisyTotal)}</p>
       </section>
 
       <section className="card">
