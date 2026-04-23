@@ -201,7 +201,9 @@ async def _handle_edge(pool) -> str:
             """
         )
     picks = [_row_to_pick(r) for r in raw if r["p_home_win"] is not None]
-    picks = [p for p in picks if p.edge_pp and p.edge_pp >= 5.0]
+    # 5 ≤ edge ≤ 30 — anything above 30% is almost always an odds-data
+    # bug (wrong home/away side, stale line), not real signal.
+    picks = [p for p in picks if p.edge_pp is not None and 5.0 <= p.edge_pp <= 30.0]
     picks.sort(key=lambda p: -p.edge_pp)
     return format_edge(picks)
 

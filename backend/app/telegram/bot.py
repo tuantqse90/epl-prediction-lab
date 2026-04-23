@@ -113,7 +113,9 @@ def format_pick(rows: Iterable, *, window_label: str = "today") -> str:
             else "Draw"
         )
         ko = str(r.kickoff_time)[11:16] if r.kickoff_time else ""
-        edge_str = f"· +{r.edge_pp:.1f}% edge" if r.edge_pp else ""
+        edge_str = (
+            f"· {r.edge_pp:+.1f}% edge" if r.edge_pp is not None else ""
+        )
         odds_str = f"@ {r.best_odds:.2f}" if r.best_odds else ""
         conf = int(round(r.pick_conf * 100))
         lines.append(
