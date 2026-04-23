@@ -216,8 +216,9 @@ async def run(limit: int) -> None:
                 continue
 
             try:
-                story = await _call_qwen(
-                    SYSTEM, _prompt(ctx), model="dashscope/qwen-plus",
+                story = _call_qwen(
+                    _prompt(ctx), "dashscope/qwen-plus",
+                    system=SYSTEM, max_tokens=1400, temperature=0.5,
                 )
             except Exception as e:
                 print(f"[narratives] {slug} LLM failed: {type(e).__name__}: {e}")
