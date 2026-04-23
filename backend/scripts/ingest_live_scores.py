@@ -1200,6 +1200,65 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
     return notified
 
 
+async def _select_finals_needing_recap(pool: asyncpg.Pool) -> list[int]:
+    """Recent finals that have an FT notification but no recap yet.
+
+    Window kept tight (6h) so a backlog from an outage doesn't fire a
+    burst of LLM calls from the live loop — the daily cron still runs
+    `generate_recaps.py --days 7` for longer-range cleanup.
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT m.id
+            FROM matches m
+            WHERE m.status = 'final'
+              AND m.home_goals IS NOT NULL
+              AND m.recap IS NULL
+              AND m.ft_notified_at IS NOT NULL
+              AND m.kickoff_time > NOW() - INTERVAL '6 hours'
+              AND EXISTS (SELECT 1 FROM predictions p WHERE p.match_id = m.id)
+            ORDER BY m.kickoff_time DESC
+            """,
+        )
+    return [int(r["id"]) for r in rows]
+
+
+async def _generate_recaps_on_ft(
+    pool: asyncpg.Pool,
+    *,
+    selector=_select_finals_needing_recap,
+    generator=None,
+    limit: int = 5,
+) -> int:
+    """Generate post-match recaps for any just-finalised match on this tick.
+
+    Bounded by `limit` per tick — a typical matchday has <5 simultaneous
+    finishes, but enforcing a ceiling protects the 10s live-scores cadence
+    from a worst-case backlog.
+
+    Returns count of successfully-written recaps.
+    """
+    if generator is None:
+        from app.llm.recap import generate_recap
+        generator = generate_recap
+
+    match_ids = await selector(pool)
+    if not match_ids:
+        return 0
+
+    generated = 0
+    for mid in match_ids[:limit]:
+        try:
+            result = await generator(pool, mid)
+        except Exception as e:
+            print(f"[live-scores] recap failed for {mid}: {type(e).__name__}: {e}")
+            continue
+        if result:
+            generated += 1
+    return generated
+
+
 async def _flip_stuck_live_to_final(pool: asyncpg.Pool) -> int:
     """Cleanup: matches stuck at status='live' after API-Football dropped them.
 
@@ -1366,6 +1425,15 @@ async def run() -> None:
         ft_posts = await _notify_full_time(pool)
         if ft_posts:
             print(f"[live-scores] posted {ft_posts} full-time notifications")
+
+        # Same tick as FT → recap prose. Without this, recaps waited until
+        # the 06:00 UTC daily cron (up to 9h lag for an evening fixture).
+        try:
+            recaps_written = await _generate_recaps_on_ft(pool)
+            if recaps_written:
+                print(f"[live-scores] wrote {recaps_written} post-match recaps")
+        except Exception as e:
+            print(f"[live-scores] recap pass failed: {type(e).__name__}: {e}")
 
         if not await _has_potential_live(pool):
             print("[live-scores] no match within live window; skipping API call")
