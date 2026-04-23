@@ -247,7 +247,116 @@ Non-custodial, no auth stack. Everything stored client-side by default; optional
 
 ---
 
-## 21. Stretch / maybe-never (~one-offs worth considering)
+### Block 21 — Model depth v2 (~6 days) · "make the model noticeably sharper"
+
+Phase 11-14 took the XGB from 21→27 features and added fatigue/referee/lineup adjustments. Ceiling on that branch is probably hit. This block pulls in six **structural** signals the current ensemble doesn't see at all.
+
+| # | Ship | Hours | What moves |
+|---|---|---|---|
+| 21.1 | **Home/away split per team** — separate Poisson λ when home vs away | 6 | fixes Liverpool's Anfield premium, City's away struggles |
+| 21.2 | **Derby multiplier** — tag derby fixtures (NLD, El Clasico, Merseyside, etc.), inflate variance | 4 | `match_tags` table; UI chip "derby" |
+| 21.3 | **Manager change tracker** — 14-day rolling xG before/after, flag "new-manager bounce" | 6 | `manager_tenure` table populated from RSS + manual admin |
+| 21.4 | **Player xG vs defense strength** — adjust striker xG by opponent's conceded-xG rank | 5 | extends `ingest_players.py` + `predict/service.py` λ calc |
+| 21.5 | **DC rho re-estimate per league quarter** — dynamic ρ instead of a single season constant | 4 | `calibrate_rho.py` rerun per (league, quarter) |
+| 21.6 | **Cup-vs-league prior** — Copa del Rey vs La Liga get different λ priors | 5 | needs a `competition_type` column + separate train step |
+
+**Done when.** Walk-forward backtest on 2024-25 shows +0.5pp accuracy or −0.3% log-loss over current 27-feature baseline. No improvement → revert per-item (not whole block).
+
+---
+
+### Block 22 — Sharp tooling v2 (~5 days) · "tools bettors actually pay for"
+
+Sharp readers get 19.1–19.6 (calibration, line movement, etc.). This block gives them action-oriented calculators that weren't in the Sprint 6 correlated-markets pass.
+
+| # | Ship | Hours | Surface |
+|---|---|---|---|
+| 22.1 | **Arbitrage detector** — per fixture, find 2-book combinations where Σ(1/odds) < 1 | 5 | `/arb` page + filter on `/match/:id` |
+| 22.2 | **Middle-gap finder** — Pinnacle AH −0.5 vs Bet365 AH +0.5 on same fixture; both cash on exact draw | 4 | `/middles` page |
+| 22.3 | **Closing-line beat rate per market** — historical CLV split by 1X2 vs O/U vs AH vs BTTS | 3 | extends `/proof` card |
+| 22.4 | **Kelly fraction explorer** — slider 0.1–1.0, see DD vs growth tradeoff for user's bankroll | 4 | new `<KellyExplorer>` on `/roi` |
+| 22.5 | **Book weight calculator** — Pinnacle 0.6, Bet365 0.3, Betfair 0.1 weighted consensus | 3 | improves `MarketsEdge` sharp column |
+| 22.6 | **Tax-aware ROI toggle** — adjust for VN / EN / EU book tax | 2 | dropdown in `/roi` |
+
+**Done when.** Arb + middles pages return at least one opportunity on a typical matchday (even 0.3% arb is enough proof of working pipeline).
+
+---
+
+### Block 23 — UX polish (~4 days) · "reduce bounce rate without adding features"
+
+Plenty of small papercuts. No single item is load-bearing; the compound effect is real.
+
+| # | Ship | Hours |
+|---|---|---|
+| 23.1 | **Dark/light theme toggle** — Payy is black-first but let power users switch | 3 |
+| 23.2 | **Mobile bottom nav** — 5 icons (home, matches, strategies, telegram, ops) instead of cramped dropdown | 4 |
+| 23.3 | **Skeleton loaders** on all data-fetching pages — no more mid-SSR blank flash | 3 |
+| 23.4 | **Tooltip glossary** — hover "xG" / "CLV" / "Kelly" / "edge" → 2-line definition + link to `/glossary` | 4 |
+| 23.5 | **Keyboard shortcuts panel** — `?` key opens cheat sheet (already have `⌘K`) | 2 |
+| 23.6 | **Sound on goal (toggleable)** + haptic on mobile for picks | 3 |
+| 23.7 | **Inline edit betslip** — stake + odds editable without leaving the card | 3 |
+
+**Done when.** Mobile Lighthouse PWA score ≥ 90. First contentful paint < 1.5s on 3G.
+
+---
+
+### Block 24 — Internal tools (~4 days) · "help me ship faster + safer"
+
+Ops watchdog is external-facing. This block is the admin-facing counterpart.
+
+| # | Ship | Hours |
+|---|---|---|
+| 24.1 | **Error log dashboard** — read-only `/admin/errors` over existing `error_log` table with filter by endpoint/time | 4 |
+| 24.2 | **Page-level analytics** — self-hosted Plausible or a 50-line custom logger → `/admin/analytics` | 5 |
+| 24.3 | **Feature flags** — simple `feature_flags` table + `useFlag()` React hook, admin toggle | 4 |
+| 24.4 | **Staging environment** — `docker compose --env-file .env.staging` twin on port 3501/8501, deploys from `staging` branch | 6 |
+| 24.5 | **One-click rollback** — `deploy/rollback.sh` retags the prior image + restarts | 2 |
+| 24.6 | **Quota forecast** — ops watchdog extension: "at current rate API-Football exhausts at 23:42 UTC" | 3 |
+| 24.7 | **DB snapshot drill** — monthly automated pg_dump restore test to a scratch container, email pass/fail | 4 |
+
+**Done when.** A new contributor can deploy to staging + roll back without asking me. Error log surfaces bugs within an hour of happening.
+
+---
+
+### Block 25 — Content / SEO depth (~5 days) · "long-tail organic traffic"
+
+Block 18 seeded viral content. This block builds the durable long-tail — things that keep pulling search traffic after the hype fades.
+
+| # | Ship | Hours |
+|---|---|---|
+| 25.1 | **`/glossary` page** — every jargon term on the site (xG, CLV, Kelly, devig, SGP, AH) with examples | 4 |
+| 25.2 | **`/about-our-model`** — methodology transparency; Poisson + DC + Elo 0.20 + XGB 0.60 ensemble explained in plain English | 4 |
+| 25.3 | **Season story per team** — auto-generated long-form recap at season end: "Arsenal 2024-25 in 20 predictions" | 6 |
+| 25.4 | **Match of the week** — auto-picked every Friday: highest model-vs-market edge + most-interesting pairing | 3 |
+| 25.5 | **Player deep pages** — `/players/:slug` already exists; add historical xG trend chart + career photo carousel + model-based fantasy value | 5 |
+| 25.6 | **Changelog page** — public `/changelog` rendered from `PROGRESS.md` filtered for user-visible changes | 2 |
+| 25.7 | **Press-kit page** — logos, screenshots, one-line description, contact email | 2 |
+
+**Done when.** Indexable page count ≥ 800 (5 leagues × ~20 teams × 1 story page + 100 glossary + 50 match-of-week + blog archive). Organic search traffic trends up month-over-month.
+
+---
+
+## 26. Full block sequencing cheat sheet
+
+```
+Block 17  Distribution         5d   ← Telegram + Discord + email + embed
+Block 18  Viral / engagement   6d   ← Title race + top-scorer race + SEO
+Block 19  Sharp credibility    5d   ← Calibration + line movement + equity
+Block 20  Personal layer       5d   ← My picks + watchlist + PWA push
+---
+Block 21  Model depth v2       6d   ← Home/away split + derbies + manager
+Block 22  Sharp tooling v2     5d   ← Arb + middles + Kelly explorer
+Block 23  UX polish            4d   ← Theme + mobile nav + skeleton
+Block 24  Internal tools       4d   ← Staging + rollback + flags + errors
+Block 25  Content / SEO depth  5d   ← Glossary + team stories + changelog
+
+Total shippable work: ~45 days across 47 independently-shippable items.
+```
+
+Run blocks sequentially or parallel depending on the sequencing rule in §22. Don't try to ship two blocks on the same day — stays shippable by keeping focus.
+
+---
+
+## 27. Stretch / maybe-never (~one-offs worth considering)
 
 Listed so they don't get re-raised. Scope-creep defence.
 
@@ -270,7 +379,7 @@ Blocks 17 → 18 → 19 → 20 is the default ship order, but swap if data tells
 
 ---
 
-## 23. Out of scope (explicit)
+## 28. Out of scope (explicit)
 
 - Live stake placement / API bridge to any book or exchange
 - Handling real user money
