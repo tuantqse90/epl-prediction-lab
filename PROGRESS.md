@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 00:55 +07 — Sprint 16: ops watchdog + /ops status page
+
+Built `ops_watchdog.py` with 5 pure checkers (fixture_drift, stale_live, missing_recap, low_quota, stale_predictions) + Telegram dedup via `ops_alerts` table + systemd 5-min timer. First tick caught 3 real drift cases (Brighton-Chelsea, RM-Alaves, Girona-Betis stuck at scheduled 46h past kickoff). 10/10 TDD tests green.
+
+Added `/api/ops/status` endpoint + public `/ops` page reusing the same checkers read-only — overall badge + per-subsystem row + offending match ids. New `finalise_missed_matches.py` resolves the stuck-scheduled class (1 API call per match via af_id → /fixtures?id=X) and is wired into the daily cron. Closed 5 stuck matches; `/ops` now green across the board.
+
+Also during the same sprint (earlier): fixed class-of-bug asyncpg unknown-type binds (live-scores, backfill-fixtures) + recap-on-FT inline trigger so finished matches no longer wait for the 06:00 UTC cron. 
+
 ## 2026-04-21 00:40 +07 — 6-season historical backfill for LaLiga / Serie A / Ligue 1 / Bundesliga
 
 Ran `ingest_season.py` across 4 leagues × 6 seasons (2019-20 → 2024-25) then `backtest.py` per season. 24 ingest passes + 6 walk-forward backtests. Previously only EPL had 7-season history; now **all 5 top leagues have the full matrix** so `/history` is apples-to-apples.
