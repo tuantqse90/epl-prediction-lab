@@ -22,6 +22,7 @@ from app.api import stats as stats_router
 from app.api import table as table_router
 from app.api import teams as teams_router
 from app.api import telegram as telegram_router
+from app.api import title_race as title_race_router
 from app.api import tipsters as tipsters_router
 from app.core.db import lifespan
 from app.core.error_log import ErrorLogMiddleware
@@ -55,6 +56,7 @@ app.include_router(ops_router.router)
 app.include_router(telegram_router.router)
 app.include_router(discord_router.router)
 app.include_router(email_router.router)
+app.include_router(title_race_router.router)
 
 
 @app.get("/health")
