@@ -49,6 +49,16 @@ FEEDS: list[Feed] = [
 
 _STRIP_TAGS = re.compile(r"<[^>]+>")
 
+# Sky's `rss/12040` turned out to be general Sky Sports (tennis, boxing, golf)
+# rather than football-only, and other feeds occasionally leak non-football
+# items too. Gate on the URL path since every publisher uses /football/ or
+# /soccer/ for football stories — far cleaner than keyword-guessing titles.
+_FOOTBALL_PATH_RE = re.compile(r"/(?:football|soccer)(?:/|$)", re.IGNORECASE)
+
+
+def _is_football_url(url: str) -> bool:
+    return bool(_FOOTBALL_PATH_RE.search(url))
+
 
 def _fetch(url: str) -> str | None:
     req = urllib.request.Request(url, headers={"User-Agent": "epl-lab/1.0"})
@@ -162,8 +172,10 @@ async def run() -> None:
                 continue
             items = _parse_rss(body)
             total += len(items)
+            kept = [it for it in items if _is_football_url(it["url"])]
+            skipped = len(items) - len(kept)
             async with pool.acquire() as conn:
-                for it in items:
+                for it in kept:
                     teams, league = _detect_teams(it["title"], it["summary"], team_index)
                     res = await conn.execute(
                         """
@@ -179,7 +191,7 @@ async def run() -> None:
                     )
                     if res.endswith("1"):
                         inserted += 1
-            print(f"[news] {feed.source}: {len(items)} items")
+            print(f"[news] {feed.source}: {len(items)} items ({skipped} non-football skipped)")
 
         # Prune ancient stories — 30-day window keeps the side panel current.
         pruned = await pool.execute(
