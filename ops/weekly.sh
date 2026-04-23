@@ -45,4 +45,8 @@ run python scripts/post_telegram.py       --horizon-days "$HORIZON_DAYS" || true
 # in the last 6 days so a mid-week re-run of weekly.sh costs nothing.
 run python scripts/generate_team_narratives.py --limit 200 || true
 
+# Weekly auto-blog: "Week N: what the model learned". Idempotent via
+# slug (week-N-YYYY); a mid-week re-run does nothing unless --force.
+run python scripts/generate_weekly_blog.py || true
+
 echo "[weekly] done"

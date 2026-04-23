@@ -49,26 +49,88 @@ function parseFrontmatter(raw: string): { meta: BlogFrontmatter; body: string } 
   };
 }
 
+const BASE = process.env.SERVER_API_URL ?? "http://localhost:8000";
+
+type AutoPost = {
+  slug: string;
+  title: string;
+  excerpt: string;
+  body_md: string;
+  tags: string[];
+  lang: string;
+  generated_at: string;
+  model: string | null;
+};
+
+async function listAutoPosts(): Promise<BlogFrontmatter[]> {
+  try {
+    const res = await fetch(`${BASE}/api/blog?limit=50`, { next: { revalidate: 600 } });
+    if (!res.ok) return [];
+    const rows: AutoPost[] = await res.json();
+    return rows.map((r) => ({
+      slug: r.slug,
+      title: r.title,
+      date: r.generated_at.slice(0, 10),
+      excerpt: r.excerpt,
+      tags: r.tags,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function getAutoPost(slug: string): Promise<BlogPost | null> {
+  try {
+    const res = await fetch(`${BASE}/api/blog/${encodeURIComponent(slug)}`, {
+      next: { revalidate: 600 },
+    });
+    if (!res.ok) return null;
+    const r: AutoPost | null = await res.json();
+    if (!r) return null;
+    return {
+      slug: r.slug,
+      title: r.title,
+      date: r.generated_at.slice(0, 10),
+      excerpt: r.excerpt,
+      tags: r.tags,
+      body: r.body_md,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function listPosts(): Promise<BlogFrontmatter[]> {
-  const files = await fs.readdir(CONTENT_DIR);
-  const posts: BlogFrontmatter[] = [];
+  const files = await fs.readdir(CONTENT_DIR).catch(() => [] as string[]);
+  const filePosts: BlogFrontmatter[] = [];
   for (const f of files) {
     if (!f.endsWith(".md")) continue;
     const raw = await fs.readFile(path.join(CONTENT_DIR, f), "utf8");
     const { meta } = parseFrontmatter(raw);
-    posts.push(meta);
+    filePosts.push(meta);
   }
-  posts.sort((a, b) => b.date.localeCompare(a.date));
-  return posts;
+  const autoPosts = await listAutoPosts();
+  const merged = [...filePosts, ...autoPosts];
+  // Dedupe by slug — file-based wins over auto if they share a slug.
+  const seen = new Set<string>();
+  const out: BlogFrontmatter[] = [];
+  for (const p of merged) {
+    if (seen.has(p.slug)) continue;
+    seen.add(p.slug);
+    out.push(p);
+  }
+  out.sort((a, b) => b.date.localeCompare(a.date));
+  return out;
 }
 
 export async function getPost(slug: string): Promise<BlogPost | null> {
+  // File-based first (authored content), DB fallback (auto-generated).
   try {
     const raw = await fs.readFile(path.join(CONTENT_DIR, `${slug}.md`), "utf8");
     const { meta, body } = parseFrontmatter(raw);
     return { ...meta, body };
   } catch {
-    return null;
+    return await getAutoPost(slug);
   }
 }
 
