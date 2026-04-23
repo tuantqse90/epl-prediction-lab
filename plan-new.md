@@ -151,7 +151,38 @@ If CLV mean is still negative after Phase 5 data accumulates: stop model-quality
 
 ---
 
-## 16. Out of scope (explicit)
+## 16. Sprint 16 — Ops watchdog (current)
+
+**Why now.** Two silent failures hit prod in 48h: 100 fixtures with stale `kickoff_time` that hid Man City from live, and post-match recaps sitting empty for 9h because they were gated on the daily cron. Both were fixed reactively. A watchdog would have caught both within 5 min.
+
+**Build.** One script `backend/scripts/ops_watchdog.py` runs 5 independent checkers. Each returns a list of offending row-ids + a short message; top-level dispatcher aggregates + posts one Telegram message per tick when any checker is non-empty. Idempotent via `ops_alerts` table (alert_hash, last_sent_at) so we don't re-spam the same issue every 5 min.
+
+**Checkers (each a pure function, TDD):**
+
+1. `fixture_drift` — `status='scheduled'` + `kickoff_time < NOW() - 2h`. Catches Man City.
+2. `stale_live` — `status='live'` + `live_updated_at < NOW() - 5 min`. Catches a frozen feed.
+3. `missing_recap` — `status='final'` + `recap IS NULL` + `kickoff_time < NOW() - 12h`. Catches LLM outages.
+4. `low_quota` — last `x-ratelimit-requests-remaining` < 10k. Catches pre-exhaustion.
+5. `stale_predictions` — `scheduled` + `kickoff_time < NOW() + 48h` + no `predictions` row. Catches predict_upcoming failing silently.
+
+**Deliverables.**
+- `ops_watchdog.py` + `ops_alerts` migration + 5 checker functions + TDD tests (2 per checker).
+- systemd `football-predict-watchdog.timer` every 5 min.
+- `/api/ops/status` endpoint + `/ops` public page with green/red row per subsystem (reuses the checker functions read-only).
+
+**Done when.** Next stale kickoff / dead feed gets a Telegram ping within 5 min, and `/ops` shows exactly what's broken without ssh.
+
+## 17. Sprint 17 — Telegram bot interactive
+
+Shifts the bot from broadcast-only to query-driven. `/pick today`, `/pick PSG`, `/edge`, `/clv`, `/roi 30d`, `/subscribe arsenal`. Same data as the web, second distribution channel at near-zero cost. Blocked by Sprint 16 (don't ship interactive UI over data we can't monitor).
+
+## 18. Sprint 18 — Personal bet tracking
+
+Non-custodial: `localStorage` my-picks list + optional 6-digit PIN sync for cross-device. Compares user's actual bets against model recommendation so retention = "my ROI vs the model's ROI". No auth stack, no custody. Blocked by Sprint 16.
+
+---
+
+## 19. Out of scope (explicit)
 
 - Live stake placement / API bridge to any book or exchange
 - Handling real user money
