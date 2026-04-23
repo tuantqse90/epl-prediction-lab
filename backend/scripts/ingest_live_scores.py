@@ -722,6 +722,22 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
         except Exception as e:
             print(f"[live-scores] team-sub fanout failed: {type(e).__name__}: {e}")
 
+        try:
+            from app.api.discord import fan_out_to_discord
+            discord_text = (
+                f"⚽ **{home_short.replace('\\_','_')} {int(hg)}-{int(ag)} "
+                f"{away_short.replace('\\_','_')}** · {minute_label}\n"
+                f"<https://predictor.nullshift.sh/match/{match_row['id']}>"
+            )
+            await fan_out_to_discord(
+                pool,
+                team_slugs=[meta["home_slug"], meta["away_slug"]],
+                content=discord_text,
+                kind="goal",
+            )
+        except Exception as e:
+            print(f"[live-scores] discord fanout failed: {type(e).__name__}: {e}")
+
     # Only hit /fixtures/events when something interesting changed. Most
     # polling cycles (90%+) see a static scoreline — skipping events there
     # lets us poll aggressively without blowing API-Football quota.
