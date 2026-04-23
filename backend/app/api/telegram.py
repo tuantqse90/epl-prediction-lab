@@ -54,7 +54,7 @@ async def webhook(
     if cmd is None:
         return WebhookAck(ok=True)
     pool = request.app.state.pool
-    text = await _dispatch(pool, cmd.command, cmd.args)
+    text = await _dispatch(pool, cmd.command, cmd.args, chat_id=cmd.chat_id)
     send_message(cmd.chat_id, text)
     return WebhookAck(ok=True)
 
@@ -64,7 +64,7 @@ async def webhook(
 # ---------------------------------------------------------------------------
 
 
-async def _dispatch(pool, command: str, args: list[str]) -> str:
+async def _dispatch(pool, command: str, args: list[str], *, chat_id: int | None = None) -> str:
     try:
         if command in ("help", "start"):
             return format_help()
@@ -77,9 +77,11 @@ async def _dispatch(pool, command: str, args: list[str]) -> str:
         if command == "clv":
             return await _handle_clv(pool)
         if command == "subscribe":
-            return await _handle_subscribe(pool, args, subscribe=True)
+            return await _handle_subscribe(pool, args, chat_id=chat_id, subscribe=True)
         if command == "unsubscribe":
-            return await _handle_subscribe(pool, args, subscribe=False)
+            return await _handle_subscribe(pool, args, chat_id=chat_id, subscribe=False)
+        if command in ("subscriptions", "subs"):
+            return await _handle_subscriptions_list(pool, chat_id=chat_id)
         return format_help()
     except Exception as e:
         print(f"[telegram] handler {command} crashed: {type(e).__name__}: {e}")
@@ -314,7 +316,11 @@ async def _handle_clv(pool) -> str:
     return format_clv(total=n, mean_clv=mean)
 
 
-async def _handle_subscribe(pool, args: list[str], *, subscribe: bool) -> str:
+async def _handle_subscribe(
+    pool, args: list[str], *, chat_id: int | None, subscribe: bool,
+) -> str:
+    if chat_id is None:
+        return format_error("Couldn't identify this chat.")
     if not args:
         return format_unknown_team("(no team given)")
     query = " ".join(args)
@@ -331,22 +337,66 @@ async def _handle_subscribe(pool, args: list[str], *, subscribe: bool) -> str:
         )
     if not team:
         return format_unknown_team(query)
-    # Persisted in Block 17.2; for now stash the intent and confirm.
     async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS telegram_subscriptions (
-                chat_id BIGINT NOT NULL,
-                team_slug TEXT NOT NULL,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                PRIMARY KEY (chat_id, team_slug)
+        if subscribe:
+            await conn.execute(
+                """
+                INSERT INTO telegram_subscriptions (chat_id, team_slug)
+                VALUES ($1, $2)
+                ON CONFLICT (chat_id, team_slug) DO NOTHING
+                """,
+                chat_id, team["slug"],
             )
-            """,
+            return format_subscribe_ok(team["short_name"])
+        await conn.execute(
+            "DELETE FROM telegram_subscriptions WHERE chat_id = $1 AND team_slug = $2",
+            chat_id, team["slug"],
         )
-        # Note: we don't have chat_id at this layer since _handle_* only
-        # sees args. Persistence wires in through _dispatch on block 17.2
-        # with the ParsedCommand. For now just ack.
-    return (
-        format_subscribe_ok(team["short_name"]) if subscribe
-        else format_unsubscribe_ok(team["short_name"])
-    )
+        return format_unsubscribe_ok(team["short_name"])
+
+
+async def _handle_subscriptions_list(pool, *, chat_id: int | None) -> str:
+    if chat_id is None:
+        return format_error("Couldn't identify this chat.")
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT t.short_name, t.name, s.team_slug
+            FROM telegram_subscriptions s
+            JOIN teams t ON t.slug = s.team_slug
+            WHERE s.chat_id = $1
+            ORDER BY t.short_name
+            """,
+            chat_id,
+        )
+    if not rows:
+        return "You're not subscribed to any team. Try `/subscribe ARS`."
+    lines = ["*Your subscriptions*"]
+    for r in rows:
+        lines.append(f"• *{r['short_name']}* — {r['name']}")
+    return "\n".join(lines)
+
+
+async def fan_out_to_team_subscribers(
+    pool, *, team_slugs: list[str], text: str,
+) -> int:
+    """Post `text` to every chat_id subscribed to any of `team_slugs`.
+
+    Reused by live-scores for goal/HT/FT events. Returns count posted.
+    """
+    if not team_slugs:
+        return 0
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT DISTINCT chat_id
+            FROM telegram_subscriptions
+            WHERE team_slug = ANY($1::text[])
+            """,
+            team_slugs,
+        )
+    posted = 0
+    for r in rows:
+        if send_message(int(r["chat_id"]), text):
+            posted += 1
+    return posted

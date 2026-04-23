@@ -82,7 +82,7 @@ def format_help() -> str:
         "• `/clv` — closing-line value (model vs closing market)\n"
         "• `/roi [7d|30d|90d]` — historical ROI window\n"
         "• `/subscribe TEAM` — goal + FT pings for that team\n"
-        "• `/unsubscribe TEAM`\n"
+        "• `/unsubscribe TEAM` · `/subs` — list yours\n"
         "• `/help` — this message"
     )
 

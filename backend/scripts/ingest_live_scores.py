@@ -707,6 +707,21 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
         except Exception as e:
             print(f"[live-scores] instant goal push failed: {type(e).__name__}: {e}")
 
+        try:
+            from app.api.telegram import fan_out_to_team_subscribers
+            fan_text = (
+                f"⚽ *{home_short} {int(hg)}-{int(ag)} {away_short}* "
+                f"_{minute_label}_\n"
+                f"https://predictor.nullshift.sh/match/{match_row['id']}"
+            )
+            await fan_out_to_team_subscribers(
+                pool,
+                team_slugs=[meta["home_slug"], meta["away_slug"]],
+                text=fan_text,
+            )
+        except Exception as e:
+            print(f"[live-scores] team-sub fanout failed: {type(e).__name__}: {e}")
+
     # Only hit /fixtures/events when something interesting changed. Most
     # polling cycles (90%+) see a static scoreline — skipping events there
     # lets us poll aggressively without blowing API-Football quota.
@@ -1186,6 +1201,20 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
             )
         except Exception as e:
             print(f"[live-scores] FT push failed for {match_id}: {type(e).__name__}: {e}")
+
+        try:
+            from app.api.telegram import fan_out_to_team_subscribers
+            ft_text = (
+                f"🏁 *FT · {home_short} {hg}-{ag} {away_short}*\n"
+                f"https://predictor.nullshift.sh/match/{match_id}"
+            )
+            await fan_out_to_team_subscribers(
+                pool,
+                team_slugs=[r["home_slug"], r["away_slug"]],
+                text=ft_text,
+            )
+        except Exception as e:
+            print(f"[live-scores] FT team-sub fanout failed for {match_id}: {type(e).__name__}: {e}")
 
         # Always mark notified — even if telegram failed — so we don't spam
         # retry on every 10s tick. Missed FT posts are acceptable; duplicate
