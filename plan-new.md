@@ -335,21 +335,183 @@ Block 18 seeded viral content. This block builds the durable long-tail — thing
 
 ---
 
-## 26. Full block sequencing cheat sheet
+### Block 26 — Developer API + partner tier (~6 days)
+
+Make the data queryable programmatically. No custody, no real money — just clean API + quota + key management so partner sites can build on top.
+
+| # | Ship | Hours |
+|---|---|---|
+| 26.1 | **API key issuance** — `/api/keys` admin page + `api_keys` table (hash, scope, rate_limit, last_used) | 5 |
+| 26.2 | **Rate limiting** — Redis-free in-process token bucket keyed on `Authorization: Bearer <key>` | 4 |
+| 26.3 | **Usage metrics** — per-key request counts, p95 latency, errors → `/api/keys/:id/metrics` | 4 |
+| 26.4 | **Public OpenAPI docs page** — curated subset of endpoints at `/api-docs` with examples in curl/python/JS | 3 |
+| 26.5 | **Webhook callback** — partner registers a URL; we POST on new prediction / new FT result | 6 |
+| 26.6 | **CORS whitelist per key** — partners can call the API from their browser without exposing the key server-side | 3 |
+| 26.7 | **Billing-ready stub** — usage row per request, Stripe integration deferred but schema ready | 2 |
+
+**Done when.** External developer can `curl -H "Authorization: Bearer pl_xxx" https://predictor.nullshift.sh/api/matches` and have it respected with quotas/metrics.
+
+---
+
+### Block 27 — Deeper analytics (~7 days) · "signal nobody else surfaces"
+
+Beyond the Block 19 credibility pass. These are the pieces we'd be proud to pitch to a sharp-bettor community.
+
+| # | Ship | Hours |
+|---|---|---|
+| 27.1 | **Player radar charts** — xG/match, xA/match, shots/90, key passes/90 vs position baseline | 5 |
+| 27.2 | **Manager tenure tracker** — plot every manager's win rate, points-per-game, xGD/game across their tenure | 6 |
+| 27.3 | **Transfer-window impact** — flag matches where a team's starter changed ≥ 3 from the prior window; measure λ adjust | 6 |
+| 27.4 | **Set-piece specialist detection** — % goals from corners/free-kicks per team, and which player executes | 5 |
+| 27.5 | **Squad depth index** — (bench lineup_xg_rating / starter lineup_xg_rating) — lower = thinner squad | 4 |
+| 27.6 | **Travel distance proxy** — km between consecutive fixtures; deep-away-trip penalty on λ | 4 |
+| 27.7 | **Chain-of-form streaks** — 5-match rolling xG vs expected; flag teams due for regression | 3 |
+
+**Done when.** Every match detail page has at least one "you won't find this on FlashScore" widget.
+
+---
+
+### Block 28 — Localisation depth (~5 days) · "real VI/TH/ZH/KO not just EN fallback"
+
+Right now TH/ZH/KO fall through to EN for anything not explicitly translated. This block makes non-EN first-class.
+
+| # | Ship | Hours |
+|---|---|---|
+| 28.1 | **Translation audit** — extract every `tLang` dict, find all en-only keys, fill with Qwen-Plus once (not LLM at runtime) | 6 |
+| 28.2 | **VN-specific: local bookmaker odds** — FB88 / Vietbet scraper + show VND-denominated stakes on `/roi` | 8 |
+| 28.3 | **ZH Simplified & Traditional split** — zh-CN vs zh-TW; default via Accept-Language | 3 |
+| 28.4 | **KR: date + currency format** — ₩ denominations on bankroll, YYYY-MM-DD (dd) local style | 2 |
+| 28.5 | **Non-EN OG images** — per-locale Twitter/FB card renders | 3 |
+
+**Done when.** A VN user never sees English text unless we explicitly lacked a translation.
+
+---
+
+### Block 29 — Performance + scale (~5 days) · "serve 100× current load without pager"
+
+Right now traffic is low; one VPS suffices. This block preps the stack for a marketing push or viral moment.
+
+| # | Ship | Hours |
+|---|---|---|
+| 29.1 | **Postgres read replica** — second pg container, asyncpg reader pool, routes heavy SELECTs | 6 |
+| 29.2 | **Edge cache warmer** — cron GETs hot pages post-deploy so first user gets cached response | 3 |
+| 29.3 | **Image CDN** — bundle team logos + player photos into a single sprite + signed Cloudflare URLs | 4 |
+| 29.4 | **Query cost budget per endpoint** — SLO doc; alert when `/api/stats/*` p95 > 400ms | 3 |
+| 29.5 | **Backend connection pool tuning** — asyncpg pool size based on observed concurrency | 2 |
+| 29.6 | **Load test harness** — `vegeta` or `k6` hitting 50 rps sustained on `/match/:id` | 3 |
+
+**Done when.** 50 rps sustained on `/match/:id` stays < 300ms p95.
+
+---
+
+### Block 30 — Legal / compliance (~4 days) · "can't dodge this if serious"
+
+This is a serious project (user's phrase). Treat legal surface as a first-class concern, not a footnote.
+
+| # | Ship | Hours |
+|---|---|---|
+| 30.1 | **Privacy policy page** — what we collect (IP, email, nothing else), retention, data subject rights | 3 |
+| 30.2 | **Terms of service** — "entertainment forecasting, not financial advice", jurisdiction | 3 |
+| 30.3 | **Cookie consent banner** — GDPR-style opt-in (we use no tracking beyond Plausible anyway) | 3 |
+| 30.4 | **Gambling-law disclaimers** — geo-appropriate: "must be 18+", no-custody reminder, local helpline links | 3 |
+| 30.5 | **Data export + delete** — user can request their data (email subs, bet log) via signed email link | 4 |
+
+**Done when.** Site is safe to link from regulated surfaces (VN, EN, EU) without ducking legal issues.
+
+---
+
+### Block 31 — Observability v2 (~4 days)
+
+Ops watchdog (Sprint 16) is user-facing. This is operator-facing. Move from "SSH the VPS to debug" to "read the dashboard".
+
+| # | Ship | Hours |
+|---|---|---|
+| 31.1 | **Prometheus exporter** on the api + web containers | 4 |
+| 31.2 | **Grafana self-hosted** with dashboards: request rate, DB pool, LLM cost, match ingest lag | 6 |
+| 31.3 | **Sentry** integration for exceptions (or a self-hosted OSS alternative) | 3 |
+| 31.4 | **Loki** for log aggregation across all compose services | 4 |
+| 31.5 | **Alertmanager → Telegram** pipeline duplicating the watchdog but for infra-level signals | 3 |
+
+**Done when.** I can answer "what's the DB p95 right now?" without SSH-ing.
+
+---
+
+### Block 32 — Research / experimentation (~5 days)
+
+Right now ensemble tuning is ad-hoc (`grid_search.py`, `compare_configs.py`). Make it a discipline.
+
+| # | Ship | Hours |
+|---|---|---|
+| 32.1 | **Config sweeps** — YAML-driven walk-forward sweep over ρ, α (elo weight), XGB depth etc. | 6 |
+| 32.2 | **Model registry** — `model_versions` table stores every trained booster with meta (date, holdout score, feature set) | 3 |
+| 32.3 | **A/B model serving** — route N% of predictions through challenger, log both; compare log-loss fair | 5 |
+| 32.4 | **Feature-importance diff** — track how feature_gain changes across retrains | 3 |
+| 32.5 | **Leakage detector** — automated check that no feature uses info from the current or future match | 3 |
+
+**Done when.** Every retrain answers "is this better than what's in prod?" automatically.
+
+---
+
+### Block 33 — Community + tipsters (~5 days)
+
+`tipsters` + `tipster_picks` tables exist but nothing consumes them. Activate the community layer without custody.
+
+| # | Ship | Hours |
+|---|---|---|
+| 33.1 | **Tipster signup** — non-custodial, PIN-sync pattern from Block 20; pick creates `tipster_picks` row | 4 |
+| 33.2 | **Tipster leaderboard** — sort by log-loss (proper scoring) not raw win rate | 3 |
+| 33.3 | **Tipster profile page** — `/tipsters/:slug` with past picks + calibration curve | 4 |
+| 33.4 | **Follow / feed** — localStorage favorite tipsters surface in your dashboard | 3 |
+| 33.5 | **Weekly tipster digest** — best scoring tipster of the week → Telegram channel announcement | 2 |
+
+**Done when.** A user can pick a tipster whose picks beat model ROI and follow them alongside the model.
+
+---
+
+### Block 34 — Brand / marketing surface (~4 days)
+
+Content for investors, journalists, job candidates — same repo, distinct tone.
+
+| # | Ship | Hours |
+|---|---|---|
+| 34.1 | **Methodology page** — long-form write-up of Poisson + DC + Elo 0.20 + XGB 0.60 ensemble with equations | 5 |
+| 34.2 | **"How this is built" page** — the stack, the cron pattern, the ops watchdog — transparency as marketing | 3 |
+| 34.3 | **Press kit + logos** already listed in Block 25; align styling here | 1 |
+| 34.4 | **Founder story / mission** — 1-page plain English | 2 |
+| 34.5 | **Investor one-pager** — if/when relevant | 3 |
+
+**Done when.** A cold reader can assess in 5 minutes whether to trust the forecasts and engage with the team.
+
+---
+
+## 35. Full block sequencing cheat sheet
 
 ```
-Block 17  Distribution         5d   ← Telegram + Discord + email + embed
-Block 18  Viral / engagement   6d   ← Title race + top-scorer race + SEO
+Distribution + engagement (user-facing)
+Block 17  Distribution         5d   ← Telegram + Discord + email + embed          ✅ DONE
+Block 18  Viral / engagement   6d   ← Title race + top-scorer race + SEO          ◐ 3/7
 Block 19  Sharp credibility    5d   ← Calibration + line movement + equity
 Block 20  Personal layer       5d   ← My picks + watchlist + PWA push
----
+
+Depth (quality-first)
 Block 21  Model depth v2       6d   ← Home/away split + derbies + manager
 Block 22  Sharp tooling v2     5d   ← Arb + middles + Kelly explorer
 Block 23  UX polish            4d   ← Theme + mobile nav + skeleton
 Block 24  Internal tools       4d   ← Staging + rollback + flags + errors
 Block 25  Content / SEO depth  5d   ← Glossary + team stories + changelog
 
-Total shippable work: ~45 days across 47 independently-shippable items.
+Platform + scale (serious-project)
+Block 26  Developer API        6d   ← Keys + rate limits + OpenAPI docs
+Block 27  Deeper analytics     7d   ← Radar charts + manager + set-piece
+Block 28  Localisation depth   5d   ← Full VI/TH/ZH/KO + VND + VN odds
+Block 29  Performance + scale  5d   ← Read replica + image CDN + load test
+Block 30  Legal / compliance   4d   ← Privacy + ToS + cookie + export
+Block 31  Observability v2     4d   ← Prom + Grafana + Sentry + Loki
+Block 32  Research / experim.  5d   ← Config sweeps + registry + A/B
+Block 33  Community / tipsters 5d   ← Signup + leaderboard + follow
+Block 34  Brand / marketing    4d   ← Methodology + stack + press
+
+Total shippable work: ~90 days across 80+ independently-shippable items.
 ```
 
 Run blocks sequentially or parallel depending on the sequencing rule in §22. Don't try to ship two blocks on the same day — stays shippable by keeping focus.
