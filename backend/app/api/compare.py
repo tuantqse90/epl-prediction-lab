@@ -53,6 +53,129 @@ class H2HPrediction(BaseModel):
     data_as_of: datetime
 
 
+class H2HMeeting(BaseModel):
+    match_id: int
+    kickoff_time: datetime
+    season: str
+    league_code: str | None
+    home_slug: str
+    home_short: str
+    away_slug: str
+    away_short: str
+    home_goals: int
+    away_goals: int
+    outcome: str                          # H | D | A
+    predicted_outcome: str | None         # H | D | A
+    hit: bool | None
+
+
+class H2HHistory(BaseModel):
+    home_slug: str
+    away_slug: str
+    meetings: list[H2HMeeting]
+    total_meetings: int
+    home_wins: int
+    draws: int
+    away_wins: int
+    model_scored: int                     # meetings where we had a prediction
+    model_correct: int
+    model_accuracy: float | None
+
+
+@router.get("/history", response_model=H2HHistory)
+async def head_to_head_history(
+    request: Request,
+    home: str = Query(..., description="home team slug"),
+    away: str = Query(..., description="away team slug"),
+    limit: int = Query(10, ge=1, le=50),
+) -> H2HHistory:
+    """Last N meetings between two teams (either order), with model pick +
+    hit/miss where a prediction was logged at the time.
+    """
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            WITH latest AS (
+                SELECT DISTINCT ON (p.match_id)
+                  p.match_id, p.p_home_win, p.p_draw, p.p_away_win
+                FROM predictions p
+                ORDER BY p.match_id, p.created_at DESC
+            )
+            SELECT m.id, m.kickoff_time, m.season, m.league_code,
+                   ht.slug AS home_slug, ht.short_name AS home_short,
+                   at.slug AS away_slug, at.short_name AS away_short,
+                   m.home_goals, m.away_goals,
+                   l.p_home_win, l.p_draw, l.p_away_win
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            LEFT JOIN latest l ON l.match_id = m.id
+            WHERE m.status = 'final' AND m.home_goals IS NOT NULL
+              AND (
+                (ht.slug = $1 AND at.slug = $2)
+                OR (ht.slug = $2 AND at.slug = $1)
+              )
+            ORDER BY m.kickoff_time DESC
+            LIMIT $3
+            """,
+            home, away, limit,
+        )
+
+    meetings: list[H2HMeeting] = []
+    hw = dw = aw = 0  # from the queried home-team's perspective
+    scored = correct = 0
+    for r in rows:
+        hg, ag = int(r["home_goals"]), int(r["away_goals"])
+        actual = "H" if hg > ag else "A" if hg < ag else "D"
+        predicted: str | None = None
+        if r["p_home_win"] is not None:
+            probs = {"H": r["p_home_win"], "D": r["p_draw"], "A": r["p_away_win"]}
+            predicted = max(probs, key=probs.get)
+            scored += 1
+            if predicted == actual:
+                correct += 1
+        # Normalize H/A so the count is always from the *requested* `home`
+        # team's perspective (not DB's home side).
+        if r["home_slug"] == home:
+            if actual == "H":
+                hw += 1
+            elif actual == "A":
+                aw += 1
+            else:
+                dw += 1
+        else:
+            if actual == "H":
+                aw += 1
+            elif actual == "A":
+                hw += 1
+            else:
+                dw += 1
+        hit = (predicted == actual) if predicted is not None else None
+        meetings.append(H2HMeeting(
+            match_id=r["id"],
+            kickoff_time=r["kickoff_time"],
+            season=r["season"],
+            league_code=r["league_code"],
+            home_slug=r["home_slug"], home_short=r["home_short"],
+            away_slug=r["away_slug"], away_short=r["away_short"],
+            home_goals=hg, away_goals=ag,
+            outcome=actual,
+            predicted_outcome=predicted,
+            hit=hit,
+        ))
+
+    accuracy = (correct / scored) if scored > 0 else None
+    return H2HHistory(
+        home_slug=home, away_slug=away,
+        meetings=meetings,
+        total_meetings=len(meetings),
+        home_wins=hw, draws=dw, away_wins=aw,
+        model_scored=scored, model_correct=correct,
+        model_accuracy=accuracy,
+    )
+
+
 async def _team_by_slug(pool, slug: str) -> dict | None:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(

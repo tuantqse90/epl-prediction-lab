@@ -40,6 +40,48 @@ async function fetchH2H(home: string, away: string): Promise<H2H | null> {
   }
 }
 
+type H2HMeeting = {
+  match_id: number;
+  kickoff_time: string;
+  season: string;
+  league_code: string | null;
+  home_slug: string;
+  home_short: string;
+  away_slug: string;
+  away_short: string;
+  home_goals: number;
+  away_goals: number;
+  outcome: "H" | "D" | "A";
+  predicted_outcome: "H" | "D" | "A" | null;
+  hit: boolean | null;
+};
+
+type H2HHistory = {
+  home_slug: string;
+  away_slug: string;
+  meetings: H2HMeeting[];
+  total_meetings: number;
+  home_wins: number;
+  draws: number;
+  away_wins: number;
+  model_scored: number;
+  model_correct: number;
+  model_accuracy: number | null;
+};
+
+async function fetchHistory(home: string, away: string): Promise<H2HHistory | null> {
+  try {
+    const res = await fetch(
+      `${BASE}/api/compare/history?home=${encodeURIComponent(home)}&away=${encodeURIComponent(away)}&limit=10`,
+      { next: { revalidate: 600 } },
+    );
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -124,7 +166,10 @@ export default async function CompareH2HPage({
   const { home, away } = await params;
   const lang = await getLang();
   const t = tFor(lang);
-  const data = await fetchH2H(home, away);
+  const [data, history] = await Promise.all([
+    fetchH2H(home, away),
+    fetchHistory(home, away),
+  ]);
   if (!data) notFound();
 
   return (
@@ -214,6 +259,73 @@ export default async function CompareH2HPage({
           accent
         />
       </section>
+
+      {history && history.total_meetings > 0 && (
+        <section className="card space-y-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <p className="font-mono text-[10px] uppercase tracking-wide text-neon">
+              {lang === "vi" ? `${history.total_meetings} trận gần nhất` : `Last ${history.total_meetings} meetings`}
+            </p>
+            <div className="font-mono text-xs text-muted">
+              <span className="text-neon">{history.home_wins}</span>W ·{" "}
+              <span>{history.draws}</span>D ·{" "}
+              <span className="text-error">{history.away_wins}</span>L
+              {history.model_scored > 0 && history.model_accuracy !== null && (
+                <span className="ml-3 text-secondary">
+                  · {lang === "vi" ? "model đúng" : "model hit"}{" "}
+                  <b className={history.model_accuracy > 0.5 ? "text-neon" : "text-error"}>
+                    {history.model_correct}/{history.model_scored}
+                  </b>{" "}
+                  ({pct(history.model_accuracy)})
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs font-mono">
+              <thead className="text-[10px] uppercase tracking-wide text-muted">
+                <tr className="border-b border-border">
+                  <th className="py-2 pr-3 text-left">{lang === "vi" ? "Ngày" : "Date"}</th>
+                  <th className="py-2 pr-3 text-left">{lang === "vi" ? "Mùa" : "Season"}</th>
+                  <th className="py-2 pr-3 text-left">{lang === "vi" ? "Trận đấu" : "Fixture"}</th>
+                  <th className="py-2 pr-3 text-right">{lang === "vi" ? "Tỷ số" : "Score"}</th>
+                  <th className="py-2 pr-3 text-center">{lang === "vi" ? "Model" : "Model"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.meetings.map((m) => {
+                  const scoreStr = `${m.home_goals}–${m.away_goals}`;
+                  const icon =
+                    m.hit === null ? "—"
+                    : m.hit ? "✓"
+                    : "✗";
+                  const iconColor =
+                    m.hit === null ? "text-muted"
+                    : m.hit ? "text-neon"
+                    : "text-error";
+                  return (
+                    <tr key={m.match_id} className="border-t border-border-muted">
+                      <td className="py-2 pr-3">{new Date(m.kickoff_time).toISOString().slice(0, 10)}</td>
+                      <td className="py-2 pr-3 text-muted">{m.season}</td>
+                      <td className="py-2 pr-3">
+                        <Link
+                          href={`/match/${m.match_id}`}
+                          className="hover:text-neon"
+                        >
+                          {m.home_short} vs {m.away_short}
+                        </Link>
+                      </td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{scoreStr}</td>
+                      <td className={`py-2 pr-3 text-center ${iconColor}`}>{icon}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="card text-xs text-muted leading-relaxed space-y-2">
         <p className="font-mono uppercase tracking-wide text-[10px] text-neon">
