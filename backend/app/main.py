@@ -15,6 +15,7 @@ from app.api import equity_curve as equity_curve_router
 from app.api import internal_tools as internal_tools_router
 from app.api import keys as keys_router
 from app.api import line_movement as line_movement_router
+from app.api import player_analytics as player_analytics_router
 from app.api import manager as manager_router
 from app.api import match_of_week as motw_router
 from app.api import middles as middles_router
@@ -87,6 +88,7 @@ app.include_router(clv_by_market_router.router)
 app.include_router(internal_tools_router.router)
 app.include_router(motw_router.router)
 app.include_router(keys_router.router)
+app.include_router(player_analytics_router.router)
 
 
 @app.get("/health")
