@@ -198,71 +198,30 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             background: `linear-gradient(110deg, ${homeColor} 0%, transparent 45%, transparent 55%, ${awayColor} 100%)`,
           }}
         />
-        <div className="relative space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="relative space-y-6">
+          {/* Primary strip — league badge + status pill + kickoff.
+              High-contrast, scannable at a glance. */}
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
             {leagueLabel && (
-              <span className="rounded-full bg-high px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-secondary">
+              <span className="rounded-full bg-high/80 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-secondary">
                 {leagueLabel}
               </span>
             )}
-            <p className="font-mono text-xs text-muted">
-              {t("detail.breadcrumb", { id: match.id, date: kickoff, status: statusLabel })}
-            </p>
-            {lineupStrength && (lineupStrength.home_covered || lineupStrength.away_covered) && (
-              <span className="font-mono text-xs text-muted">
-                · {lang === "vi" ? "Đội hình:" : "XI:"}
-                <span
-                  className={"ml-1 " + (lineupStrength.home_multiplier > 1 ? "text-neon" : lineupStrength.home_multiplier < 1 ? "text-error" : "text-secondary")}
-                  title={lang === "vi" ? "λ chủ × " + lineupStrength.home_multiplier.toFixed(3) : "home λ × " + lineupStrength.home_multiplier.toFixed(3)}
-                >
-                  H×{lineupStrength.home_multiplier.toFixed(2)}
-                </span>
-                <span className="text-muted">/</span>
-                <span
-                  className={(lineupStrength.away_multiplier > 1 ? "text-neon" : lineupStrength.away_multiplier < 1 ? "text-error" : "text-secondary")}
-                  title={lang === "vi" ? "λ khách × " + lineupStrength.away_multiplier.toFixed(3) : "away λ × " + lineupStrength.away_multiplier.toFixed(3)}
-                >
-                  A×{lineupStrength.away_multiplier.toFixed(2)}
-                </span>
-              </span>
-            )}
-            {fatigue && (
-              <span className="font-mono text-xs text-muted">
-                · {lang === "vi" ? "Nghỉ" : "Rest"}:
-                <span className={"ml-1 " + (fatigue.rest_diff > 0 ? "text-neon" : fatigue.rest_diff < 0 ? "text-error" : "text-secondary")}>
-                  {fatigue.rest_days_home}d / {fatigue.rest_days_away}d
-                </span>
-                {(fatigue.congestion_home >= 3 || fatigue.congestion_away >= 3) && (
-                  <span className="ml-2 text-warning" title={lang === "vi" ? "Đá nhiều trong 14d qua" : "High match load in last 14d"}>
-                    {lang === "vi" ? "kẹt lịch" : "congested"} {fatigue.congestion_home}/{fatigue.congestion_away}
-                  </span>
-                )}
-                {fatigue.is_midweek && (
-                  <span className="ml-2 text-muted" title={lang === "vi" ? "Giữa tuần (Tue/Wed/Thu)" : "Midweek kickoff"}>
-                    · {lang === "vi" ? "giữa tuần" : "midweek"}
-                  </span>
-                )}
-              </span>
-            )}
-            {match.referee && (
-              <span className="font-mono text-xs text-muted">
-                · {lang === "vi" ? "TT" : "Ref"}: {match.referee}
-                {refereeInfo && refereeInfo.n >= 30 && (
-                  <span
-                    className={
-                      "ml-2 " +
-                      (refereeInfo.goals_delta > 0 ? "text-neon" : "text-error")
-                    }
-                    title={lang === "vi"
-                      ? `${refereeInfo.n} trận, λ × ${refereeInfo.multiplier.toFixed(3)}`
-                      : `${refereeInfo.n} matches, λ × ${refereeInfo.multiplier.toFixed(3)}`}
-                  >
-                    {refereeInfo.goals_delta > 0 ? "+" : ""}
-                    {refereeInfo.goals_delta.toFixed(2)} {lang === "vi" ? "bàn/trận" : "g/game"}
-                  </span>
-                )}
-              </span>
-            )}
+            <span
+              className={
+                "rounded-full px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] " +
+                (isLive
+                  ? "bg-neon/15 text-neon"
+                  : isFinal
+                    ? "bg-high/80 text-muted"
+                    : "bg-high/80 text-secondary")
+              }
+            >
+              {isLive ? "● live" : statusLabel}
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+              {kickoff}
+            </span>
           </div>
           {/* Hero layout: stacks vertically on mobile (each team + logo
               gets the full width, so long names like 'Nottingham Forest'
@@ -294,6 +253,82 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
               </span>
             </span>
           </h1>
+
+          {/* Secondary meta strip — XI / rest / referee. Low-contrast,
+              wrappable, readable on mobile. Only renders rows where
+              we actually have data (no 'Ref: —' placeholder noise). */}
+          {(
+            (lineupStrength && (lineupStrength.home_covered || lineupStrength.away_covered))
+            || fatigue || match.referee
+          ) && (
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-5 gap-y-2 pt-2 border-t border-border/30 font-mono text-[11px] text-muted">
+              {lineupStrength && (lineupStrength.home_covered || lineupStrength.away_covered) && (
+                <span>
+                  <span className="uppercase tracking-wider text-muted/70">
+                    {lang === "vi" ? "Đội hình:" : "XI:"}
+                  </span>
+                  <span
+                    className={"ml-1.5 tabular-nums " + (lineupStrength.home_multiplier > 1 ? "text-neon" : lineupStrength.home_multiplier < 1 ? "text-error" : "text-secondary")}
+                    title={lang === "vi" ? "λ chủ × " + lineupStrength.home_multiplier.toFixed(3) : "home λ × " + lineupStrength.home_multiplier.toFixed(3)}
+                  >
+                    H×{lineupStrength.home_multiplier.toFixed(2)}
+                  </span>
+                  <span className="text-muted/50 mx-0.5">/</span>
+                  <span
+                    className={"tabular-nums " + (lineupStrength.away_multiplier > 1 ? "text-neon" : lineupStrength.away_multiplier < 1 ? "text-error" : "text-secondary")}
+                    title={lang === "vi" ? "λ khách × " + lineupStrength.away_multiplier.toFixed(3) : "away λ × " + lineupStrength.away_multiplier.toFixed(3)}
+                  >
+                    A×{lineupStrength.away_multiplier.toFixed(2)}
+                  </span>
+                </span>
+              )}
+              {fatigue && (
+                <span>
+                  <span className="uppercase tracking-wider text-muted/70">
+                    {lang === "vi" ? "Nghỉ:" : "Rest:"}
+                  </span>
+                  <span className={"ml-1.5 tabular-nums " + (fatigue.rest_diff > 0 ? "text-neon" : fatigue.rest_diff < 0 ? "text-error" : "text-secondary")}>
+                    {fatigue.rest_days_home}d / {fatigue.rest_days_away}d
+                  </span>
+                  {(fatigue.congestion_home >= 3 || fatigue.congestion_away >= 3) && (
+                    <span className="ml-2 text-warning" title={lang === "vi" ? "Đá nhiều trong 14d qua" : "High match load in last 14d"}>
+                      {lang === "vi" ? "kẹt lịch" : "congested"} {fatigue.congestion_home}/{fatigue.congestion_away}
+                    </span>
+                  )}
+                  {fatigue.is_midweek && (
+                    <span className="ml-2" title={lang === "vi" ? "Giữa tuần (Tue/Wed/Thu)" : "Midweek kickoff"}>
+                      · {lang === "vi" ? "giữa tuần" : "midweek"}
+                    </span>
+                  )}
+                </span>
+              )}
+              {match.referee && (
+                <span>
+                  <span className="uppercase tracking-wider text-muted/70">
+                    {lang === "vi" ? "Trọng tài:" : "Ref:"}
+                  </span>
+                  <span className="ml-1.5 text-secondary">{match.referee}</span>
+                  {refereeInfo && refereeInfo.n >= 30 && (
+                    <span
+                      className={
+                        "ml-2 tabular-nums " +
+                        (refereeInfo.goals_delta > 0 ? "text-neon" : "text-error")
+                      }
+                      title={lang === "vi"
+                        ? `${refereeInfo.n} trận, λ × ${refereeInfo.multiplier.toFixed(3)}`
+                        : `${refereeInfo.n} matches, λ × ${refereeInfo.multiplier.toFixed(3)}`}
+                    >
+                      {refereeInfo.goals_delta > 0 ? "+" : ""}
+                      {refereeInfo.goals_delta.toFixed(2)} {lang === "vi" ? "bàn/trận" : "g/game"}
+                    </span>
+                  )}
+                </span>
+              )}
+              <span className="uppercase tracking-wider text-muted/70">
+                · #{match.id}
+              </span>
+            </div>
+          )}
         </div>
       </header>
 
