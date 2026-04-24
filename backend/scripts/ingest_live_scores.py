@@ -1235,6 +1235,151 @@ async def _enrich_goal_message_with_scorer(
         )
 
 
+async def _notify_midway(pool: asyncpg.Pool) -> int:
+    """Post a mid-game check-in once a live match reaches ≥ 60'.
+
+    Pulls `live_stats` JSONB (shots, possession, xG, corners) + computes
+    a fresh live model probability from pre-match λ. Skips matches with
+    no live_stats (feed hasn't been pulled yet). Idempotent via
+    `midway_notified_at`. Fan-out: main Telegram + team subs.
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            WITH latest AS (
+                SELECT DISTINCT ON (p.match_id)
+                    p.match_id,
+                    p.expected_home_goals, p.expected_away_goals
+                FROM predictions p
+                ORDER BY p.match_id, p.created_at DESC
+            )
+            SELECT m.id, m.league_code, m.minute,
+                   m.home_goals, m.away_goals, m.live_stats,
+                   ht.name AS home_name, ht.slug AS home_slug,
+                   at.name AS away_name, at.slug AS away_slug,
+                   l.expected_home_goals, l.expected_away_goals
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            LEFT JOIN latest l ON l.match_id = m.id
+            WHERE m.status = 'live'
+              AND m.minute IS NOT NULL
+              AND m.minute >= 60
+              AND m.minute < 85
+              AND m.midway_notified_at IS NULL
+              AND m.live_stats IS NOT NULL
+              AND m.home_goals IS NOT NULL
+            ORDER BY m.kickoff_time ASC
+            LIMIT 10
+            """,
+        )
+
+    if not rows:
+        return 0
+
+    from app.models.poisson import live_probabilities
+
+    notified = 0
+    for r in rows:
+        match_id = r["id"]
+        hg, ag = int(r["home_goals"]), int(r["away_goals"])
+        home_full = r["home_name"].replace("_", "\\_")
+        away_full = r["away_name"].replace("_", "\\_")
+        prefix = _league_prefix(r["league_code"])
+        url = f"https://predictor.nullshift.sh/match/{match_id}"
+
+        stats_raw = r["live_stats"]
+        if isinstance(stats_raw, str):
+            try:
+                stats = json.loads(stats_raw)
+            except Exception:
+                stats = {}
+        else:
+            stats = stats_raw or {}
+        h = stats.get("home") or {}
+        a = stats.get("away") or {}
+
+        def _pair(key: str, suffix: str = "") -> str | None:
+            hv, av = h.get(key), a.get(key)
+            if hv is None and av is None:
+                return None
+            return f"{hv}{suffix} · {av}{suffix}"
+
+        shots = _pair("shots_total")
+        shots_on = _pair("shots_on")
+        pos = _pair("possession_pct", suffix="%")
+        corners = _pair("corners")
+        xg_line = None
+        if h.get("xg") is not None or a.get("xg") is not None:
+            xg_line = f"{h.get('xg', '–')} · {a.get('xg', '–')}"
+
+        # Live model prob — uses pre-match λ, current score + minute.
+        prob_line = ""
+        if r["expected_home_goals"] is not None:
+            try:
+                lp = live_probabilities(
+                    float(r["expected_home_goals"]),
+                    float(r["expected_away_goals"]),
+                    hg, ag,
+                    minute=int(r["minute"]),
+                    rho=-0.15,
+                )
+                prob_line = (
+                    f"\n🤖 Còn lại: {home_full} {round(lp.p_home_win * 100)}% · "
+                    f"Hoà {round(lp.p_draw * 100)}% · {away_full} {round(lp.p_away_win * 100)}%"
+                )
+            except Exception:
+                pass
+
+        stat_lines = []
+        if xg_line:
+            stat_lines.append(f"xG: {xg_line}")
+        if shots:
+            stat_lines.append(f"Cú sút: {shots}")
+        if shots_on:
+            stat_lines.append(f"Trúng đích: {shots_on}")
+        if pos:
+            stat_lines.append(f"Kiểm soát: {pos}")
+        if corners:
+            stat_lines.append(f"Phạt góc: {corners}")
+        stats_block = "\n".join(f"• {s}" for s in stat_lines)
+
+        tg_body = (
+            f"⏱️ *PHÚT {r['minute']}* · {prefix}\n\n"
+            f"*{home_full}*  {hg} – {ag}  *{away_full}*\n\n"
+            f"{stats_block}"
+            f"{prob_line}\n\n"
+            f"[🔗 Xem trực tiếp →]({url})"
+        )
+
+        if token and chat_id:
+            try:
+                _telegram_post(token, chat_id, tg_body)
+            except Exception as e:
+                print(f"[live-scores] midway telegram failed for {match_id}: {type(e).__name__}: {e}")
+
+        try:
+            from app.api.telegram import fan_out_to_team_subscribers
+            await fan_out_to_team_subscribers(
+                pool,
+                team_slugs=[r["home_slug"], r["away_slug"]],
+                text=tg_body,
+            )
+        except Exception as e:
+            print(f"[live-scores] midway team-sub fanout failed for {match_id}: {type(e).__name__}: {e}")
+
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE matches SET midway_notified_at = NOW() WHERE id = $1",
+                match_id,
+            )
+        notified += 1
+    return notified
+
+
 async def _notify_kickoff(pool: asyncpg.Pool) -> int:
     """Post a 'match starting' blast for any fixture that just flipped
     into live status. Fan-out: main Telegram channel + team subscribers
@@ -2106,6 +2251,9 @@ async def run() -> None:
         ht_posts = await _notify_halftime(pool)
         if ht_posts:
             print(f"[live-scores] posted {ht_posts} half-time notifications")
+        mw_posts = await _notify_midway(pool)
+        if mw_posts:
+            print(f"[live-scores] posted {mw_posts} mid-game check-ins")
         ft_posts = await _notify_full_time(pool)
         if ft_posts:
             print(f"[live-scores] posted {ft_posts} full-time notifications")
