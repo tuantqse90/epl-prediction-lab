@@ -35,6 +35,11 @@ from app.core.config import get_settings
 class Feed:
     source: str
     url: str
+    # True = feed URL is football-gated upstream, so we trust all items
+    # even if the item URL doesn't contain /football/ (e.g. Metro uses
+    # /YYYY/MM/DD/slug paths; 90min uses /slug directly but the feed
+    # itself is football-only).
+    trusted_football: bool = False
 
 
 FEEDS: list[Feed] = [
@@ -46,11 +51,12 @@ FEEDS: list[Feed] = [
     Feed("sky",         "https://www.skysports.com/rss/12040"),
     Feed("independent", "https://www.independent.co.uk/sport/football/rss"),
     # Added 2026-04-24 — user wanted faster refresh & more variety.
-    # All four verified returning valid RSS (≥25 items) on probe.
+    # Metro + 90min use non-football paths in article URLs but the feed
+    # itself is football-gated, hence trusted_football.
     Feed("telegraph",   "https://www.telegraph.co.uk/football/rss.xml"),
     Feed("mirror",      "https://www.mirror.co.uk/sport/football/rss.xml"),
-    Feed("metro",       "https://metro.co.uk/sport/football/feed/"),
-    Feed("90min",       "https://www.90min.com/posts.rss"),
+    Feed("metro",       "https://metro.co.uk/sport/football/feed/", trusted_football=True),
+    Feed("90min",       "https://www.90min.com/posts.rss", trusted_football=True),
 ]
 
 _STRIP_TAGS = re.compile(r"<[^>]+>")
@@ -67,7 +73,14 @@ def _is_football_url(url: str) -> bool:
 
 
 def _fetch(url: str) -> str | None:
-    req = urllib.request.Request(url, headers={"User-Agent": "epl-lab/1.0"})
+    # Telegraph (and similar) return 403 to non-browser user agents.
+    req = urllib.request.Request(url, headers={
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 "
+            "(KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+        ),
+        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+    })
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             return resp.read().decode("utf-8", errors="ignore")
@@ -178,7 +191,10 @@ async def run() -> None:
                 continue
             items = _parse_rss(body)
             total += len(items)
-            kept = [it for it in items if _is_football_url(it["url"])]
+            kept = (
+                items if feed.trusted_football
+                else [it for it in items if _is_football_url(it["url"])]
+            )
             skipped = len(items) - len(kept)
             async with pool.acquire() as conn:
                 for it in kept:
