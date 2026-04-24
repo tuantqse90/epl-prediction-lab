@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import FavoritesSection from "@/components/FavoritesSection";
+import FeaturedMatch from "@/components/FeaturedMatch";
 import KeyboardNavHint from "@/components/KeyboardNavHint";
 import LivePoller from "@/components/LivePoller";
 import MatchCard from "@/components/MatchCard";
@@ -169,6 +170,10 @@ export default async function HomePage({
           {lang === "vi" ? "⚠️ Trận khó dự đoán" : "⚠️ Tricky calls"}
         </Link>
       </div>
+
+      {matches.length > 0 && page === 1 && !tricky && (
+        <FeaturedMatch matches={matches} lang={lang} />
+      )}
 
       {!error && matches.length === 0 && (
         <div className="card text-secondary">
