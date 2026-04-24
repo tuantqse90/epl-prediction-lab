@@ -6,20 +6,10 @@ export const contentType = "image/png";
 export const runtime = "nodejs";
 
 export default async function StoriesOpenGraphImage() {
-  let total = 0;
-  try {
-    const base = process.env.SERVER_API_URL ?? "http://localhost:8000";
-    const res = await fetch(`${base}/api/stats/stories?limit=1`, {
-      next: { revalidate: 600 },
-    });
-    if (res.ok) {
-      const body = await res.json();
-      total = Number(body?.total ?? 0);
-    }
-  } catch {
-    total = 0;
-  }
-
+  // Static — no fetch. A previous version pulled the live story count
+  // but Next tries to statically evaluate OG images at build time, and
+  // the API isn't running during `npm run build`, so it crashed the
+  // build. Share card is evergreen regardless.
   return new ImageResponse(
     (
       <div
@@ -92,7 +82,7 @@ export default async function StoriesOpenGraphImage() {
           }}
         >
           <span>
-            <span style={{ color: "#E0FF32" }}>{total.toLocaleString()}</span> stories live
+            <span style={{ color: "#E0FF32" }}>free</span> · every finished match
           </span>
           <span>xG · Poisson · Dixon-Coles · Qwen</span>
         </div>
