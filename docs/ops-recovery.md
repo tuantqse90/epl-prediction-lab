@@ -127,8 +127,43 @@ Test: `ssh -T github-footballpredict` should say "Hi tuantqse90/..., authenticat
 
 ---
 
-## 5. Routine backups (should happen automatically; verify once a month)
+## 5. Routine backups (automated; ops_watchdog alerts if they stop)
 
-- **DB dump**: `docker compose exec -T db pg_dump -U epl -d epl | gzip > /opt/backups/epl-$(date +%Y%m%d).sql.gz`
-- **XGBoost model**: `/tmp/football-predict-xgb.json` — regenerable via `python scripts/train_xgboost.py`.
-- **Deploy keys + `.env`** — external password manager only.
+Daily pg_dump → gzip → `/var/backups/football-predict/` + `r2:football-predict-backups/`. Timer `football-predict-backup.timer` fires 04:00 UTC.
+
+- **Local retention**: 14 dailies + 8 Sunday weeklies in `/var/backups/football-predict/`.
+- **R2 retention**: 60 dailies + 26 Sunday weeklies. Bucket `football-predict-backups`, endpoint `https://d351ee6d5c5b82a8e09f5385a17b1fb1.r2.cloudflarestorage.com`. rclone config at `/root/.config/rclone/rclone.conf`.
+- **Observability**: every successful run writes a row to `backup_log`. `ops_watchdog` fires Telegram alerts when (a) latest row > 26 h old or (b) `r2_uploaded = false`.
+- **Weekly drill**: `football-predict-restore-drill.timer` (Sunday 05:00 UTC) downloads the newest R2 dump, restores into a scratch Postgres, asserts `matches/predictions/teams/match_odds > 0`. Alerts on fail.
+- **XGBoost model**: `/tmp/football-predict-xgb.json` — regenerable via `python scripts/train_xgboost.py` against a restored DB. Not backed up.
+- **Deploy keys + `.env`**: external password manager only. Never in R2.
+
+### Restore from R2 (disaster-recovery path)
+
+```sh
+# On a fresh VPS with docker + rclone installed:
+# 1. Drop the rclone config from the password-manager backup
+mkdir -p /root/.config/rclone
+vim /root/.config/rclone/rclone.conf   # [r2] block from password manager
+chmod 600 /root/.config/rclone/rclone.conf
+
+# 2. Pull the latest dump
+rclone copy r2:football-predict-backups/$(rclone ls r2:football-predict-backups \
+  --include 'epl-daily-*.sql.gz' | awk '{print $2}' | sort | tail -1) /tmp/
+
+# 3. Boot the stack with an empty DB, then restore
+cd /opt/football-predict && docker compose up -d db
+gunzip -c /tmp/epl-daily-*.sql.gz | docker compose exec -T db psql -U epl -d epl
+
+# 4. Bring up api + web
+docker compose up -d api web
+curl -f https://predictor.nullshift.sh/api/health
+```
+
+### Manual sanity-check of the latest dump
+
+```sh
+# From any machine with rclone configured:
+rclone ls r2:football-predict-backups | sort -k2 | tail -5    # newest 5 dumps
+bash /opt/football-predict/ops/restore_drill.sh               # full R2 → scratch → count assert
+```
