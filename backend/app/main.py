@@ -19,6 +19,8 @@ from app.api import player_analytics as player_analytics_router
 from app.api import manager as manager_router
 from app.api import match_of_week as motw_router
 from app.api import middles as middles_router
+from app.api import metrics as metrics_router
+from app.api import tipster_signup as tipster_signup_router
 from app.api import chat as chat_router
 from app.api import compare as compare_router
 from app.api import discord as discord_router
@@ -89,6 +91,8 @@ app.include_router(internal_tools_router.router)
 app.include_router(motw_router.router)
 app.include_router(keys_router.router)
 app.include_router(player_analytics_router.router)
+app.include_router(metrics_router.router)
+app.include_router(tipster_signup_router.router)
 
 
 @app.get("/health")

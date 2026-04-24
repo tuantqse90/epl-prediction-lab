@@ -30,6 +30,22 @@ async function ChromeOrEmbed({
     <>
       {!isEmbed && <SiteHeader lang={lang} />}
       {children}
+      {!isEmbed && (
+        <footer className="mx-auto max-w-6xl px-6 py-8 mt-12 border-t border-border/30 font-mono text-[10px] uppercase tracking-wider text-muted flex flex-wrap gap-x-4 gap-y-2">
+          <a href="/methodology" className="hover:text-neon">methodology</a>
+          <a href="/glossary" className="hover:text-neon">glossary</a>
+          <a href="/calibration" className="hover:text-neon">calibration</a>
+          <a href="/equity-curve" className="hover:text-neon">equity curve</a>
+          <a href="/api-docs" className="hover:text-neon">api</a>
+          <a href="/embed-docs" className="hover:text-neon">embed</a>
+          <a href="/press-kit" className="hover:text-neon">press</a>
+          <a href="/changelog" className="hover:text-neon">changelog</a>
+          <span className="flex-1" />
+          <a href="/privacy" className="hover:text-neon">privacy</a>
+          <a href="/terms" className="hover:text-neon">terms</a>
+          <a href="/ops" className="hover:text-neon">status</a>
+        </footer>
+      )}
       {!isEmbed && <MobileBottomNav />}
       {!isEmbed && <InstallPrompt />}
       {!isEmbed && <ShortcutsModal />}
