@@ -81,9 +81,7 @@ export default async function StoriesOpenGraphImage() {
             color: "#778899",
           }}
         >
-          <span>
-            <span style={{ color: "#E0FF32" }}>free</span> · every finished match
-          </span>
+          <span style={{ color: "#E0FF32" }}>free · every finished match</span>
           <span>xG · Poisson · Dixon-Coles · Qwen</span>
         </div>
       </div>
