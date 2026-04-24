@@ -487,8 +487,8 @@ async def _notify_drama_events(
                 pool,
                 [r["home_slug"], r["away_slug"]],
                 {
-                    "title": f"{icon} {label} · {side_short}",
-                    "body": f"{minute_label} · {player_plain}",
+                    "title": f"{icon} {label}",
+                    "body": f"{minute_label} · {side_name_plain} · {player_plain}",
                     "url": url,
                 },
             )
@@ -552,13 +552,12 @@ async def _notify_red_card_events(
             f"{r['minute']}+{r['extra_minute']}'"
             if r["extra_minute"] else f"{r['minute']}'"
         )
-        player = (r["player_name"] or "—").replace("_", "\\_")
-        side_name = (
+        player_plain = r["player_name"] or "—"
+        player = player_plain.replace("_", "\\_")
+        side_name_plain = (
             r["home_name"] if r["team_slug"] == r["home_slug"] else r["away_name"]
-        ).replace("_", "\\_")
-        side_short = (
-            r["home_s"] if r["team_slug"] == r["home_slug"] else r["away_s"]
         )
+        side_name = side_name_plain.replace("_", "\\_")
         icon = "🟥" if r["event_detail"] == "Red Card" else "🟨🟨"
         label_vi = LABEL_VI.get(r["event_detail"], r["event_detail"].upper())
         prefix = _league_prefix(r["league_code"])
@@ -588,8 +587,6 @@ async def _notify_red_card_events(
 
         try:
             from app.api.discord import fan_out_to_discord
-            side_name_plain = side_name.replace("\\_", "_")
-            player_plain = player.replace("\\_", "_")
             await fan_out_to_discord(
                 pool,
                 team_slugs=[r["home_slug"], r["away_slug"]],
@@ -608,8 +605,11 @@ async def _notify_red_card_events(
                 pool,
                 [r["home_slug"], r["away_slug"]],
                 {
-                    "title": f"{icon} {r['event_detail']} · {side_short}",
-                    "body": f"{minute_label} · {r['player_name'] or '—'}",
+                    "title": f"{icon} {r['event_detail']}",
+                    "body": (
+                        f"{minute_label} · {side_name_plain} · "
+                        f"{r['player_name'] or '—'}"
+                    ),
                     "url": url,
                 },
             )
@@ -705,8 +705,13 @@ async def _notify_goal_events(
         )
 
         prefix = _league_prefix(teams["league_code"])
+        home_full = teams["home_name"].replace("_", "\\_")
+        away_full = teams["away_name"].replace("_", "\\_")
+        url = f"https://predictor.nullshift.sh/match/{match_id}"
         lines = [
-            f"{icon} *{minute_label} · {prefix} · {home_short} {home_goals}-{away_goals} {away_short}*",
+            f"{icon} *{minute_label} · {prefix}*",
+            "",
+            f"*{home_full}*  {home_goals} – {away_goals}  *{away_full}*",
             f"_{scoring_team}_ — {scorer}"
             + (f"  (kiến tạo: {assist})" if assist else ""),
         ]
@@ -718,10 +723,10 @@ async def _notify_goal_events(
                 home_goals, away_goals, minute=minute, rho=-0.15,
             )
             lines.append(
-                f"Mô hình hiện tại: chủ {round(lp.p_home_win * 100)}% · "
-                f"hòa {round(lp.p_draw * 100)}% · khách {round(lp.p_away_win * 100)}%"
+                f"\nMô hình hiện tại: {home_full} {round(lp.p_home_win * 100)}% · "
+                f"Hoà {round(lp.p_draw * 100)}% · {away_full} {round(lp.p_away_win * 100)}%"
             )
-        lines.append(f"https://predictor.nullshift.sh/match/{match_id}")
+        lines.append(f"\n[🔗 Xem trực tiếp →]({url})")
         text = "\n".join(lines)
 
         try:
@@ -739,7 +744,10 @@ async def _notify_goal_events(
                 pool,
                 [teams["home_slug"], teams["away_slug"]],
                 {
-                    "title": f"{icon} {minute_label} {home_short} {home_goals}-{away_goals} {away_short}",
+                    "title": (
+                        f"{icon} {minute_label} {teams['home_name']} "
+                        f"{home_goals}-{away_goals} {teams['away_name']}"
+                    ),
                     "body": f"{scoring_team} — {scorer}",
                     "url": f"https://predictor.nullshift.sh/match/{match_id}",
                 },
@@ -974,10 +982,11 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
                 pool,
                 [meta["home_slug"], meta["away_slug"]],
                 {
-                    # Web push title has ~40-char budget; keep short_name
-                    # here so the toast fits on small screens.
-                    "title": f"⚽ {meta['home_short']} {int(hg)}-{int(ag)} {meta['away_short']}",
-                    "body": f"{minute_label} · {meta['home_name']} vs {meta['away_name']}",
+                    "title": (
+                        f"⚽ {meta['home_name']} {int(hg)}-{int(ag)} "
+                        f"{meta['away_name']}"
+                    ),
+                    "body": f"{minute_label}",
                     "url": url,
                 },
             )
@@ -1513,22 +1522,20 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
                 badge = " (PL)"  # phản lưới
             elif det == "penalty":
                 badge = " (PEN)"
-            # Mark with team short-name so "MU scored at 67'" is unambiguous
-            # in a mixed-column layout.
+            # Use the full team name so a line reads 'Real Madrid · Bellingham'
+            # rather than the opaque 'RM · Bellingham'.
             side = (
-                home_short if g["team_slug"] and g["team_slug"].startswith(r["home_slug"])
-                else away_short if g["team_slug"] and g["team_slug"].startswith(r["away_slug"])
+                home_full if g["team_slug"] and g["team_slug"].startswith(r["home_slug"])
+                else away_full if g["team_slug"] and g["team_slug"].startswith(r["away_slug"])
                 else ""
             )
-            # Fallback: rematch via explicit equality since slugs might not
-            # start-match perfectly (e.g. man-utd vs manchester-united).
             if not side and g["team_slug"]:
                 if g["team_slug"] == r["home_slug"]:
-                    side = home_short
+                    side = home_full
                 elif g["team_slug"] == r["away_slug"]:
-                    side = away_short
+                    side = away_full
             player = (g["player_name"] or "—").replace("_", "\\_")
-            scorer_lines.append(f"┃ _{minute_label:>5}_  *{side or '—'}*  {player}{badge}")
+            scorer_lines.append(f"┃ _{minute_label:>5}_  *{side or '—'}* · {player}{badge}")
         scorers_block = ""
         if scorer_lines:
             scorers_block = "\n\n⚽ *Bàn thắng*\n" + "\n".join(scorer_lines)
@@ -1570,7 +1577,7 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
                 rows_list = [x for x in rows_list if x is not None]
                 if rows_list:
                     stats_block = (
-                        f"\n\n📊 *Thế trận* — {home_short} vs {away_short}\n```\n"
+                        f"\n\n📊 *Thế trận* — {home_full} vs {away_full}\n```\n"
                         + "\n".join(rows_list)
                         + "\n```"
                     )
@@ -1591,9 +1598,9 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
         pick_line = ""
         if pick is not None:
             pick_label = (
-                home_short if pick == "H"
-                else away_short if pick == "A"
-                else "Hòa"
+                home_full if pick == "H"
+                else away_full if pick == "A"
+                else "Hoà"
             )
             verdict_tag = "✅ ĐÚNG" if hit else "❌ SAI"
             pick_line = (
@@ -1696,16 +1703,16 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
         try:
             from app.api.push import dispatch_goal
             if hit is True:
-                body = f"Đúng kèo! {home_short} {hg}-{ag} {away_short}"
+                body = f"Đúng kèo! {r['home_name']} {hg}-{ag} {r['away_name']}"
             elif hit is False:
-                body = f"Miss kèo. {home_short} {hg}-{ag} {away_short}"
+                body = f"Miss kèo. {r['home_name']} {hg}-{ag} {r['away_name']}"
             else:
-                body = f"{home_short} {hg}-{ag} {away_short}"
+                body = f"{r['home_name']} {hg}-{ag} {r['away_name']}"
             await dispatch_goal(
                 pool,
                 [r["home_slug"], r["away_slug"]],
                 {
-                    "title": f"🏁 FT · {home_short} {hg}-{ag} {away_short}",
+                    "title": f"🏁 FT · {r['home_name']} {hg}-{ag} {r['away_name']}",
                     "body": body,
                     "url": f"https://predictor.nullshift.sh/match/{match_id}",
                 },
@@ -1716,8 +1723,9 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
         try:
             from app.api.telegram import fan_out_to_team_subscribers
             ft_text = (
-                f"🏁 *FT · {home_short} {hg}-{ag} {away_short}*\n"
-                f"https://predictor.nullshift.sh/match/{match_id}"
+                f"🏁 *KẾT THÚC* · {prefix}\n\n"
+                f"*{home_full}*  {hg} – {ag}  *{away_full}*\n\n"
+                f"[📊 Xem phân tích đầy đủ →](https://predictor.nullshift.sh/match/{match_id})"
             )
             await fan_out_to_team_subscribers(
                 pool,
@@ -2019,7 +2027,7 @@ async def _notify_halftime(pool: asyncpg.Pool) -> int:
                 pool,
                 team_slugs=[r["home_slug"], r["away_slug"]],
                 content=(
-                    f"⏸️ **HT** · {r['home_short']} {hg}-{ag} {r['away_short']}\n"
+                    f"⏸️ **HT** · {r['home_name']} {hg}-{ag} {r['away_name']}\n"
                     f"<https://predictor.nullshift.sh/match/{match_id}>"
                 ),
                 kind="halftime",
