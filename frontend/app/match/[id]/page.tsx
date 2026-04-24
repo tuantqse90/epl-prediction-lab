@@ -17,6 +17,7 @@ import MatchTabs from "@/components/MatchTabs";
 import LiveBadge from "@/components/LiveBadge";
 import LivePoller from "@/components/LivePoller";
 import MatchEventsList from "@/components/MatchEventsList";
+import LineMovementPanel from "@/components/LineMovementPanel";
 import MarketsEdge from "@/components/MarketsEdge";
 import MarketsPanel from "@/components/MarketsPanel";
 import MatchJsonLd from "@/components/MatchJsonLd";
@@ -444,6 +445,13 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
                     prediction={match.prediction}
                   />
                 )}
+                <LineMovementPanel
+                  matchId={match.id}
+                  lang={lang}
+                  homeShort={match.home.short_name}
+                  awayShort={match.away.short_name}
+                />
+
                 <OddsComparisonPanel
                   matchId={match.id}
                   homeShort={match.home.short_name}
