@@ -142,17 +142,54 @@ export default async function LeaguePage({
     <main className="mx-auto max-w-6xl px-6 py-12 space-y-10">
       <Link href="/" className="btn-ghost text-sm">{t("common.back")}</Link>
 
-      {/* Hero */}
-      <header className="space-y-4">
-        <p className="font-mono text-xs uppercase tracking-[0.18em] text-neon">
-          {lg.emoji} {label}
-        </p>
-        <h1 className="headline-hero">{label}</h1>
-        <p className="text-secondary text-base md:text-lg max-w-2xl">
-          {lang === "vi"
-            ? `Mọi trận ${label} được dự đoán bằng ensemble 3-leg xG + Elo + XGBoost. Xác suất mã hóa SHA-256 trước kickoff. Log-loss được đo liên tục.`
-            : `Every ${label} fixture predicted by a 3-leg xG + Elo + XGBoost ensemble. Probabilities SHA-256 hashed before kickoff. Log-loss tracked live.`}
-        </p>
+      {/* Hero + team-logo strip — scan the upcoming fixture list for
+          unique participating clubs and show them as a scrollable wall
+          of crests so the league's identity reads instantly. */}
+      <header className="space-y-6">
+        <div className="space-y-4">
+          <p className="font-mono text-xs uppercase tracking-[0.18em] text-neon">
+            {lg.emoji} {label}
+          </p>
+          <h1 className="headline-hero">{label}</h1>
+          <p className="text-secondary text-base md:text-lg max-w-2xl">
+            {lang === "vi"
+              ? `Mọi trận ${label} được dự đoán bằng ensemble 3-leg xG + Elo + XGBoost. Xác suất mã hóa SHA-256 trước kickoff. Log-loss được đo liên tục.`
+              : `Every ${label} fixture predicted by a 3-leg xG + Elo + XGBoost ensemble. Probabilities SHA-256 hashed before kickoff. Log-loss tracked live.`}
+          </p>
+        </div>
+
+        {upcoming.length > 0 && (() => {
+          // De-dupe teams across upcoming fixtures — preserves ordering
+          // of first appearance so the visual rhythm matches the fixture
+          // list order.
+          const seen = new Set<string>();
+          const teams: { slug: string; name: string; short: string }[] = [];
+          for (const m of upcoming) {
+            for (const t of [m.home, m.away]) {
+              if (!seen.has(t.slug)) {
+                seen.add(t.slug);
+                teams.push({ slug: t.slug, name: t.name, short: t.short_name });
+              }
+            }
+          }
+          return (
+            <div className="flex flex-wrap gap-x-4 gap-y-3 items-center">
+              {teams.slice(0, 16).map((t) => (
+                <Link
+                  key={t.slug}
+                  href={`/teams/${t.slug}`}
+                  className="group inline-flex flex-col items-center gap-1"
+                  title={t.name}
+                >
+                  <TeamLogo slug={t.slug} name={t.name} size={40} />
+                  <span className="font-mono text-[9px] uppercase text-muted group-hover:text-neon transition-colors">
+                    {t.short}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          );
+        })()}
       </header>
 
       {/* Trust numbers */}
