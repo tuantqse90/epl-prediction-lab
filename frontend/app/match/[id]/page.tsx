@@ -176,12 +176,12 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             </>
           )}
           <span aria-hidden>/</span>
-          <Link href={`/teams/${match.home.slug}`} className="hover:text-neon truncate max-w-[8rem]">
-            {match.home.short_name}
+          <Link href={`/teams/${match.home.slug}`} className="hover:text-neon">
+            {match.home.name}
           </Link>
           <span aria-hidden>vs</span>
-          <Link href={`/teams/${match.away.slug}`} className="hover:text-neon truncate max-w-[8rem]">
-            {match.away.short_name}
+          <Link href={`/teams/${match.away.slug}`} className="hover:text-neon">
+            {match.away.name}
           </Link>
         </nav>
         <ShareButtons
@@ -264,28 +264,33 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
               </span>
             )}
           </div>
-          <h1 className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 md:gap-8">
+          {/* Hero layout: stacks vertically on mobile (each team + logo
+              gets the full width, so long names like 'Nottingham Forest'
+              and 'RasenBallsport Leipzig' render in full). Horizontal
+              3-col on md+. Font auto-scales with viewport, break-words
+              handles any overflow without `truncate`. */}
+          <h1 className="flex flex-col md:grid md:grid-cols-[1fr_auto_1fr] md:items-center gap-4 md:gap-8">
             <span className="flex items-center gap-3 md:gap-4 min-w-0">
-              <span className="shrink-0">
-                <TeamLogo slug={match.home.slug} name={match.home.name} size={72} />
+              <TeamLogo slug={match.home.slug} name={match.home.name} size={56} />
+              <span className="font-display font-bold uppercase tracking-tight leading-[1.05] text-2xl md:text-4xl break-words">
+                {match.home.name}
               </span>
-              <span className="headline-hero truncate">{match.home.name}</span>
             </span>
-            <span className="text-muted font-body normal-case text-xl md:text-2xl shrink-0">
+            <span className="shrink-0 text-center md:text-left">
               {isFinal || isLive ? (
-                <span className="font-display text-3xl md:text-5xl font-bold text-neon tabular-nums whitespace-nowrap">
+                <span className="font-display text-4xl md:text-5xl font-bold text-neon tabular-nums whitespace-nowrap">
                   {match.home_goals ?? 0}
-                  <span className="text-muted mx-1">–</span>
+                  <span className="text-muted mx-2">–</span>
                   {match.away_goals ?? 0}
                 </span>
               ) : (
-                "vs"
+                <span className="text-muted font-body normal-case text-xl md:text-2xl">vs</span>
               )}
             </span>
-            <span className="flex items-center gap-3 md:gap-4 min-w-0 justify-end text-right">
-              <span className="headline-hero truncate">{match.away.name}</span>
-              <span className="shrink-0">
-                <TeamLogo slug={match.away.slug} name={match.away.name} size={72} />
+            <span className="flex items-center gap-3 md:gap-4 min-w-0 md:justify-end">
+              <TeamLogo slug={match.away.slug} name={match.away.name} size={56} />
+              <span className="font-display font-bold uppercase tracking-tight leading-[1.05] text-2xl md:text-4xl break-words">
+                {match.away.name}
               </span>
             </span>
           </h1>
