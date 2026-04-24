@@ -2,6 +2,13 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-25 01:15 +07 — Homepage FeaturedMatch hero
+
+- Above-the-fold now shows the most-immediate fixture (any live match first, else the next scheduled within 48 h) as a full-width banner — 96-px home/away logos, score-or-vs in the middle, H/D/A probability bar, model's pick surfaced in one line, neon radial halo.
+- Picker logic + countdown formatter + live-minute badge all unit-test-shape against `MatchOut.live.minute`.
+- Hidden on `/?tricky=1` and beyond page 1 so the hero only fires for the default browse path.
+- Post-deploy check: 82 team-logo images on homepage (2 hero + 80 from MatchCard grid), "còn 30m" countdown rendering.
+
 ## 2026-04-25 01:00 +07 — Visual polish
 
 - `/stories` — 45 text-only cards were blurring together; each card now leads with a 40-px home logo, score, away logo row, winning side rendered brighter than the loser so skim-reading works.
