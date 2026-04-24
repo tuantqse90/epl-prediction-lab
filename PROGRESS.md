@@ -2,6 +2,12 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-25 00:40 +07 — R2 drill wired (real DR path)
+
+- `restore_drill.sh` now defaults to `DRILL_SOURCE=auto` — pulls the latest dump straight from R2, restores to a scratch Postgres, asserts row counts. The Sunday 05:00 UTC cron is now a true disaster-recovery smoke test, not a local-only sanity check.
+- First full R2 drill: download `epl-daily-20260424-172625.sql.gz` → restore → matches=13110, predictions=15026, teams=240, match_odds=7660 → **PASS**.
+- `DRILL_SOURCE=local` available as override for the fast path; exit codes split (2=no backup, 3=zero-rows, 4=R2 download fail) so ops-alert can route.
+
 ## 2026-04-25 00:30 +07 — R2 off-site backup live
 
 - **`football-predict-backups` bucket** created on Cloudflare R2 via API. Account ID `d351ee6d…`.
