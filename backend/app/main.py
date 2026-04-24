@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import admin as admin_router
 from app.api import blog as blog_router
+from app.api import calibration as calibration_router
 from app.api import chat as chat_router
 from app.api import compare as compare_router
 from app.api import discord as discord_router
@@ -63,6 +64,7 @@ app.include_router(title_race_router.router)
 app.include_router(top_scorer_race_router.router)
 app.include_router(power_rankings_router.router)
 app.include_router(blog_router.router)
+app.include_router(calibration_router.router)
 
 
 @app.get("/health")
