@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-25 00:30 +07 — R2 off-site backup live
+
+- **`football-predict-backups` bucket** created on Cloudflare R2 via API. Account ID `d351ee6d…`.
+- **rclone** installed on VPS with `[r2]` remote pointing at the bucket (private ACL). Creds at `/root/.config/rclone/rclone.conf` (chmod 600).
+- **`backup_db.sh`** now mirrors every daily dump off-site after the local write; remote retention 60d/26w. Silently no-ops when the `[r2]` remote isn't configured so the script stays portable.
+- Fixed a `set -e` gotcha during rotation — `ls` with no glob match returns exit 2 and aborted the run; wrapped the ls-|awk-|xargs pipelines in `|| true`.
+- First full run: **5.4 MB dump uploaded to `r2:football-predict-backups/epl-daily-20260424-172625.sql.gz`**. Timer fires 04:00 UTC daily.
+
 ## 2026-04-24 23:45 +07 — Cron audit + 4 gap fills
 
 Diff of `backend/scripts/*.py` (52) vs what systemd actually runs (36 cronned) surfaced real gaps — not just forgotten experiments. Shipped:
