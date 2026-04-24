@@ -2,6 +2,18 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 09:45 +07 — Block 20 done: personal layer (5 items)
+
+No-login personal surface, everything in localStorage by default.
+
+1. **20.1 My picks log** — `lib/my-picks.ts` permanent ledger + `/my-picks` page + `<LogPickButton>` on match detail. Auto-settles when match hits final. Summary: total/settled/hits/P&L/ROI.
+2. **20.2 Personal vs Model ROI** — `<MyPicksVsModel>` chart: cumulative P&L for your picks vs what the model would have earned at the same odds + stake on its own argmax picks. Side-by-side verdict on your discretion vs the model's.
+3. **20.3 Watchlist page** — `/watchlist` aggregates favorite teams (uses existing `favorites.ts`) with next fixture + last result + form per team. Empty state prompts to star a team or sync PIN.
+4. **20.4 PIN cross-device sync** — `db/migrations/024_user_sync.sql` + `/api/sync/:pin` POST (push) & GET (pull). PIN sha256-hashed server-side; 30 rps/ip throttle; payload bundles `favorites-v1 + betslip-v1 + my-picks-v1`. `/sync` page with Save/Load UI + random-PIN generator.
+5. **20.5 PWA install prompt** — `<InstallPrompt>` handles `beforeinstallprompt` event; global (except /embed); dismissal persisted in localStorage. Push infra already shipped in earlier phase.
+
+Smoke proof: /watchlist /my-picks /sync all 200; `/api/sync/123456` push returns `v:1`, pull returns the same payload; `/api/sync/abcdef` returns 400.
+
 ## 2026-04-24 09:00 +07 — Block 19 done: sharp credibility (6 items)
 
 1. **19.1 Calibration curve** — `app/models/calibration.py` + 5 TDD tests + `/api/stats/reliability` + `/calibration` page. 12,227 predictions: Brier 0.242 (vs 0.25 coin-flip). **Model systematically underconfident** — says 50% hits actually hit 62%. Signals room for temperature-scaling correction.
