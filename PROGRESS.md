@@ -2,6 +2,17 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 23:45 +07 — Cron audit + 4 gap fills
+
+Diff of `backend/scripts/*.py` (52) vs what systemd actually runs (36 cronned) surfaced real gaps — not just forgotten experiments. Shipped:
+
+- **`ops/backup_db.sh` + daily 04:00 UTC timer** — there was literally no automated DB backup, only docs telling users to manually rsync `.env`. Now pg_dump via db container, gzip -9, 1 MB size guard, 14 dailies + 8 Sunday weeklies in `/var/backups/football-predict/`. First manual run: **5.2 MB dump OK**.
+- **`ops/restore_drill.sh` + Sunday 05:00 UTC timer** — proof-of-restore: picks newest daily, restores to scratch Postgres, asserts `matches/predictions/teams/match_odds > 0`. Original `snapshot_restore_drill.py` tried to `docker run` from inside the api container (no docker CLI there); rewrote as host-side bash. First run: **PASS (13110/15026/240/7660 rows)**.
+- **ρ recalibration monthly** — `calibrate_rho_per_quarter.py` populated the `rho_calibration` table manually once; now fires 1st of month 05:30 UTC so the dynamic-ρ lookup stays current as matches accumulate.
+- **Daily referee backfill** — new `backfill_referees.py` call added to daily.sh; matches that slipped past live-scores + lineups no longer sit with `referee=NULL`.
+
+Also fixed two `daily.sh` / `weekly.sh` reliability bugs found in the same pass: missing `|| true` on critical steps (caused 33% fail rate on daily), and no `wait_for_api` guard (cron fired during deploy → `service api is not running` → cascade abort).
+
 ## 2026-04-24 23:30 +07 — News upgrade + UX hardening
 
 **News**
