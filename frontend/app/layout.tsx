@@ -86,6 +86,25 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  appleWebApp: {
+    capable: true,
+    title: "EPL Lab",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: false,
+    email: false,
+    address: false,
+  },
+};
+
+export const viewport = {
+  themeColor: "#000000",
+  // Let mobile Safari fill the full viewport (including notch) without
+  // extra white bars when the user installs the PWA.
+  viewportFit: "cover" as const,
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
