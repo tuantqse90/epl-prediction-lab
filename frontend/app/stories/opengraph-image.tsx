@@ -49,6 +49,8 @@ export default async function StoriesOpenGraphImage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
           <div
             style={{
+              display: "flex",
+              flexDirection: "column",
               fontSize: 108,
               fontWeight: 700,
               lineHeight: 1.05,
@@ -56,9 +58,8 @@ export default async function StoriesOpenGraphImage() {
               letterSpacing: "-0.02em",
             }}
           >
-            Stories,
-            <br />
-            match by match.
+            <span>Stories,</span>
+            <span>match by match.</span>
           </div>
           <div
             style={{
