@@ -2,6 +2,17 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 09:00 +07 — Block 19 done: sharp credibility (6 items)
+
+1. **19.1 Calibration curve** — `app/models/calibration.py` + 5 TDD tests + `/api/stats/reliability` + `/calibration` page. 12,227 predictions: Brier 0.242 (vs 0.25 coin-flip). **Model systematically underconfident** — says 50% hits actually hit 62%. Signals room for temperature-scaling correction.
+2. **19.2 Team-specific accuracy** — `/api/stats/accuracy-by-team` + `/benchmark/by-team` page. Bayern 83%, Barca 81%, Inter 79% on the top; Rennes 23%, Piacenza 24% on the bottom.
+3. **19.3 Ensemble disagreement** — pragmatic proxy via top-2 margin < 10pp ("tricky" filter). `?tricky=true` on `/api/matches` + homepage chip. 8 flagged matches with < 10pp margin today.
+4. **19.4 Line movement chart** — `match_odds_history` table + trigger logs every odds update (7493 rows backfilled). `/api/matches/:id/line-movement` time-series + `<LineMovementPanel>` SVG on match detail.
+5. **19.5 Sharp vs square divergence** — part of the line-movement endpoint; devigged Pinnacle vs retail mean, flags ≥ 5pp gaps. Same UI callout below the chart.
+6. **19.6 Season-over-season equity curve** — `/api/stats/equity-curve` + `/equity-curve` page. **7-year flat-stake result: −83.57u overall** at 5pp edge. Only 2 winning seasons. Transparency-as-marketing.
+
+Block 19 shipped end-to-end. Next: Block 20 personal layer (my picks, watchlist, PIN sync, PWA push).
+
 ## 2026-04-24 02:15 +07 — Block 18 done: viral / engagement (7 items)
 
 1. **18.1 Title race MC** — `app/models/title_race.py` + 6 TDD tests + `/api/stats/title-race` + `/title-race` page. EPL: Arsenal 58.9% vs Man City 41.1% title.
