@@ -1,0 +1,10 @@
+[Unit]
+Description=football-predict — Sunday 05:00 UTC proof-of-restore drill
+
+[Timer]
+OnCalendar=Sun *-*-* 05:00:00
+Unit=football-predict-restore-drill.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

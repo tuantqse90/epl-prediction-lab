@@ -1,0 +1,10 @@
+[Unit]
+Description=football-predict — Dixon-Coles ρ recalibration (per league / season / quarter)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/football-predict
+ExecStart=/usr/bin/docker compose exec -T api python scripts/calibrate_rho_per_quarter.py --season 2025-26 --league ALL
+User=root

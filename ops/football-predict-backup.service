@@ -1,0 +1,10 @@
+[Unit]
+Description=football-predict — daily Postgres dump (gzip, rotated 14d/8w)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/football-predict
+ExecStart=/bin/bash /opt/football-predict/ops/backup_db.sh
+User=root

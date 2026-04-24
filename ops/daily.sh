@@ -41,6 +41,11 @@ run() {
 # missing af_ids otherwise silently break live tracking. ~5 API calls.
 run python scripts/backfill_fixture_ids.py --days 30 || true
 
+# Referee names propagate via live-scores + lineups ingest, but any
+# fixture that slipped past both cron windows is left with referee NULL.
+# Cheap — one /fixtures page per active (league, season) ≈ 5 API calls.
+run python scripts/backfill_referees.py --season "$SEASON" || true
+
 # Resolve any match stuck in 'scheduled' past kickoff. Catches matches
 # the live ingest never saw (quota, outage) so the ops watchdog doesn't
 # flag them forever. ~1 API call per stuck match, bounded to 20/tick.

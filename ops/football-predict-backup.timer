@@ -1,0 +1,11 @@
+[Unit]
+Description=football-predict — daily 04:00 UTC Postgres backup
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Unit=football-predict-backup.service
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
