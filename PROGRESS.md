@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 16:45 +07 — Phase 39 complete: bracket MC + cup-fixture predict fix
+
+- Cup-fixture predict path unions each team's domestic-league xG history so UCL matches get valid λ (Arsenal/EPL + Atletico/La Liga, etc).
+- Fault tolerance in `predict_all_upcoming` skips untrackable cup fixtures (e.g. Eredivisie clubs) instead of aborting. **159 predictions written, 2 skipped.**
+- **UCL semis predicted**: PSG-Bayern 69/20/10, Atletico-Arsenal 28/31/42.
+- `/api/stats/bracket` + `/bracket` — 5,000 MC sims on remaining knockout rounds. **PSG 45.8% to lift UCL, Arsenal 42.2%** · 88% of sims end PSG-Arsenal final.
+- `/europe` page links into `/bracket`.
+
 ## 2026-04-24 16:00 +07 — Phase 39: UCL + UEL ingest shipped
 
 - `app/leagues.py` +2 entries (UCL api_id=2, UEL api_id=3) so every league-scoped surface picks them up.
