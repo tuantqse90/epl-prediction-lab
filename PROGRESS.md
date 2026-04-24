@@ -2,6 +2,28 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-25 02:15 +07 — Telegram message polish (full names + readable CTAs)
+
+User saw a live KO alert:
+> ⏱️ KICK-OFF 🇩🇪 Bundesliga
+> RL vs UB
+> Model → RL 76%
+> https://predictor.nullshift.sh/match/4451
+
+Feedback: 'RL vs UB' reads like test data, bare URL instead of button.
+
+Audited + polished every Telegram formatter in `ingest_live_scores.py`:
+- **Full `teams.name`** in headlines (was 2-char `short_name` — 'RL' / 'UB').
+- **Markdown `[🔗 CTA →](url)`** replaces bare URLs so Telegram renders a tappable link, not a preview-unfurl card.
+- **Whitespace** — blank line between league prefix, fixture row, and pick block so the message breathes.
+- **Top scoreline** surfaced on KO from `p.top_scorelines` JSON.
+- **VN labels** on drama/VAR events ('BÀN THẮNG BỊ HUỶ', 'PEN HỎNG', 'VAR · THẺ ĐỎ BỊ HUỶ' …).
+- **FT scoreboard** now stacks 3-line instead of cramped single row.
+- Web-push titles keep `short_name` (40-char budget on mobile toasts).
+
+Also shipped earlier this session:
+- Story teaser auto-broadcast to Telegram + team subs when a new story lands.
+
 ## 2026-04-25 01:55 +07 — HT parity + red-card alerts
 
 - **HT parity**: HT notify now fires all 5 channels (Telegram main, team subs, Discord kind='halftime', web push, API webhook event='match_halftime'). Previously only Telegram main + web push — mismatch with KO/FT that both do 5-channel fan-out.
