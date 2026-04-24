@@ -11,6 +11,26 @@ HORIZON_DAYS="${HORIZON_DAYS:-7}"
 
 echo "[daily] season=$SEASON horizon=$HORIZON_DAYS"
 
+# The daily cron runs at 06:00 UTC — a common deploy window. If the api
+# container is mid-restart the first 'docker compose exec' will fail with
+# 'service api is not running' and, under set -e, abort the whole script.
+# Wait up to 120s for the container to be up + responding before starting.
+wait_for_api() {
+  local tries=0
+  while [ $tries -lt 24 ]; do
+    if docker compose exec -T api python -c "import sys; sys.exit(0)" 2>/dev/null; then
+      echo "[daily] api ready"
+      return 0
+    fi
+    echo "[daily] waiting for api container… (try $tries/24)"
+    sleep 5
+    tries=$((tries + 1))
+  done
+  echo "[daily] api container did not come up in 120s; continuing anyway"
+  return 0
+}
+wait_for_api
+
 run() {
   echo "[daily] $*"
   docker compose exec -T api "$@"
@@ -60,7 +80,7 @@ done
 
 # Ensure every scheduled match in window has a prediction + reasoning.
 # predict_all_upcoming iterates league-agnostic by match.league_code.
-run python scripts/predict_upcoming.py --horizon-days "$HORIZON_DAYS" --with-reasoning
+run python scripts/predict_upcoming.py --horizon-days "$HORIZON_DAYS" --with-reasoning || true
 
 # Post-match LLM recaps for finals in the last 7d (cheap, idempotent).
 run python scripts/generate_recaps.py --days 7 --limit 120 || true
