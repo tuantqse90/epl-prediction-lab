@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+from datetime import date
 from pathlib import Path
 
 import asyncpg
@@ -69,9 +70,9 @@ async def run() -> None:
                 await conn.execute(
                     """
                     INSERT INTO manager_tenure (team_slug, manager_name, started_at)
-                    VALUES ($1, $2, $3::date)
+                    VALUES ($1, $2, $3)
                     """,
-                    slug, name, started,
+                    slug, name, date.fromisoformat(started),
                 )
                 seeded += 1
                 print(f"[manager-seed] {slug:22} {name:30} since {started}")
