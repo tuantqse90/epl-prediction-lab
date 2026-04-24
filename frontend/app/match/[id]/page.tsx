@@ -84,18 +84,26 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   } catch {
     notFound();
   }
-  const h2h = await getH2H(matchId, 5).catch(() => []);
-  const injuries = await getInjuries(matchId).catch(() => ({ home: [], away: [] }));
-  const lineups = await getLineups(matchId).catch(() => ({ home: null, away: null }));
-  const scorerOdds = await getScorerOdds(matchId, 12).catch(() => []);
-  const injuryImpact = await getInjuryImpact(matchId).catch(() => null);
-  const weather = await getWeather(matchId).catch(() => null);
-  const markets = await getMarkets(matchId).catch(() => null);
-  const marketsEdge = await getMarketsEdge(matchId).catch(() => null);
-  const refereeInfo = await getRefereeInfo(matchId).catch(() => null);
-  const fatigue = await getFatigueContext(matchId).catch(() => null);
-  const lineupStrength = await getLineupStrength(matchId).catch(() => null);
-  const halfTime = await getHalfTime(matchId).catch(() => null);
+  // Parallelize every follow-up fetch — they only depend on matchId, not
+  // on each other. Sequential awaits here previously cost ~15× the
+  // round-trip; Promise.all collapses it to the slowest single fetch.
+  const [
+    h2h, injuries, lineups, scorerOdds, injuryImpact, weather,
+    markets, marketsEdge, refereeInfo, fatigue, lineupStrength, halfTime,
+  ] = await Promise.all([
+    getH2H(matchId, 5).catch(() => []),
+    getInjuries(matchId).catch(() => ({ home: [], away: [] })),
+    getLineups(matchId).catch(() => ({ home: null, away: null })),
+    getScorerOdds(matchId, 12).catch(() => []),
+    getInjuryImpact(matchId).catch(() => null),
+    getWeather(matchId).catch(() => null),
+    getMarkets(matchId).catch(() => null),
+    getMarketsEdge(matchId).catch(() => null),
+    getRefereeInfo(matchId).catch(() => null),
+    getFatigueContext(matchId).catch(() => null),
+    getLineupStrength(matchId).catch(() => null),
+    getHalfTime(matchId).catch(() => null),
+  ]);
   // Bootstrap CI is fetched client-side so the match-detail render path
   // doesn't block on the 1.8-s cold bootstrap. See <ConfidenceBand/>.
   const showCI = match.status === "scheduled";

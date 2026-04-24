@@ -77,23 +77,29 @@ export default async function HomePage({
   let matches: MatchOut[] = [];
   let hasNext = false;
   let error: string | null = null;
-  try {
-    // Fetch PAGE_SIZE + 1 to cheaply detect whether a next page exists
-    // without a separate COUNT(*) round-trip.
-    const res = await listMatches({
-      upcomingOnly: true,
-      limit: PAGE_SIZE + 1,
-      offset,
-      league: leagueParam,
-      tricky,
-    });
-    hasNext = res.length > PAGE_SIZE;
-    matches = res.slice(0, PAGE_SIZE);
-  } catch (e) {
-    error = e instanceof Error ? e.message : String(e);
+
+  // Fire all three fetches in parallel — accuracy + ROI don't depend on
+  // the fixtures list. Was 3 sequential round-trips; now 1.
+  const matchesReq = listMatches({
+    upcomingOnly: true,
+    limit: PAGE_SIZE + 1,
+    offset,
+    league: leagueParam,
+    tricky,
+  });
+  const [matchesResult, acc, positiveRoiLeagues] = await Promise.all([
+    matchesReq.then((r) => ({ ok: true as const, data: r })).catch(
+      (e) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }),
+    ),
+    fetchAccuracy(leagueParam),
+    fetchPositiveRoiLeagues(),
+  ]);
+  if (matchesResult.ok) {
+    hasNext = matchesResult.data.length > PAGE_SIZE;
+    matches = matchesResult.data.slice(0, PAGE_SIZE);
+  } else {
+    error = matchesResult.error;
   }
-  const acc = await fetchAccuracy(leagueParam);
-  const positiveRoiLeagues = await fetchPositiveRoiLeagues();
   const hasLive = matches.some((m) => m.status === "live");
 
   return (
