@@ -2,6 +2,20 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 23:30 +07 — News upgrade + UX hardening
+
+**News**
+- Cadence 2h → 30min, 5 sources → 11 live: BBC, Guardian, Sky, Independent, Mirror, Daily Mail, The Sun, Metro, 90min, Football-Italia, CBS Sports.
+- `Feed.trusted_football` bypasses the /football/ URL-path filter for feeds whose items use date-slug URLs (Metro, 90min, thesun, football-italia, cbssports).
+- Browser-like UA headers on fetch. Dropped Telegraph (403 bot-gate) + ESPN (202 + empty body from datacenter IPs).
+- First batch on new config: 576 items fetched, **323 inserted, 284 in last 10 min**.
+
+**UX hardening**
+- `app/error.tsx`: root error boundary, dark Payy-style page, neon Try-again + digest ref, link to /ops status.
+- `app/loading.tsx`: streaming skeleton with neon ping dot + card-grid placeholders — no blank screens on cold render.
+- OG images for `/stories` + `/pricing` (1200×630 PNG). Satori quirks fixed (every multi-child parent needs `display: flex`).
+- iOS PWA: `appleWebApp` metadata + `viewport-fit=cover` + `format-detection` disabled. `theme-color #000`, `apple-mobile-web-app-status-bar-style black-translucent`.
+
 ## 2026-04-24 23:00 +07 — Deep perf + i18n polish + SEO
 
 **Perf**
