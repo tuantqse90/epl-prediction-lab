@@ -2,6 +2,16 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 21:30 +07 — Phase 42 content engine + mobile nav fix
+
+- **42.1 Per-match story**: migration 032 adds `matches.story`; `generate_story()` writes 400-500 word Qwen-Turbo narrative on FT (cap 2/tick) + daily backfill via `generate_stories.py --days 14 --limit 30`. Endpoint `/api/matches/:id/story` + `<MatchStoryCard/>` on match page. **First 5 backfill stories live** (Real Oviedo 1-1 Villarreal etc).
+- **42.3 + 42.4 Team-of-the-week / hot-cold**: `post_team_of_week.py` ranks last 7d xG-overperformance — hot (goals >> xG) + cold (due regression). **First Telegram post fired: 3 hot + 3 cold.** Systemd Mon 10:00 UTC.
+- **42.5 Weekend preview**: Friday 18:00 UTC Qwen-Turbo writes 500-700 word Telegram preview of Fri-Sun fixtures across all leagues. Timer enabled (next firing 2026-04-24 18:00 UTC).
+- **42.2 Manager-of-month**: deferred — overlaps with Block 15.5 manager-tenure work.
+- Qwen-Plus free tier exhausted on account; switched story + preview to `qwen-turbo`.
+
+- **Mobile menu fix**: SiteHeader `NavLinks` (4-group dropdowns) was overlapping `LeagueSelector` in <400px viewports. Now `hidden md:flex` on nav; search + theme toggles hidden on mobile. New `MobileNavDrawer` hamburger slide-in sheet exposes every surface (Matches/Stats/Bets/Lab) as a flat list. Desktop unchanged.
+
 ## 2026-04-24 21:00 +07 — Phase 41 shipped: monetisation MVP
 
 - **Migration 031** — `api_keys.tier` (free/pro-free/pro) + `stripe_*` + `grandfather_until`. Existing active keys auto-flipped to `pro-free` until 2027-01-01.
