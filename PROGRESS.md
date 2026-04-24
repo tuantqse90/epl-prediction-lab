@@ -2,6 +2,18 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 14:30 +07 — Block 21 measured: dynamic ρ wins +0.12% log-loss
+
+Backtest on 2024-25 (1750 matches):
+
+| config | log-loss | Brier |
+|---|---|---|
+| static ρ = −0.15 | 0.85434 | 0.50268 |
+| dynamic ρ | **0.85334** | **0.50238** |
+| dynamic + derby | 0.85341 | 0.50241 |
+
+**Δ dynamic vs static: −0.00100 log-loss (−0.12%), −0.00030 Brier.** Derby bump is noise (few derbies per season). First-round result showed +0.18% WORSE because `calibrate_rho_per_quarter.py` was minimizing scoreline log-loss not 3-way log-loss. Fixed the objective, recalibrated 7 × 5 = 35 rows. `backtest_block21.py` lives in-repo so the verdict is re-runnable.
+
 ## 2026-04-24 14:00 +07 — Phase 36 wrap + data activation
 
 - `<TaxToggle>` live on `/roi` — none / UK / EU / VN / US dropdown shows after-tax P&L side-by-side with raw.
