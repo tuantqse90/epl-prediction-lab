@@ -2,6 +2,19 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 13:30 +07 — Phase 36 + 37 shipped
+
+**Phase 36 (close-out):**
+- `<ThemeToggle>` now in SiteHeader — users can actually flip theme.
+- `<MatchOfWeekCard>` on homepage calling /api/stats/match-of-week.
+- `<PlayerRadar>` SVG on /players/:slug with 6 position-normalized axes.
+- Webhook dispatcher wired into ingest_live_scores FT block.
+- `calibrate_rho_per_quarter.py` fit + populated for 2024-25 Q1 all 5 leagues. La Liga optimal ρ=0, Serie A −0.05, EPL −0.05, Ligue 1 −0.10, Bundesliga −0.15 — default of −0.15 was wrong for 4 of 5 leagues.
+- `predict/service.py` now looks up calibrated ρ per prediction + applies +3% λ on tagged derbies.
+
+**Phase 37 (Futures / outrights):**
+- `/outrights` page — reuses /api/stats/title-race MC. User picks league + market (Champion / Top-4 / Relegation), pastes posted odds per team, computes edge = p × posted − 1. Green ≥ 5pp.
+
 ## 2026-04-24 12:45 +07 — Blocks 23-34 done: all remaining blocks shipped
 
 12-block bundled pass. Each block gets a minimum-viable-but-working landing surface.
