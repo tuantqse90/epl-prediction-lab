@@ -89,4 +89,19 @@ else
   echo "[backup] r2 not configured; skipping off-site mirror"
 fi
 
+
+# Record success in DB — ops_watchdog reads `backup_log` to alert when
+# no successful run has landed in > 26 h. Idempotent insert, no error
+# if the table is missing yet (fresh deploy, pre-migration).
+R2_OK_VAL="false"
+if command -v rclone >/dev/null 2>&1 \
+   && rclone listremotes 2>/dev/null | grep -q '^r2:$' \
+   && rclone lsjson "r2:$R2_BUCKET/$(basename "$FINAL_FILE")" >/dev/null 2>&1; then
+  R2_OK_VAL="true"
+fi
+docker compose exec -T db psql -U "$(docker compose exec -T db printenv POSTGRES_USER | tr -d '\r')" \
+  -d "$(docker compose exec -T db printenv POSTGRES_DB | tr -d '\r')" \
+  -c "INSERT INTO backup_log (dump_path, size_bytes, r2_uploaded) VALUES ('$(basename "$FINAL_FILE")', $SIZE, $R2_OK_VAL);" \
+  2>/dev/null || echo "[backup] couldn't write backup_log row (table missing? apply migration 033)"
+
 echo "[backup] done"

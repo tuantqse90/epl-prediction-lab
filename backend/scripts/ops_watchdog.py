@@ -51,6 +51,7 @@ FIXTURE_DRIFT_HOURS = 2
 MISSING_RECAP_HOURS = 12
 STALE_PREDICTION_WINDOW_HOURS = 48
 LOW_QUOTA_THRESHOLD = 10_000
+MISSED_BACKUP_HOURS = 26  # daily backup fires 04:00 UTC; alert at > 26h
 # How long to suppress a re-alert with the same content.
 ALERT_COOLDOWN_HOURS = 6
 
@@ -114,6 +115,37 @@ def _check_low_quota(*, remaining, threshold: int = LOW_QUOTA_THRESHOLD) -> list
     return []
 
 
+def _check_missed_backup(
+    *, last_run_at: datetime | None, last_r2_ok: bool | None, now: datetime,
+) -> list[dict]:
+    """Alert when no successful backup has landed in > MISSED_BACKUP_HOURS.
+
+    Two failure modes both map to the same alert: (a) no row at all (cron
+    stopped firing, or migration 033 never applied), (b) latest row too
+    old. Also surfaces when the latest local dump wrote but the R2
+    upload silently failed (r2_uploaded=false).
+    """
+    if last_run_at is None:
+        return [{"message": (
+            "backup_log is empty — no successful dump has ever been recorded. "
+            "Check that football-predict-backup.timer is enabled and that "
+            "migration 033_backup_log has been applied."
+        )}]
+    age_hours = (now - last_run_at).total_seconds() / 3600
+    alerts = []
+    if age_hours > MISSED_BACKUP_HOURS:
+        alerts.append({"message": (
+            f"latest backup is {int(age_hours)}h old "
+            f"(threshold {MISSED_BACKUP_HOURS}h) — daily cron may have stopped firing"
+        )})
+    elif last_r2_ok is False:
+        alerts.append({"message": (
+            f"latest backup at {last_run_at.isoformat()} wrote locally but R2 "
+            f"upload FAILED — off-site copy is stale"
+        )})
+    return alerts
+
+
 def _check_stale_predictions(rows, *, now: datetime) -> list[dict]:
     alerts = []
     horizon = now + timedelta(hours=STALE_PREDICTION_WINDOW_HOURS)
@@ -174,6 +206,21 @@ async def _load_candidates(pool: asyncpg.Pool):
             """,
         )
     return _records_to_ns(fixture_rows), _records_to_ns(prediction_rows)
+
+
+async def _load_backup_latest(pool: asyncpg.Pool) -> tuple[datetime | None, bool | None]:
+    """Latest row from backup_log; (None, None) if table absent or empty."""
+    async with pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow(
+                "SELECT run_at, r2_uploaded FROM backup_log "
+                "ORDER BY run_at DESC LIMIT 1"
+            )
+        except Exception:
+            return (None, None)
+    if row is None:
+        return (None, None)
+    return (row["run_at"], row["r2_uploaded"])
 
 
 async def _ensure_alert_table(pool: asyncpg.Pool) -> None:
@@ -303,6 +350,14 @@ async def run() -> None:
         if api_key:
             remaining = _fetch_quota_remaining(api_key)
             results.append(("low_quota", _check_low_quota(remaining=remaining)))
+
+        last_backup_at, last_r2_ok = await _load_backup_latest(pool)
+        results.append((
+            "missed_backup",
+            _check_missed_backup(
+                last_run_at=last_backup_at, last_r2_ok=last_r2_ok, now=now,
+            ),
+        ))
 
         total = 0
         for name, alerts in results:
