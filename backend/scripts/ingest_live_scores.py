@@ -361,6 +361,120 @@ async def _upsert_events(
     return inserted_ids
 
 
+async def _notify_red_card_events(
+    pool: asyncpg.Pool,
+    match_id: int,
+    new_event_ids: list[int],
+    *,
+    home_short: str,
+    away_short: str,
+) -> None:
+    """Fan-out for any just-upserted red card (includes second-yellow).
+
+    Idempotent via match_events.notified_at. Skips plain yellows — they
+    happen every match and would be spam. Penalty goals are already
+    handled by the main goal-notification path; `event_detail` on a Goal
+    row carries 'Penalty' so that path formats the emoji accordingly.
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT e.id, e.minute, e.extra_minute, e.player_name,
+                   e.event_detail, e.team_slug,
+                   ht.slug AS home_slug, ht.short_name AS home_s,
+                   at.slug AS away_slug, at.short_name AS away_s,
+                   m.league_code
+            FROM match_events e
+            JOIN matches m ON m.id = e.match_id
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            WHERE e.id = ANY($1::int[])
+              AND e.match_id = $2
+              AND e.event_type = 'Card'
+              AND e.notified_at IS NULL
+              AND e.event_detail IN ('Red Card', 'Second Yellow card')
+            ORDER BY e.minute ASC NULLS LAST, e.extra_minute ASC NULLS LAST, e.id
+            """,
+            new_event_ids, match_id,
+        )
+
+    if not rows:
+        return
+
+    for r in rows:
+        minute_label = (
+            f"{r['minute']}+{r['extra_minute']}'"
+            if r["extra_minute"] else f"{r['minute']}'"
+        )
+        player = r["player_name"] or "—"
+        side_short = (
+            r["home_s"] if r["team_slug"] == r["home_slug"] else r["away_s"]
+        )
+        icon = "🟥" if r["event_detail"] == "Red Card" else "🟨🟨"
+        url = f"https://predictor.nullshift.sh/match/{match_id}"
+
+        if token and chat_id:
+            try:
+                _telegram_post(
+                    token, chat_id,
+                    f"{icon} *{r['event_detail'].upper()}* · {minute_label}\n"
+                    f"*{side_short}* · {player}\n"
+                    f"{url}",
+                )
+            except Exception as e:
+                print(f"[live-scores] red-card telegram failed for {r['id']}: {type(e).__name__}: {e}")
+
+        try:
+            from app.api.telegram import fan_out_to_team_subscribers
+            await fan_out_to_team_subscribers(
+                pool,
+                team_slugs=[r["home_slug"], r["away_slug"]],
+                text=(
+                    f"{icon} *{r['event_detail'].upper()}* · {minute_label}\n"
+                    f"{side_short} · {player}\n{url}"
+                ),
+            )
+        except Exception as e:
+            print(f"[live-scores] red-card team-sub fanout failed for {r['id']}: {type(e).__name__}: {e}")
+
+        try:
+            from app.api.discord import fan_out_to_discord
+            await fan_out_to_discord(
+                pool,
+                team_slugs=[r["home_slug"], r["away_slug"]],
+                content=(
+                    f"{icon} **{r['event_detail']}** · {minute_label} · "
+                    f"{side_short} · {player}\n<{url}>"
+                ),
+                kind="card",
+            )
+        except Exception as e:
+            print(f"[live-scores] red-card discord fanout failed for {r['id']}: {type(e).__name__}: {e}")
+
+        try:
+            from app.api.push import dispatch_goal
+            await dispatch_goal(
+                pool,
+                [r["home_slug"], r["away_slug"]],
+                {
+                    "title": f"{icon} {r['event_detail']} · {side_short}",
+                    "body": f"{minute_label} · {player}",
+                    "url": url,
+                },
+            )
+        except Exception as e:
+            print(f"[live-scores] red-card push failed for {r['id']}: {type(e).__name__}: {e}")
+
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE match_events SET notified_at = NOW() WHERE id = $1",
+                r["id"],
+            )
+
+
 async def _notify_goal_events(
     pool: asyncpg.Pool,
     match_id: int,
@@ -763,6 +877,16 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
         events = _fetch_events(api_key, int(fixture_id))
         new_ids = await _upsert_events(pool, match_row["id"], events, home, away)
         if new_ids:
+            # Red cards + second-yellow cards fan out like goals — users
+            # care about man-advantage swings.
+            try:
+                await _notify_red_card_events(
+                    pool, match_row["id"], new_ids,
+                    home_short=home, away_short=away,
+                )
+            except Exception as e:
+                print(f"[live-scores] red-card notify failed for {match_row['id']}: {type(e).__name__}: {e}")
+
             # Mark newly-upserted Goal events as notified — the instant
             # notify above already posted the message, so the legacy
             # _notify_goal_events path should never fire for these.
@@ -1668,6 +1792,74 @@ async def _notify_halftime(pool: asyncpg.Pool) -> int:
             )
         except Exception as e:
             print(f"[live-scores] HT push failed for {match_id}: {type(e).__name__}: {e}")
+
+        # Parity with KO + FT fan-out — team-subs, Discord, API webhooks.
+        try:
+            from app.api.telegram import fan_out_to_team_subscribers
+            await fan_out_to_team_subscribers(
+                pool,
+                team_slugs=[r["home_slug"], r["away_slug"]],
+                text=(
+                    f"⏸️ *HẾT HIỆP 1* · {prefix}\n"
+                    f"*{home_short} {hg}-{ag} {away_short}*\n"
+                    f"https://predictor.nullshift.sh/match/{match_id}"
+                ),
+            )
+        except Exception as e:
+            print(f"[live-scores] HT team-sub fanout failed for {match_id}: {type(e).__name__}: {e}")
+
+        try:
+            from app.api.discord import fan_out_to_discord
+            await fan_out_to_discord(
+                pool,
+                team_slugs=[r["home_slug"], r["away_slug"]],
+                content=(
+                    f"⏸️ **HT** · {r['home_short']} {hg}-{ag} {r['away_short']}\n"
+                    f"<https://predictor.nullshift.sh/match/{match_id}>"
+                ),
+                kind="halftime",
+            )
+        except Exception as e:
+            print(f"[live-scores] HT discord fanout failed for {match_id}: {type(e).__name__}: {e}")
+
+        try:
+            import json as _json
+            import urllib.request as _u
+            async with pool.acquire() as conn:
+                hooks = await conn.fetch(
+                    """
+                    SELECT id, url FROM api_webhooks
+                    WHERE 'match_halftime' = ANY(event_types)
+                    """,
+                )
+            body = _json.dumps({
+                "event": "match_halftime",
+                "match_id": match_id,
+                "home_slug": r["home_slug"], "away_slug": r["away_slug"],
+                "home_goals": hg, "away_goals": ag,
+                "league_code": r.get("league_code") if isinstance(r, dict) else r["league_code"],
+            }).encode("utf-8")
+            for h in hooks:
+                try:
+                    req = _u.Request(
+                        h["url"], data=body, method="POST",
+                        headers={"Content-Type": "application/json"},
+                    )
+                    with _u.urlopen(req, timeout=5):
+                        pass
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            "UPDATE api_webhooks SET last_ok_at = NOW(), last_error = NULL WHERE id = $1",
+                            h["id"],
+                        )
+                except Exception as e:
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            "UPDATE api_webhooks SET last_error = $2 WHERE id = $1",
+                            h["id"], f"{type(e).__name__}: {e}"[:500],
+                        )
+        except Exception as e:
+            print(f"[live-scores] HT webhook dispatch failed for {match_id}: {type(e).__name__}: {e}")
 
         async with pool.acquire() as conn:
             await conn.execute(
