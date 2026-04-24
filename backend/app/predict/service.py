@@ -501,11 +501,22 @@ async def predict_all_upcoming(
                 str(horizon_days),
             )
     created: list[int] = []
+    skipped: list[tuple[int, str]] = []
     for r in rows:
-        pid, _ = await predict_and_persist(
-            pool, r["id"],
-            rho=rho, model_version=model_version,
-            last_n=last_n, temperature=temperature,
-        )
-        created.append(pid)
+        try:
+            pid, _ = await predict_and_persist(
+                pool, r["id"],
+                rho=rho, model_version=model_version,
+                last_n=last_n, temperature=temperature,
+            )
+            created.append(pid)
+        except RuntimeError as e:
+            # Most common cause: UCL/UEL fixture where one side plays in a
+            # league we don't track (e.g. Eredivisie, Primeira). Skip the
+            # fixture so the batch keeps running for the teams we can predict.
+            skipped.append((r["id"], str(e)[:120]))
+    if skipped:
+        print(f"[predict] skipped {len(skipped)} (no data):")
+        for mid, msg in skipped[:10]:
+            print(f"  match {mid}: {msg}")
     return created
