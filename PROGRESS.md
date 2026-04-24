@@ -2,6 +2,15 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 17:30 +07 — Phase 40 shipped: growth assets
+
+- **`/welcome` landing page** — 5-lang single-scroll conversion page; hero "xG doesn't lie. But the bookies do." + proof strip + 3 CTAs.
+- **Matchday-morning Telegram** — `post_matchday_morning.py` + `football-predict-morning.timer` (10:00 UTC daily). Idempotent via `matches.morning_notified_at`. **First post just fired — 2 edges notified.**
+- **X thread generator** — `gen_x_thread.py` prints 4 tweets ready to copy-paste (sample from today: PC1 vs PIS +24%, AUG vs EF +17.9%).
+- **`docs/growth-playbook.md`** — Telegram / Reddit / VN FB / partner-email templates + 10-partner target list + weekly metrics tracker.
+
+Target: 500 Telegram · 100 emails · 3 embed partners in 30 days.
+
 ## 2026-04-24 16:45 +07 — Phase 39 complete: bracket MC + cup-fixture predict fix
 
 - Cup-fixture predict path unions each team's domestic-league xG history so UCL matches get valid λ (Arsenal/EPL + Atletico/La Liga, etc).
