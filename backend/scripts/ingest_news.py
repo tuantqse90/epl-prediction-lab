@@ -43,20 +43,27 @@ class Feed:
 
 
 FEEDS: list[Feed] = [
-    Feed("bbc",         "https://feeds.bbci.co.uk/sport/football/rss.xml"),
-    Feed("guardian",    "https://www.theguardian.com/football/rss"),
-    Feed("espn",        "https://www.espn.com/espn/rss/soccer/news"),
-    # Goal.com RSS 404'd Apr-2026; Sky Sports + Independent cover the
-    # same beat with stable feeds.
-    Feed("sky",         "https://www.skysports.com/rss/12040"),
-    Feed("independent", "https://www.independent.co.uk/sport/football/rss"),
-    # Added 2026-04-24 — user wanted faster refresh & more variety.
-    # Metro + 90min use non-football paths in article URLs but the feed
-    # itself is football-gated, hence trusted_football.
-    Feed("telegraph",   "https://www.telegraph.co.uk/football/rss.xml"),
-    Feed("mirror",      "https://www.mirror.co.uk/sport/football/rss.xml"),
-    Feed("metro",       "https://metro.co.uk/sport/football/feed/", trusted_football=True),
-    Feed("90min",       "https://www.90min.com/posts.rss", trusted_football=True),
+    Feed("bbc",          "https://feeds.bbci.co.uk/sport/football/rss.xml"),
+    Feed("guardian",     "https://www.theguardian.com/football/rss"),
+    # Sky Sports catch-all (some non-football; path filter strips those).
+    Feed("sky",          "https://www.skysports.com/rss/12040"),
+    Feed("independent",  "https://www.independent.co.uk/sport/football/rss"),
+    Feed("mirror",       "https://www.mirror.co.uk/sport/football/rss.xml"),
+    Feed("dailymail",    "https://www.dailymail.co.uk/sport/football/index.rss"),
+    Feed("thesun",       "https://www.thesun.co.uk/sport/football/feed/",
+         trusted_football=True),
+    # Non-/football/ article URLs — feed itself is football-gated.
+    Feed("metro",        "https://metro.co.uk/sport/football/feed/",
+         trusted_football=True),
+    Feed("90min",        "https://www.90min.com/posts.rss",
+         trusted_football=True),
+    Feed("football-italia", "https://www.football-italia.net/rss.xml",
+         trusted_football=True),
+    Feed("cbssports",    "https://www.cbssports.com/rss/headlines/soccer/",
+         trusted_football=True),
+    # Notes: ESPN /rss/soccer/news returns a bot-challenge (202 + empty
+    # body) in datacenter IPs as of 2026-04. Telegraph returns 403 for
+    # any non-interactive UA. Both dropped rather than fight it.
 ]
 
 _STRIP_TAGS = re.compile(r"<[^>]+>")
