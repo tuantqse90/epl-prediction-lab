@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 21:00 +07 — Phase 41 shipped: monetisation MVP
+
+- **Migration 031** — `api_keys.tier` (free/pro-free/pro) + `stripe_*` + `grandfather_until`. Existing active keys auto-flipped to `pro-free` until 2027-01-01.
+- **`/api/billing/*`** — `POST /checkout` (Stripe Session or Ko-Fi fallback), `POST /webhook` (HMAC-SHA256 verified), `GET /status?email=`, `POST /cancel` (cancel_at_period_end).
+- **`/pricing`** — Free vs Pro $9/mo cards, email-gated upgrade; redirects to `checkout_url` or Ko-Fi. **`/billing`** — email lookup + cancel-at-period-end button.
+- **Footer** — `/pricing` + `☕ tip` Ko-Fi link on every non-embed page. Sitemap updated.
+- Graceful degradation verified: no `STRIPE_API_KEY` set → upgrade CTA returns Ko-Fi URL, webhook path inert. Ready to activate whenever Stripe key lands.
+
 ## 2026-04-24 17:30 +07 — Phase 40 shipped: growth assets
 
 - **`/welcome` landing page** — 5-lang single-scroll conversion page; hero "xG doesn't lie. But the bookies do." + proof strip + 3 CTAs.
