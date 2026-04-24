@@ -10,6 +10,7 @@ from app.api import arbitrage as arbitrage_router
 from app.api import blog as blog_router
 from app.api import by_team as by_team_router
 from app.api import calibration as calibration_router
+from app.api import clv_by_market as clv_by_market_router
 from app.api import equity_curve as equity_curve_router
 from app.api import line_movement as line_movement_router
 from app.api import manager as manager_router
@@ -79,6 +80,7 @@ app.include_router(equity_curve_router.router)
 app.include_router(sync_router.router)
 app.include_router(arbitrage_router.router)
 app.include_router(middles_router.router)
+app.include_router(clv_by_market_router.router)
 
 
 @app.get("/health")
