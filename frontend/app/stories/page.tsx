@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { getLang, tFor } from "@/lib/i18n-server";
+import { tLang } from "@/lib/i18n-fallback";
 
 export const metadata: Metadata = {
   title: "Match Stories · predictor.nullshift.sh",
@@ -65,24 +66,44 @@ export default async function StoriesIndex() {
       <header className="space-y-3">
         <p className="font-mono text-xs uppercase tracking-[0.18em] text-neon">stories</p>
         <h1 className="headline-hero">
-          {lang === "vi" ? "Câu chuyện mỗi trận" : "Stories, match by match"}
+          {tLang(lang, {
+            en: "Stories, match by match",
+            vi: "Câu chuyện mỗi trận",
+            th: "เรื่องราวทุกแมตช์",
+            zh: "每场比赛的故事",
+            ko: "경기별 이야기",
+          })}
         </h1>
         <p className="text-secondary max-w-2xl">
-          {lang === "vi"
-            ? "Mỗi trận đã kết thúc có một bài narrative ngắn — xG nói gì, model đoán đúng hay sai, và bước ngoặt nằm ở đâu. AI viết, số liệu là thật."
-            : "Every finished match has a short narrative — what xG said, whether the model was right, where the turning point was. AI-written, numbers are real."}
+          {tLang(lang, {
+            en: "Every finished match has a short narrative — what xG said, whether the model was right, where the turning point was. AI-written, numbers are real.",
+            vi: "Mỗi trận đã kết thúc có một bài narrative ngắn — xG nói gì, model đoán đúng hay sai, và bước ngoặt nằm ở đâu. AI viết, số liệu là thật.",
+            th: "ทุกแมตช์ที่จบแล้วมีเรื่องเล่า xG + model ถูกหรือผิด",
+            zh: "每场已结束的比赛都有一篇简短叙事 · xG 说了什么 · 模型是否正确",
+            ko: "끝난 경기마다 짧은 서사 · xG + 모델 적중 여부",
+          })}
         </p>
         <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
-          {total.toLocaleString()} {lang === "vi" ? "bài đã viết" : "stories live"}
+          {total.toLocaleString()} {tLang(lang, {
+            en: "stories live",
+            vi: "bài đã viết",
+            th: "เรื่อง",
+            zh: "篇",
+            ko: "개",
+          })}
         </p>
       </header>
 
       <section className="space-y-4">
         {stories.length === 0 ? (
           <div className="card text-muted">
-            {lang === "vi"
-              ? "Chưa có bài nào. Cron daily sẽ generate dần."
-              : "No stories yet. Daily cron populates these."}
+            {tLang(lang, {
+              en: "No stories yet. Daily cron populates these.",
+              vi: "Chưa có bài nào. Cron daily sẽ generate dần.",
+              th: "ยังไม่มีเรื่อง",
+              zh: "暂无故事",
+              ko: "아직 이야기 없음",
+            })}
           </div>
         ) : (
           stories.map((s) => (
@@ -111,12 +132,23 @@ export default async function StoriesIndex() {
       </section>
 
       <section className="font-mono text-[11px] uppercase tracking-wide text-muted space-y-1">
-        <p>• {lang === "vi" ? "Nguồn: " : "Source: "}
-          <Link href="/docs/model" className="hover:text-neon">
-            {lang === "vi" ? "Cách model hoạt động" : "How the model works"}
+        <p>• <Link href="/docs/model" className="hover:text-neon">
+            {tLang(lang, {
+              en: "How the model works",
+              vi: "Cách model hoạt động",
+              th: "โมเดลทำงานยังไง",
+              zh: "模型原理",
+              ko: "모델 구조",
+            })}
           </Link>
         </p>
-        <p>• {lang === "vi" ? "Số liệu từ Understat + API-Football" : "Stats from Understat + API-Football"}</p>
+        <p>• {tLang(lang, {
+          en: "Stats from Understat + API-Football",
+          vi: "Số liệu từ Understat + API-Football",
+          th: "ข้อมูลจาก Understat + API-Football",
+          zh: "数据来自 Understat + API-Football",
+          ko: "데이터 Understat + API-Football",
+        })}</p>
       </section>
     </main>
   );

@@ -4,57 +4,56 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { useLang } from "@/lib/i18n-client";
+import type { Lang } from "@/lib/i18n";
 
-type Section = {
-  title: { en: string; vi: string };
-  links: { href: string; label: { en: string; vi: string } }[];
-};
+type L = Record<Lang, string>;
+type Section = { title: L; links: { href: string; label: L }[] };
 
 const SECTIONS: Section[] = [
   {
-    title: { en: "Matches", vi: "Trận" },
+    title: { en: "Matches", vi: "Trận", th: "แข่ง", zh: "比赛", ko: "경기" },
     links: [
-      { href: "/", label: { en: "Fixtures", vi: "Lịch đấu" } },
-      { href: "/last-weekend", label: { en: "Last weekend", vi: "Tuần vừa rồi" } },
-      { href: "/news", label: { en: "News", vi: "Tin tức" } },
-      { href: "/leagues", label: { en: "Leagues", vi: "Giải đấu" } },
-      { href: "/europe", label: { en: "Europe", vi: "Châu Âu" } },
+      { href: "/", label: { en: "Fixtures", vi: "Lịch đấu", th: "ตาราง", zh: "赛程", ko: "일정" } },
+      { href: "/last-weekend", label: { en: "Last weekend", vi: "Tuần vừa rồi", th: "สุดสัปดาห์", zh: "上周", ko: "지난 주" } },
+      { href: "/news", label: { en: "News", vi: "Tin tức", th: "ข่าว", zh: "新闻", ko: "뉴스" } },
+      { href: "/leagues", label: { en: "Leagues", vi: "Giải đấu", th: "ลีก", zh: "联赛", ko: "리그" } },
+      { href: "/europe", label: { en: "Europe", vi: "Châu Âu", th: "ยุโรป", zh: "欧洲", ko: "유럽" } },
     ],
   },
   {
-    title: { en: "Stats", vi: "Số liệu" },
+    title: { en: "Stats", vi: "Số liệu", th: "สถิติ", zh: "统计", ko: "통계" },
     links: [
-      { href: "/table", label: { en: "xG Table", vi: "Bảng XH" } },
-      { href: "/scorers", label: { en: "Top scorers", vi: "Vua phá lưới" } },
-      { href: "/players", label: { en: "Players", vi: "Cầu thủ" } },
-      { href: "/stats", label: { en: "Accuracy", vi: "Độ chính xác" } },
-      { href: "/calibration", label: { en: "Calibration", vi: "Hiệu chỉnh" } },
-      { href: "/history", label: { en: "History", vi: "Theo mùa" } },
+      { href: "/table", label: { en: "xG Table", vi: "Bảng XH", th: "ตาราง xG", zh: "xG 榜", ko: "xG 순위" } },
+      { href: "/scorers", label: { en: "Top scorers", vi: "Vua phá lưới", th: "ดาวซัลโว", zh: "射手榜", ko: "득점왕" } },
+      { href: "/players", label: { en: "Players", vi: "Cầu thủ", th: "นักเตะ", zh: "球员", ko: "선수" } },
+      { href: "/stats", label: { en: "Accuracy", vi: "Độ chính xác", th: "ความแม่นยำ", zh: "准确率", ko: "정확도" } },
+      { href: "/calibration", label: { en: "Calibration", vi: "Hiệu chỉnh", th: "การสอบเทียบ", zh: "校准", ko: "보정" } },
+      { href: "/history", label: { en: "History", vi: "Theo mùa", th: "ฤดูกาล", zh: "赛季", ko: "시즌" } },
     ],
   },
   {
-    title: { en: "Bets", vi: "Kèo" },
+    title: { en: "Bets", vi: "Kèo", th: "แทง", zh: "投注", ko: "베팅" },
     links: [
-      { href: "/roi", label: { en: "ROI", vi: "ROI" } },
-      { href: "/strategies", label: { en: "Strategies", vi: "Chiến thuật" } },
-      { href: "/strategies/compare", label: { en: "Compare all", vi: "So sánh" } },
-      { href: "/parlay", label: { en: "Parlay", vi: "Xiên" } },
-      { href: "/arbs", label: { en: "Arbs", vi: "Arb" } },
-      { href: "/fpl", label: { en: "FPL", vi: "FPL" } },
+      { href: "/roi", label: { en: "ROI", vi: "ROI", th: "ROI", zh: "ROI", ko: "ROI" } },
+      { href: "/strategies", label: { en: "Strategies", vi: "Chiến thuật", th: "กลยุทธ์", zh: "策略", ko: "전략" } },
+      { href: "/strategies/compare", label: { en: "Compare all", vi: "So sánh", th: "เทียบทั้งหมด", zh: "全部对比", ko: "전체 비교" } },
+      { href: "/parlay", label: { en: "Parlay", vi: "Xiên", th: "พาร์เลย์", zh: "串关", ko: "병행" } },
+      { href: "/arbs", label: { en: "Arbs", vi: "Arb", th: "อาร์บิ", zh: "套利", ko: "차익" } },
+      { href: "/fpl", label: { en: "FPL", vi: "FPL", th: "FPL", zh: "FPL", ko: "FPL" } },
     ],
   },
   {
-    title: { en: "Lab", vi: "Lab" },
+    title: { en: "Lab", vi: "Lab", th: "Lab", zh: "实验", ko: "연구" },
     links: [
-      { href: "/proof", label: { en: "Proof", vi: "Chứng minh" } },
-      { href: "/tipsters", label: { en: "Tipsters", vi: "Tipsters" } },
-      { href: "/docs/model", label: { en: "How the model works", vi: "Mô hình" } },
-      { href: "/methodology", label: { en: "Methodology", vi: "Phương pháp" } },
-      { href: "/blog", label: { en: "Blog", vi: "Blog" } },
-      { href: "/stories", label: { en: "Match stories", vi: "Câu chuyện" } },
-      { href: "/changelog", label: { en: "Changelog", vi: "Nhật ký" } },
-      { href: "/pricing", label: { en: "Pricing", vi: "Giá" } },
-      { href: "/faq", label: { en: "FAQ", vi: "FAQ" } },
+      { href: "/proof", label: { en: "Proof", vi: "Chứng minh", th: "พิสูจน์", zh: "证明", ko: "증명" } },
+      { href: "/tipsters", label: { en: "Tipsters", vi: "Tipsters", th: "เซียน", zh: "贴士", ko: "팁스터" } },
+      { href: "/docs/model", label: { en: "How the model works", vi: "Mô hình", th: "โมเดล", zh: "模型", ko: "모델" } },
+      { href: "/methodology", label: { en: "Methodology", vi: "Phương pháp", th: "วิธีการ", zh: "方法论", ko: "방법론" } },
+      { href: "/blog", label: { en: "Blog", vi: "Blog", th: "บล็อก", zh: "博客", ko: "블로그" } },
+      { href: "/stories", label: { en: "Match stories", vi: "Câu chuyện", th: "เรื่องราว", zh: "故事", ko: "이야기" } },
+      { href: "/changelog", label: { en: "Changelog", vi: "Nhật ký", th: "บันทึก", zh: "变更日志", ko: "변경 이력" } },
+      { href: "/pricing", label: { en: "Pricing", vi: "Giá", th: "ราคา", zh: "价格", ko: "가격" } },
+      { href: "/faq", label: { en: "FAQ", vi: "FAQ", th: "FAQ", zh: "FAQ", ko: "FAQ" } },
     ],
   },
 ];
@@ -62,7 +61,6 @@ const SECTIONS: Section[] = [
 export default function MobileNavDrawer() {
   const lang = useLang();
   const [open, setOpen] = useState(false);
-  const k = (lang === "vi" ? "vi" : "en") as "vi" | "en";
 
   useEffect(() => {
     if (!open) return;
@@ -114,7 +112,7 @@ export default function MobileNavDrawer() {
               {SECTIONS.map((s) => (
                 <div key={s.title.en} className="space-y-2">
                   <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                    {s.title[k]}
+                    {s.title[lang]}
                   </p>
                   <ul className="space-y-1">
                     {s.links.map((l) => (
@@ -124,7 +122,7 @@ export default function MobileNavDrawer() {
                           onClick={() => setOpen(false)}
                           className="block rounded px-3 py-2 text-sm text-secondary hover:text-neon hover:bg-high/40"
                         >
-                          {l.label[k]}
+                          {l.label[lang]}
                         </Link>
                       </li>
                     ))}
