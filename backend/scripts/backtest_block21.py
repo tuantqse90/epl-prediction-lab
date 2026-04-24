@@ -31,20 +31,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.core.config import get_settings
 from app.models.derbies import derby_tag
 from app.models.dynamic_rho import DEFAULT_RHO, quarter_for_matchweek
-from app.models.poisson import matrix
+from app.models.poisson import poisson_score_matrix, apply_dixon_coles, collapse_1x2
 
 
 def _matrix_3way(lam_h: float, lam_a: float, rho: float, k: int = 10) -> tuple[float, float, float]:
-    m = matrix(lam_h, lam_a, rho=rho, max_goals=k)
-    p_h = p_d = p_a = 0.0
-    for i in range(m.shape[0]):
-        for j in range(m.shape[1]):
-            if i > j:
-                p_h += m[i][j]
-            elif i < j:
-                p_a += m[i][j]
-            else:
-                p_d += m[i][j]
+    mat = poisson_score_matrix(lam_h, lam_a, max_goals=k)
+    mat = apply_dixon_coles(mat, lam_h, lam_a, rho=rho)
+    p_h, p_d, p_a = collapse_1x2(mat)
     total = p_h + p_d + p_a
     if total <= 0:
         return (1 / 3, 1 / 3, 1 / 3)
