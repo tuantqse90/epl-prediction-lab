@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 15:10 +07 — XGB retrain with upgraded is_derby: DID NOT WORK, rolled back
+
+Swapped the crude city-token `_is_derby` heuristic for the curated Block 21 pair list, then retrained. Holdout 2024-25 (1,748 matches) went **worse**: accuracy 53.38% (was 55.41%, −2pp), log-loss 0.981 (was 0.979, +0.2%). Market-feature gain share dropped 27.4% → 11.0% — the booster stopped leaning on the signal it used to rely on.
+
+Rolled back both: `git revert` on the code, restored the pre-retrain model from `/tmp/xgb-pre-derby.json`. Live predictions back to the 27-feature booster that was working.
+
+**Takeaway:** the Block 21 ρ calibration won on 2024-25 (−0.12% log-loss per our earlier backtest), but layering the same signals into XGB through a derby-flag refinement didn't help. Feature was already near-optimal as a rough proxy. Further XGB improvements need new signals, not better matching on an existing one.
+
 ## 2026-04-24 14:30 +07 — Block 21 measured: dynamic ρ wins +0.12% log-loss
 
 Backtest on 2024-25 (1750 matches):
