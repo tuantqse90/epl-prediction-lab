@@ -903,8 +903,8 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
                   AND at.id = m.away_team_id
                   AND NOT ($2 = ANY(m.notified_scores))
                 RETURNING m.league_code,
-                          ht.short_name AS home_short, ht.slug AS home_slug,
-                          at.short_name AS away_short, at.slug AS away_slug
+                          ht.short_name AS home_short, ht.slug AS home_slug, ht.name AS home_name,
+                          at.short_name AS away_short, at.slug AS away_slug, at.name AS away_name
                 """,
                 match_row["id"], score_key,
             )
@@ -913,6 +913,8 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
 
         minute_label = f"{elapsed}'" if elapsed is not None else "—"
         prefix = _league_prefix(meta["league_code"])
+        home_full = meta["home_name"].replace("_", "\\_")
+        away_full = meta["away_name"].replace("_", "\\_")
         home_short = meta["home_short"].replace("_", "\\_")
         away_short = meta["away_short"].replace("_", "\\_")
 
@@ -930,14 +932,15 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
             # Extremely rare edge case (2-goal jump from missed update).
             lead = f"{drama}⚽ *Có bàn thắng!*"
         elif scored_home:
-            lead = f"{drama}⚽ *{home_short}* ghi bàn!"
+            lead = f"{drama}⚽ *{home_full}* ghi bàn!"
         else:
-            lead = f"{drama}⚽ *{away_short}* ghi bàn!"
+            lead = f"{drama}⚽ *{away_full}* ghi bàn!"
 
+        url = f"https://predictor.nullshift.sh/match/{match_row['id']}"
         text = (
-            f"{lead}  _{minute_label}_\n"
-            f"{prefix} · *{home_short} {int(hg)}-{int(ag)} {away_short}*\n"
-            f"[Xem live](https://predictor.nullshift.sh/match/{match_row['id']})"
+            f"{lead}  _{minute_label}_\n\n"
+            f"{prefix} · *{home_full}*  {int(hg)} – {int(ag)}  *{away_full}*\n\n"
+            f"[🔗 Xem trực tiếp →]({url})"
         )
         token = os.environ.get("TELEGRAM_BOT_TOKEN")
         chat_id = os.environ.get("TELEGRAM_CHAT_ID")
@@ -971,9 +974,11 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
                 pool,
                 [meta["home_slug"], meta["away_slug"]],
                 {
-                    "title": f"⚽ {home_short} {int(hg)}-{int(ag)} {away_short}",
-                    "body": f"{minute_label}",
-                    "url": f"https://predictor.nullshift.sh/match/{match_row['id']}",
+                    # Web push title has ~40-char budget; keep short_name
+                    # here so the toast fits on small screens.
+                    "title": f"⚽ {meta['home_short']} {int(hg)}-{int(ag)} {meta['away_short']}",
+                    "body": f"{minute_label} · {meta['home_name']} vs {meta['away_name']}",
+                    "url": url,
                 },
             )
         except Exception as e:
@@ -982,9 +987,9 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
         try:
             from app.api.telegram import fan_out_to_team_subscribers
             fan_text = (
-                f"⚽ *{home_short} {int(hg)}-{int(ag)} {away_short}* "
-                f"_{minute_label}_\n"
-                f"https://predictor.nullshift.sh/match/{match_row['id']}"
+                f"{lead}  _{minute_label}_\n\n"
+                f"{prefix} · *{home_full}*  {int(hg)} – {int(ag)}  *{away_full}*\n\n"
+                f"[🔗 Xem trực tiếp →]({url})"
             )
             await fan_out_to_team_subscribers(
                 pool,
@@ -996,10 +1001,11 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
 
         try:
             from app.api.discord import fan_out_to_discord
+            home_plain = meta["home_name"]
+            away_plain = meta["away_name"]
             discord_text = (
-                f"⚽ **{home_short.replace('\\_','_')} {int(hg)}-{int(ag)} "
-                f"{away_short.replace('\\_','_')}** · {minute_label}\n"
-                f"<https://predictor.nullshift.sh/match/{match_row['id']}>"
+                f"⚽ **{home_plain} {int(hg)}-{int(ag)} {away_plain}** · {minute_label}\n"
+                f"<{url}>"
             )
             await fan_out_to_discord(
                 pool,
@@ -1121,8 +1127,8 @@ async def _enrich_goal_message_with_scorer(
         meta = await conn.fetchrow(
             """
             SELECT m.last_goal_message_id, m.last_goal_score, m.league_code,
-                   ht.short_name AS home_short, ht.slug AS home_slug,
-                   at.short_name AS away_short, at.slug AS away_slug
+                   ht.short_name AS home_short, ht.slug AS home_slug, ht.name AS home_name,
+                   at.short_name AS away_short, at.slug AS away_slug, at.name AS away_name
             FROM matches m
             JOIN teams ht ON ht.id = m.home_team_id
             JOIN teams at ON at.id = m.away_team_id
@@ -1165,14 +1171,14 @@ async def _enrich_goal_message_with_scorer(
         assist_line = f"\n🅰️ Kiến tạo: {assist_raw.replace('_', chr(92)+'_')}"
 
     prefix = _league_prefix(meta["league_code"])
-    home_short = meta["home_short"].replace("_", "\\_")
-    away_short = meta["away_short"].replace("_", "\\_")
+    home_full = meta["home_name"].replace("_", "\\_")
+    away_full = meta["away_name"].replace("_", "\\_")
 
     # Figure out which team scored from the event's team_slug.
     if scorer_row["team_slug"] == meta["home_slug"]:
-        scoring = home_short
+        scoring = home_full
     elif scorer_row["team_slug"] == meta["away_slug"]:
-        scoring = away_short
+        scoring = away_full
     else:
         scoring = "⚽"
 
@@ -1191,11 +1197,11 @@ async def _enrich_goal_message_with_scorer(
     commentary_line = f"\n💬 _{commentary}_" if commentary else ""
 
     new_text = (
-        f"⚽ *{scoring}* — {player}{badge}  _{minute_label}_\n"
-        f"{prefix} · *{home_short} {hg}-{ag} {away_short}*"
+        f"⚽ *{scoring}* — {player}{badge}  _{minute_label}_\n\n"
+        f"{prefix} · *{home_full}*  {hg} – {ag}  *{away_full}*"
         f"{assist_line}"
-        f"{commentary_line}\n"
-        f"[Xem live](https://predictor.nullshift.sh/match/{match_id})"
+        f"{commentary_line}\n\n"
+        f"[🔗 Xem trực tiếp →](https://predictor.nullshift.sh/match/{match_id})"
     )
 
     try:
@@ -1481,6 +1487,8 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
         prefix = _league_prefix(r.get("league_code"))
         home_short = r["home_short"].replace("_", "\\_")
         away_short = r["away_short"].replace("_", "\\_")
+        home_full = r["home_name"].replace("_", "\\_")
+        away_full = r["away_name"].replace("_", "\\_")
 
         # Scorers: pull Goal events for this match, ordered by minute.
         async with pool.acquire() as conn:
@@ -1574,8 +1582,8 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
             pd_ = round(float(r["p_draw"]) * 100)
             pa = round(float(r["p_away_win"]) * 100)
             prob_block = (
-                f"\n🔮 *Dự đoán trước trận:* "
-                f"{home_short} {ph}% · Hòa {pd_}% · {away_short} {pa}%"
+                f"\n\n🔮 *Dự đoán trước trận:* "
+                f"{home_full} {ph}% · Hoà {pd_}% · {away_full} {pa}%"
             )
 
         # Model verdict + streak counter for the same league.
@@ -1657,14 +1665,16 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🏁 *KẾT THÚC* · {prefix}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"\n*{home_short}  {hg}  ━  {ag}  {away_short}*"
+            f"\n*{home_full}*\n"
+            f"     {hg}  —  {ag}\n"
+            f"*{away_full}*"
             f"{prob_block}"
             f"{scorers_block}"
             f"{stats_block}"
             f"\n{pick_line}"
             f"{streak_block}"
             f"{recap_block}"
-            f"\n\n[📊 Xem phân tích đầy đủ](https://predictor.nullshift.sh/match/{match_id})"
+            f"\n\n[📊 Xem phân tích đầy đủ →](https://predictor.nullshift.sh/match/{match_id})"
         )
 
         posted_ok = True
