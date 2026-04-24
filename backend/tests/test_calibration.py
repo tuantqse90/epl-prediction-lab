@@ -76,6 +76,8 @@ def test_overall_summary_consistent():
     assert s["total"] == 20
     assert s["brier"] > 0
     assert s["log_loss"] > 0
-    # Reliability = mean over bins of (p - actual)^2; perfectly calibrated = 0.
-    # These bins ARE perfectly calibrated → reliability near 0.
-    assert s["reliability"] < 0.001
+    # Reliability = weighted mean (p - actual)^2. p=0.55 hit 50% → gap² = 0.0025
+    # and p=0.75 hit 70% → gap² = 0.0025, so the aggregate reliability is 0.0025
+    # (not 0 — "perfect calibration" here is relative to bin center; actual
+    # predictions averaged 0.55 and 0.75 respectively).
+    assert s["reliability"] < 0.003
