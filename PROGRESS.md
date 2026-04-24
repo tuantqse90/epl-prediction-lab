@@ -2,6 +2,13 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-25 01:00 +07 — Visual polish
+
+- `/stories` — 45 text-only cards were blurring together; each card now leads with a 40-px home logo, score, away logo row, winning side rendered brighter than the loser so skim-reading works.
+- `/scorers` — top-10 photo podium grid above the table on page 1 (3:4 aspect portrait cards with rank chip + team logo + goals/xG). Long-tail still in the table.
+- Live check: 2 ESPN CDN logos per `/stories` row × 45 rows, 60 scorer photos on `/scorers` page 1.
+- Form-strip chips already wired via `<FormDots>` on MatchCard; league-crest assets deferred (no bundled crest library worth scraping every render).
+
 ## 2026-04-25 00:50 +07 — Backup observability + DR runbook
 
 - Migration 033 + `backup_log` table — one row per successful dump. `backup_db.sh` INSERTs at end of run (tolerated-failure if table missing).
