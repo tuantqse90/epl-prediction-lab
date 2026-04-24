@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import admin as admin_router
 from app.api import arbitrage as arbitrage_router
+from app.api import billing as billing_router
 from app.api import blog as blog_router
 from app.api import bracket as bracket_router
 from app.api import by_team as by_team_router
@@ -97,6 +98,7 @@ app.include_router(keys_router.router)
 app.include_router(player_analytics_router.router)
 app.include_router(metrics_router.router)
 app.include_router(tipster_signup_router.router)
+app.include_router(billing_router.router)
 
 
 @app.get("/health")

@@ -60,6 +60,8 @@ export default async function sitemap({
       { url: `${SITE}/arbs`,                 changeFrequency: "daily",  priority: 0.6, lastModified: now },
       { url: `${SITE}/middles`,              changeFrequency: "daily",  priority: 0.5, lastModified: now },
       { url: `${SITE}/kelly-explorer`,       changeFrequency: "weekly", priority: 0.5, lastModified: now },
+      { url: `${SITE}/pricing`,              changeFrequency: "monthly",priority: 0.6, lastModified: now },
+      { url: `${SITE}/billing`,              changeFrequency: "monthly",priority: 0.3, lastModified: now },
     ];
   }
 

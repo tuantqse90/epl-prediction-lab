@@ -40,6 +40,8 @@ async function ChromeOrEmbed({
           <a href="/embed-docs" className="hover:text-neon">embed</a>
           <a href="/press-kit" className="hover:text-neon">press</a>
           <a href="/changelog" className="hover:text-neon">changelog</a>
+          <a href="/pricing" className="hover:text-neon">pricing</a>
+          <a href="https://ko-fi.com/predictor" target="_blank" rel="noopener" className="hover:text-neon">☕ tip</a>
           <span className="flex-1" />
           <a href="/privacy" className="hover:text-neon">privacy</a>
           <a href="/terms" className="hover:text-neon">terms</a>
