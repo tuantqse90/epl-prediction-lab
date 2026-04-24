@@ -136,6 +136,54 @@ export default async function ScorersPage({
         <div className="card text-muted">{t("scorers.empty", { season })}</div>
       ) : (
         <>
+          {/* Top-10 podium — photo-forward grid so the page leads with
+              faces rather than the data table. Only on page 1. */}
+          {page === 1 && (
+            <section className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              {rows.slice(0, 10).map((r) => (
+                <Link
+                  key={`podium-${r.team_slug}-${r.player_name}`}
+                  href={`/teams/${r.team_slug}`}
+                  className="card p-3 space-y-2 hover:border-neon transition-colors"
+                >
+                  <div className="relative aspect-[3/4] w-full overflow-hidden rounded bg-high">
+                    {r.photo_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={r.photo_url}
+                        alt={r.player_name}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-3xl font-display font-bold text-muted">
+                        {r.player_name[0]?.toUpperCase() ?? "?"}
+                      </div>
+                    )}
+                    <span className="absolute top-1 left-1 font-mono text-[10px] px-1.5 py-0.5 rounded bg-neon text-on-neon">
+                      #{r.rank}
+                    </span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="font-display text-sm font-semibold truncate text-primary">
+                      {r.player_name}
+                    </p>
+                    <div className="flex items-center gap-1 font-mono text-[10px] text-muted">
+                      <TeamLogo slug={r.team_slug} name={r.team_name} size={12} />
+                      <span className="truncate">{r.team_short}</span>
+                    </div>
+                    <p className="font-mono text-[11px]">
+                      <span className="text-neon tabular-nums">{r.goals}</span>
+                      <span className="text-muted"> G · </span>
+                      <span className="text-secondary tabular-nums">{r.xg.toFixed(1)}</span>
+                      <span className="text-muted"> xG</span>
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </section>
+          )}
+
           <div className="flex items-baseline justify-between gap-2 font-mono text-[11px] text-muted">
             <span>
               {lang === "vi"

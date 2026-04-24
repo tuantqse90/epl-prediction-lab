@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import TeamLogo from "@/components/TeamLogo";
 import { getLang, tFor } from "@/lib/i18n-server";
 import { tLang } from "@/lib/i18n-fallback";
 
@@ -106,28 +107,58 @@ export default async function StoriesIndex() {
             })}
           </div>
         ) : (
-          stories.map((s) => (
-            <Link
-              key={s.match_id}
-              href={`/match/${s.match_id}`}
-              className="card block space-y-3 hover:border-neon transition-colors"
-            >
-              <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                  {s.league_code ? `${LEAGUE_EMOJI[s.league_code] ?? "⚽"} ${s.league_code}` : "⚽"}
-                </span>
-                <span className="font-mono text-[10px] text-muted">
-                  {s.kickoff.slice(0, 10)}
-                </span>
-              </div>
-              <h2 className="font-display text-xl md:text-2xl font-semibold text-primary leading-tight">
-                {s.home_short} {s.home_goals}
-                <span className="text-muted mx-2">–</span>
-                {s.away_goals} {s.away_short}
-              </h2>
-              <p className="text-secondary text-sm leading-relaxed">{s.excerpt}</p>
-            </Link>
-          ))
+          stories.map((s) => {
+            const hit =
+              s.home_goals > s.away_goals
+                ? "H"
+                : s.home_goals < s.away_goals
+                ? "A"
+                : "D";
+            return (
+              <Link
+                key={s.match_id}
+                href={`/match/${s.match_id}`}
+                className="card block space-y-4 hover:border-neon transition-colors"
+              >
+                <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                    {s.league_code ? `${LEAGUE_EMOJI[s.league_code] ?? "⚽"} ${s.league_code}` : "⚽"}
+                  </span>
+                  <span className="font-mono text-[10px] text-muted">
+                    {s.kickoff.slice(0, 10)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <TeamLogo slug={s.home_slug} name={s.home_short} size={40} />
+                    <span
+                      className={`font-display text-xl md:text-2xl font-semibold uppercase tracking-tight truncate ${
+                        hit === "H" ? "text-primary" : "text-secondary"
+                      }`}
+                    >
+                      {s.home_short}
+                    </span>
+                  </div>
+                  <div className="font-display text-3xl md:text-4xl font-bold tabular-nums shrink-0 text-primary">
+                    {s.home_goals}
+                    <span className="text-muted mx-2">–</span>
+                    {s.away_goals}
+                  </div>
+                  <div className="flex items-center gap-3 flex-1 min-w-0 justify-end">
+                    <span
+                      className={`font-display text-xl md:text-2xl font-semibold uppercase tracking-tight truncate text-right ${
+                        hit === "A" ? "text-primary" : "text-secondary"
+                      }`}
+                    >
+                      {s.away_short}
+                    </span>
+                    <TeamLogo slug={s.away_slug} name={s.away_short} size={40} />
+                  </div>
+                </div>
+                <p className="text-secondary text-sm leading-relaxed">{s.excerpt}</p>
+              </Link>
+            );
+          })
         )}
       </section>
 
