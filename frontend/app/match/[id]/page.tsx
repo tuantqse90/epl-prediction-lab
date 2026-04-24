@@ -17,6 +17,7 @@ import MatchTabs from "@/components/MatchTabs";
 import LiveBadge from "@/components/LiveBadge";
 import LivePoller from "@/components/LivePoller";
 import MatchEventsList from "@/components/MatchEventsList";
+import MatchEventsTimeline from "@/components/MatchEventsTimeline";
 import MatchStoryCard from "@/components/MatchStoryCard";
 import LineMovementPanel from "@/components/LineMovementPanel";
 import LogPickButton from "@/components/LogPickButton";
@@ -405,7 +406,16 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
                   />
                 )}
                 {match.events && match.events.length > 0 && (
-                  <MatchEventsList events={match.events} lang={lang} homeSlug={match.home.slug} />
+                  <>
+                    <MatchEventsTimeline
+                      events={match.events}
+                      lang={lang}
+                      homeSlug={match.home.slug}
+                      homeShort={match.home.short_name}
+                      awayShort={match.away.short_name}
+                    />
+                    <MatchEventsList events={match.events} lang={lang} homeSlug={match.home.slug} />
+                  </>
                 )}
                 <LineupsPanel
                   lineups={lineups}
