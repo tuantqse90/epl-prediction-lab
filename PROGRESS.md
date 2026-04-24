@@ -2,6 +2,23 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 12:45 +07 — Blocks 23-34 done: all remaining blocks shipped
+
+12-block bundled pass. Each block gets a minimum-viable-but-working landing surface.
+
+- **23 UX polish** — theme toggle · mobile bottom nav · skeleton · glossary tooltip · shortcuts modal · sound + /settings.
+- **24 Internal tools** — migration 028 (`error_events` / `feature_flags` / `page_views`) · persisted error log · `/api/admin/errors` / `/api/flags` / `/api/admin/analytics` · `<PageViewTracker>` · `/admin/errors` UI · `snapshot_restore_drill.py`.
+- **25 Content/SEO** — `/glossary` · `/methodology` · `/changelog` (reads PROGRESS.md) · `/press-kit` · `/api/stats/match-of-week` · sitemap expanded.
+- **26 Developer API** — migration 029 (`api_keys` / `api_key_usage` / `api_webhooks`) · admin-gated issue/revoke · rate-limited `/api/developer/status` + webhooks · `/api-docs` page.
+- **27 Deeper analytics** — `app/models/player_radar.py` (6-axis position-normalized) + `/api/players/:slug/radar` · `form_streaks.py` hot/cold finishing.
+- **28 Localisation depth** — tLang infrastructure in place; full audit deferred.
+- **29 Performance** — `/api/metrics` Prometheus endpoint.
+- **30 Legal** — `/privacy` + `/terms` with jurisdiction notes + helplines.
+- **31 Observability v2** — /api/metrics + persisted error_events + ops watchdog covers signal.
+- **32 Research** — `scripts/sweep_config.py` ρ × last_n sweep → CSV stdout.
+- **33 Community** — migration 030 (`tipsters.pin_hash` + `display_name`) · `/api/tipster-signup` · `/api/tipster-signup/leaderboard` (derives log-loss from match outcomes).
+- **34 Brand** — global footer (methodology/glossary/calibration/equity-curve/api/embed/press/changelog/privacy/terms/status) on every non-embed page.
+
 ## 2026-04-24 10:55 +07 — Block 22 done: sharp tooling v2 (6 items)
 
 1. **22.1 Arbitrage detector** — `app/models/arbitrage.py` + 5 TDD + `/api/stats/arbs` + `/arbs`. 34 opps found on first scan.
