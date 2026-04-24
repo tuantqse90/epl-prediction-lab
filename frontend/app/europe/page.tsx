@@ -91,6 +91,32 @@ export default async function EuropePage() {
         )}
       </section>
 
+      <section className="card">
+        <Link href="/bracket" className="flex items-baseline justify-between gap-2 hover:text-neon">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-wide text-neon">
+              {tLang(lang, {
+                en: "Bracket Monte Carlo",
+                vi: "Monte Carlo bracket",
+                th: "Monte Carlo แบร็กเก็ต",
+                zh: "淘汰赛蒙特卡洛",
+                ko: "녹아웃 몬테카를로",
+              })}
+            </p>
+            <p className="font-display text-lg">
+              {tLang(lang, {
+                en: "Who lifts the trophy?",
+                vi: "Ai nâng cúp?",
+                th: "ใครจะยกถ้วย?",
+                zh: "谁将捧杯?",
+                ko: "누가 트로피를 들까?",
+              })}
+            </p>
+          </div>
+          <span className="font-mono text-xs text-secondary">→</span>
+        </Link>
+      </section>
+
       <section className="font-mono text-[11px] uppercase tracking-wide text-muted space-y-1">
         <p>• Fixtures + odds refresh via API-Football Ultra.</p>
         <p>• Every match tagged `competition_type='europe'` → cup prior (Block 21.6) softens favourites.</p>
