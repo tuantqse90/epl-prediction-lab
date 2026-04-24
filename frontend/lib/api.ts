@@ -24,13 +24,13 @@ export async function listMatches(
   if (opts.league) params.set("league", opts.league);
   if (opts.tricky) params.set("tricky", "true");
   const url = `${BASE}/api/matches?${params.toString()}`;
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, { next: { revalidate: 60 } });
   if (!res.ok) throw new Error(`listMatches failed: ${res.status}`);
   return (await res.json()) as MatchOut[];
 }
 
 export async function getMatch(matchId: number) {
-  const res = await fetch(`${BASE}/api/matches/${matchId}`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}`, { next: { revalidate: 60 } });
   if (!res.ok) throw new Error(`getMatch failed: ${res.status}`);
   return (await res.json()) as MatchOut;
 }
@@ -49,7 +49,7 @@ export type H2HMatch = {
 };
 
 export async function getH2H(matchId: number, limit = 5): Promise<H2HMatch[]> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/h2h?limit=${limit}`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}/h2h?limit=${limit}`, { next: { revalidate: 60 } });
   if (!res.ok) return [];
   return (await res.json()) as H2HMatch[];
 }
@@ -65,7 +65,7 @@ export type Injury = {
 export type MatchInjuries = { home: Injury[]; away: Injury[] };
 
 export async function getInjuries(matchId: number): Promise<MatchInjuries> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/injuries`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}/injuries`, { next: { revalidate: 60 } });
   if (!res.ok) return { home: [], away: [] };
   return (await res.json()) as MatchInjuries;
 }
@@ -87,7 +87,7 @@ export type TeamLineup = {
 export type MatchLineups = { home: TeamLineup | null; away: TeamLineup | null };
 
 export async function getLineups(matchId: number): Promise<MatchLineups> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/lineups`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}/lineups`, { next: { revalidate: 60 } });
   if (!res.ok) return { home: null, away: null };
   return (await res.json()) as MatchLineups;
 }
@@ -104,7 +104,7 @@ export type ScorerOdds = {
 };
 
 export async function getScorerOdds(matchId: number, limit = 12): Promise<ScorerOdds[]> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/scorers?limit=${limit}`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}/scorers?limit=${limit}`, { next: { revalidate: 60 } });
   if (!res.ok) return [];
   return (await res.json()) as ScorerOdds[];
 }
@@ -119,7 +119,7 @@ export type TeamInjuryImpact = {
 export type InjuryImpact = { home: TeamInjuryImpact; away: TeamInjuryImpact };
 
 export async function getInjuryImpact(matchId: number): Promise<InjuryImpact | null> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/injury-impact`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}/injury-impact`, { next: { revalidate: 60 } });
   if (!res.ok) return null;
   return (await res.json()) as InjuryImpact;
 }
@@ -133,7 +133,7 @@ export type Weather = {
 };
 
 export async function getWeather(matchId: number): Promise<Weather | null> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/weather`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}/weather`, { next: { revalidate: 60 } });
   if (!res.ok) return null;
   const body = (await res.json()) as Weather | null;
   return body;
@@ -159,7 +159,7 @@ export type Markets = {
 };
 
 export async function getMarkets(matchId: number): Promise<Markets | null> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/markets`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}/markets`, { next: { revalidate: 60 } });
   if (!res.ok) return null;
   return (await res.json()) as Markets | null;
 }
@@ -187,7 +187,7 @@ export type MarketsEdge = {
 };
 
 export async function getMarketsEdge(matchId: number): Promise<MarketsEdge | null> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/markets-edge`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}/markets-edge`, { next: { revalidate: 60 } });
   if (!res.ok) return null;
   return (await res.json()) as MarketsEdge;
 }
@@ -201,7 +201,7 @@ export type RefereeInfo = {
 };
 
 export async function getRefereeInfo(matchId: number): Promise<RefereeInfo | null> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/referee`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}/referee`, { next: { revalidate: 60 } });
   if (!res.ok) return null;
   return (await res.json()) as RefereeInfo | null;
 }
@@ -216,7 +216,7 @@ export type FatigueContext = {
 };
 
 export async function getFatigueContext(matchId: number): Promise<FatigueContext | null> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/fatigue`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}/fatigue`, { next: { revalidate: 60 } });
   if (!res.ok) return null;
   return (await res.json()) as FatigueContext | null;
 }
@@ -229,7 +229,7 @@ export type LineupStrength = {
 };
 
 export async function getLineupStrength(matchId: number): Promise<LineupStrength | null> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/lineup-strength`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}/lineup-strength`, { next: { revalidate: 60 } });
   if (!res.ok) return null;
   return (await res.json()) as LineupStrength | null;
 }
@@ -243,7 +243,7 @@ export type HalfTimePredictions = {
 };
 
 export async function getHalfTime(matchId: number): Promise<HalfTimePredictions | null> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/halftime`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/matches/${matchId}/halftime`, { next: { revalidate: 60 } });
   if (!res.ok) return null;
   return (await res.json()) as HalfTimePredictions | null;
 }
@@ -259,7 +259,8 @@ export type PredictionCI = {
 };
 
 export async function getCI(matchId: number): Promise<PredictionCI | null> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/ci`, { cache: "no-store" });
+  // CI is ~1.8s cold to bootstrap; rarely changes once scheduled.
+  const res = await fetch(`${BASE}/api/matches/${matchId}/ci`, { next: { revalidate: 600 } });
   if (!res.ok) return null;
   return (await res.json()) as PredictionCI | null;
 }
@@ -280,7 +281,7 @@ export async function getMatchStory(matchId: number): Promise<MatchStory | null>
 
 
 export async function fetchSuggestedPrompts(matchId: number): Promise<string[]> {
-  const res = await fetch(`${BASE}/api/chat/suggest/${matchId}`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/chat/suggest/${matchId}`, { next: { revalidate: 600 } });
   if (!res.ok) return [];
   const { prompts } = await res.json();
   return prompts as string[];
@@ -321,7 +322,7 @@ export async function fetchChatHistory(matchId: number): Promise<Array<{ role: s
   if (typeof window === "undefined") return [];
   const session_id = getSessionId();
   const params = new URLSearchParams({ session_id, match_id: String(matchId) });
-  const res = await fetch(`${BASE}/api/chat/history?${params.toString()}`, { cache: "no-store" });
+  const res = await fetch(`${BASE}/api/chat/history?${params.toString()}`, { next: { revalidate: 60 } });
   if (!res.ok) return [];
   return res.json();
 }

@@ -45,6 +45,7 @@ from app.api import title_race as title_race_router
 from app.api import power_rankings as power_rankings_router
 from app.api import top_scorer_race as top_scorer_race_router
 from app.api import tipsters as tipsters_router
+from app.core.cache_headers import EdgeCacheMiddleware
 from app.core.db import lifespan
 from app.core.error_log import ErrorLogMiddleware
 
@@ -52,6 +53,9 @@ app = FastAPI(title="EPL Prediction Lab", lifespan=lifespan)
 
 # Error middleware first so 500s from any later middleware still get logged.
 app.add_middleware(ErrorLogMiddleware)
+# Edge-cache headers on public GETs — Cloudflare honours s-maxage, browser
+# keeps max-age=0 so users always revalidate against the CDN.
+app.add_middleware(EdgeCacheMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
