@@ -361,6 +361,142 @@ async def _upsert_events(
     return inserted_ids
 
 
+async def _notify_drama_events(
+    pool: asyncpg.Pool,
+    match_id: int,
+    new_event_ids: list[int],
+) -> None:
+    """Fan-out for high-drama events the score-based notify misses:
+
+      • VAR 'Goal cancelled'        → ❌🥅
+      • VAR 'Penalty confirmed'     → 🎯✅
+      • VAR 'Penalty cancelled'     → 🎯❌
+      • VAR 'Red card cancelled'    → 🟥↩️
+      • VAR 'Goal Disallowed…'      → ❌🥅
+      • Goal event_detail = 'Missed Penalty' → ⛔
+
+    Everything lower-impact (Card upgrade, Goal confirmed, Card reviewed)
+    stays silent — too noisy for a push. Idempotent via notified_at.
+    """
+    ICON_MAP = {
+        ("Var", "Goal cancelled"): ("❌🥅", "GOAL CANCELLED"),
+        ("Var", "Penalty confirmed"): ("🎯✅", "PENALTY CONFIRMED"),
+        ("Var", "Penalty cancelled"): ("🎯❌", "PENALTY CANCELLED"),
+        ("Var", "Red card cancelled"): ("🟥↩️", "RED CARD CANCELLED"),
+        ("Var", "Goal Disallowed - offside"): ("❌🥅", "GOAL DISALLOWED (OFFSIDE)"),
+        ("Goal", "Missed Penalty"): ("⛔", "PENALTY MISSED"),
+    }
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT e.id, e.minute, e.extra_minute, e.player_name,
+                   e.event_type, e.event_detail, e.team_slug,
+                   ht.slug AS home_slug, ht.short_name AS home_s,
+                   at.slug AS away_slug, at.short_name AS away_s,
+                   m.league_code
+            FROM match_events e
+            JOIN matches m ON m.id = e.match_id
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            WHERE e.id = ANY($1::int[])
+              AND e.match_id = $2
+              AND e.notified_at IS NULL
+              AND (
+                (e.event_type = 'Var')
+                OR (e.event_type = 'Goal' AND e.event_detail = 'Missed Penalty')
+              )
+            ORDER BY e.minute ASC NULLS LAST, e.extra_minute ASC NULLS LAST, e.id
+            """,
+            new_event_ids, match_id,
+        )
+
+    if not rows:
+        return
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+
+    for r in rows:
+        key = (r["event_type"], r["event_detail"])
+        if key not in ICON_MAP:
+            # Still mark as notified so we don't keep re-checking the
+            # row forever; we just don't post about it.
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE match_events SET notified_at = NOW() WHERE id = $1",
+                    r["id"],
+                )
+            continue
+        icon, label = ICON_MAP[key]
+        minute_label = (
+            f"{r['minute']}+{r['extra_minute']}'"
+            if r["extra_minute"] else f"{r['minute']}'"
+        )
+        player = r["player_name"] or "—"
+        side_short = (
+            r["home_s"] if r["team_slug"] == r["home_slug"] else r["away_s"]
+        )
+        url = f"https://predictor.nullshift.sh/match/{match_id}"
+
+        if token and chat_id:
+            try:
+                _telegram_post(
+                    token, chat_id,
+                    f"{icon} *{label}* · {minute_label}\n"
+                    f"*{side_short}* · {player}\n{url}",
+                )
+            except Exception as e:
+                print(f"[live-scores] drama telegram failed for {r['id']}: {type(e).__name__}: {e}")
+
+        try:
+            from app.api.telegram import fan_out_to_team_subscribers
+            await fan_out_to_team_subscribers(
+                pool,
+                team_slugs=[r["home_slug"], r["away_slug"]],
+                text=(
+                    f"{icon} *{label}* · {minute_label}\n"
+                    f"{side_short} · {player}\n{url}"
+                ),
+            )
+        except Exception as e:
+            print(f"[live-scores] drama team-sub fanout failed for {r['id']}: {type(e).__name__}: {e}")
+
+        try:
+            from app.api.discord import fan_out_to_discord
+            await fan_out_to_discord(
+                pool,
+                team_slugs=[r["home_slug"], r["away_slug"]],
+                content=(
+                    f"{icon} **{label}** · {minute_label} · "
+                    f"{side_short} · {player}\n<{url}>"
+                ),
+                kind="drama",
+            )
+        except Exception as e:
+            print(f"[live-scores] drama discord fanout failed for {r['id']}: {type(e).__name__}: {e}")
+
+        try:
+            from app.api.push import dispatch_goal
+            await dispatch_goal(
+                pool,
+                [r["home_slug"], r["away_slug"]],
+                {
+                    "title": f"{icon} {label} · {side_short}",
+                    "body": f"{minute_label} · {player}",
+                    "url": url,
+                },
+            )
+        except Exception as e:
+            print(f"[live-scores] drama push failed for {r['id']}: {type(e).__name__}: {e}")
+
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE match_events SET notified_at = NOW() WHERE id = $1",
+                r["id"],
+            )
+
+
 async def _notify_red_card_events(
     pool: asyncpg.Pool,
     match_id: int,
@@ -768,13 +904,23 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
         home_short = meta["home_short"].replace("_", "\\_")
         away_short = meta["away_short"].replace("_", "\\_")
 
+        # Tag late-drama goals — anything at 85' or later reads as a
+        # momentum-shifter vs the same goal in the 20th minute. Also
+        # covers extra-time (minute >= 90 carries an explicit ET tag).
+        drama = ""
+        if elapsed is not None:
+            if elapsed >= 90:
+                drama = "🔥 *EXTRA-TIME* · "
+            elif elapsed >= 85:
+                drama = "🔥 *LATE DRAMA* · "
+
         if scored_home and scored_away:
             # Extremely rare edge case (2-goal jump from missed update).
-            lead = "⚽ *Có bàn thắng!*"
+            lead = f"{drama}⚽ *Có bàn thắng!*"
         elif scored_home:
-            lead = f"⚽ *{home_short}* ghi bàn!"
+            lead = f"{drama}⚽ *{home_short}* ghi bàn!"
         else:
-            lead = f"⚽ *{away_short}* ghi bàn!"
+            lead = f"{drama}⚽ *{away_short}* ghi bàn!"
 
         text = (
             f"{lead}  _{minute_label}_\n"
@@ -886,6 +1032,15 @@ async def _update(pool: asyncpg.Pool, f: dict, api_key: str) -> bool:
                 )
             except Exception as e:
                 print(f"[live-scores] red-card notify failed for {match_row['id']}: {type(e).__name__}: {e}")
+
+            # VAR drama + missed penalties — no score change, so the
+            # main goal-notify path skipped them. Alert separately.
+            try:
+                await _notify_drama_events(
+                    pool, match_row["id"], new_ids,
+                )
+            except Exception as e:
+                print(f"[live-scores] drama notify failed for {match_row['id']}: {type(e).__name__}: {e}")
 
             # Mark newly-upserted Goal events as notified — the instant
             # notify above already posted the message, so the legacy
