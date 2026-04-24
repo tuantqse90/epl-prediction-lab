@@ -47,9 +47,43 @@ if [ "$DOW" = "7" ]; then
   echo "[backup] also promoted to weekly: $WEEKLY_FILE"
 fi
 
-# Rotation — keep last 14 dailies, last 8 weeklies.
-echo "[backup] rotating …"
+# Rotation — keep last 14 dailies, last 8 weeklies locally.
+echo "[backup] rotating local …"
 ls -1t "$BACKUP_DIR"/epl-daily-*.sql.gz 2>/dev/null | awk 'NR>14' | xargs -r rm -v
 ls -1t "$BACKUP_DIR"/epl-weekly-*.sql.gz 2>/dev/null | awk 'NR>8' | xargs -r rm -v
+
+# Off-site mirror — Cloudflare R2 if rclone + the [r2] remote are
+# configured. The remote is set up separately (one-shot) via:
+#   /root/.config/rclone/rclone.conf containing account_id + keys.
+# If rclone isn't installed or the [r2] remote is missing we skip
+# silently; the local dump still succeeded.
+#
+# Remote retention is more generous than local: 60 dailies + 26 weeklies
+# (6 months of Sunday snapshots) — R2 storage is $0.015/GB/mo, cheap.
+R2_BUCKET="${R2_BUCKET:-football-predict-backups}"
+if command -v rclone >/dev/null 2>&1 \
+   && rclone listremotes 2>/dev/null | grep -q '^r2:$'; then
+  echo "[backup] uploading to r2:$R2_BUCKET …"
+  if rclone copyto "$FINAL_FILE" "r2:$R2_BUCKET/$(basename "$FINAL_FILE")" \
+       --s3-no-check-bucket --quiet; then
+    echo "[backup] r2 ok"
+    if [ "$DOW" = "7" ]; then
+      rclone copyto "$WEEKLY_FILE" "r2:$R2_BUCKET/$(basename "$WEEKLY_FILE")" \
+        --s3-no-check-bucket --quiet || true
+    fi
+    # Remote rotation.
+    echo "[backup] rotating remote …"
+    rclone ls "r2:$R2_BUCKET" --include "epl-daily-*.sql.gz" 2>/dev/null \
+      | awk '{print $2}' | sort | head -n -60 \
+      | while read -r f; do rclone delete "r2:$R2_BUCKET/$f" || true; done
+    rclone ls "r2:$R2_BUCKET" --include "epl-weekly-*.sql.gz" 2>/dev/null \
+      | awk '{print $2}' | sort | head -n -26 \
+      | while read -r f; do rclone delete "r2:$R2_BUCKET/$f" || true; done
+  else
+    echo "[backup] r2 upload FAILED — local copy still intact"
+  fi
+else
+  echo "[backup] r2 not configured; skipping off-site mirror"
+fi
 
 echo "[backup] done"
