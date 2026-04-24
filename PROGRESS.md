@@ -2,6 +2,19 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 10:30 +07 — Block 21 done: model depth v2 (6 items)
+
+Infrastructure-only ship so prod behaviour unchanged; future retrain wires these into the predict path.
+
+1. **21.1 Home/away split** — already shipped in `features.py` (venue-split strengths + `venue_blend=0.6` in `match_lambdas`). Marked complete.
+2. **21.2 Derbies** — `app/models/derbies.py` tags 22 rivalry pairs (NLD, Manchester, Merseyside, El Clasico, Derby della Madonnina, Der Klassiker, Le Classique, etc.) + `/api/matches/:id/derby` endpoint. 5 TDD tests.
+3. **21.3 Manager tenure** — `manager_tenure` table + `/api/teams/:slug/manager` history + `/api/matches/:id/manager-bounce` flag + admin POST endpoint for seeding.
+4. **21.4 Defense-adjusted player xG** — `defense_adjusted_xg.py` helpers + 5 TDD tests. Clamps opponent coefs to [0.5, 2.0] so thin samples don't explode projections.
+5. **21.5 Dynamic ρ per quarter** — `rho_calibration` table + `dynamic_rho.lookup_rho()` with matchweek→quarter mapping. Empty table today = fall back to DEFAULT_RHO = -0.15 (prod behaviour unchanged).
+6. **21.6 Cup-vs-league prior** — `competition_type` column on matches (default 'league'), `competition_prior.py` with league/cup/europe priors (favourite_reduction + ρ shift).
+
+3 new migrations applied (025 manager_tenure, 026 rho_calibration, 027 competition_type). 10/10 tests green.
+
 ## 2026-04-24 09:45 +07 — Block 20 done: personal layer (5 items)
 
 No-login personal surface, everything in localStorage by default.
