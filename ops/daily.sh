@@ -26,6 +26,12 @@ run python scripts/backfill_fixture_ids.py --days 30 || true
 # flag them forever. ~1 API call per stuck match, bounded to 20/tick.
 run python scripts/finalise_missed_matches.py --max 20 || true
 
+# UCL + UEL daily refresh — high-audience Tue/Wed matchdays. Cheap call
+# count: ~2 league-season pulls + ~N odds pages. Script is idempotent
+# (upsert by af fixture id).
+EUROPE_SEASON_YEAR="${EUROPE_SEASON_YEAR:-2025}"
+run python scripts/ingest_european_cups.py --season "$EUROPE_SEASON_YEAR" --league ALL || true
+
 # News headlines (RSS, no API cost)
 run python scripts/ingest_news.py || true
 

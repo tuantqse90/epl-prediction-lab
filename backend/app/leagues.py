@@ -100,6 +100,26 @@ LEAGUES: list[League] = [
         api_football_id=98,
         the_odds_api_key="soccer_japan_j_league",
     ),
+    # ── European cup competitions. Model is weaker here (short formats,
+    # knockout variance, rotated rosters), but audience is 10× higher on
+    # UCL nights. competition_type='europe' triggers the cup prior from
+    # Block 21.6 (favourite_reduction=0.10 pulls strengths toward neutral).
+    League(
+        code="UEFA-Champions League", slug="ucl", short="UCL",
+        name_en="Champions League", name_vi="Champions League",
+        emoji="⭐",
+        football_data_code="",
+        api_football_id=2,
+        the_odds_api_key="soccer_uefa_champs_league",
+    ),
+    League(
+        code="UEFA-Europa League", slug="uel", short="UEL",
+        name_en="Europa League", name_vi="Europa League",
+        emoji="🏆",
+        football_data_code="",
+        api_football_id=3,
+        the_odds_api_key="soccer_uefa_europa_league",
+    ),
 ]
 
 BY_CODE: dict[str, League] = {lg.code: lg for lg in LEAGUES}
