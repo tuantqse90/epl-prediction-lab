@@ -109,10 +109,10 @@ def test_format_pick_renders_matches():
     from app.telegram.bot import format_pick
 
     rows = [
-        _ns(home_short="ARS", away_short="TOT", league_code="ENG-Premier League",
+        _ns(home_name="ARS", away_name="TOT", league_code="ENG-Premier League",
             kickoff_time="2026-04-25 14:00:00", pick_side="H", pick_conf=0.58,
             best_odds=1.75, edge_pp=4.2),
-        _ns(home_short="PSG", away_short="LYO", league_code="FRA-Ligue 1",
+        _ns(home_name="PSG", away_name="LYO", league_code="FRA-Ligue 1",
             kickoff_time="2026-04-25 19:00:00", pick_side="H", pick_conf=0.62,
             best_odds=1.48, edge_pp=6.8),
     ]

@@ -102,7 +102,7 @@ SITE = "https://predictor.nullshift.sh"
 
 def format_pick(rows: Iterable, *, window_label: str = "today") -> str:
     """Render the model's top picks for a window. Each row needs:
-        home_short, away_short, league_code, kickoff_time,
+        home_name, away_name, league_code, kickoff_time,
         pick_side (H|D|A), pick_conf, best_odds, edge_pp,
         match_id (optional — renders a deep-link when present)
     """
@@ -112,8 +112,8 @@ def format_pick(rows: Iterable, *, window_label: str = "today") -> str:
     lines = [f"*Top picks · {window_label}*"]
     for r in rows[:8]:
         side_label = (
-            r.home_short if r.pick_side == "H"
-            else r.away_short if r.pick_side == "A"
+            r.home_name if r.pick_side == "H"
+            else r.away_name if r.pick_side == "A"
             else "Draw"
         )
         ko = str(r.kickoff_time)[11:16] if r.kickoff_time else ""
@@ -126,9 +126,9 @@ def format_pick(rows: Iterable, *, window_label: str = "today") -> str:
         # Markdown link wraps the fixture name — Telegram renders it as a
         # tappable deep-link straight to /match/:id (43.4).
         fixture = (
-            f"[*{r.home_short}* vs *{r.away_short}*]({SITE}/match/{int(mid)})"
+            f"[*{r.home_name}* vs *{r.away_name}*]({SITE}/match/{int(mid)})"
             if mid is not None
-            else f"*{r.home_short}* vs *{r.away_short}*"
+            else f"*{r.home_name}* vs *{r.away_name}*"
         )
         lines.append(
             f"{_league_emoji(r.league_code)} {ko}  {fixture}\n"
@@ -160,14 +160,14 @@ def format_edge(rows: Iterable, *, threshold_pp: float = 5.0) -> str:
     lines = [f"*Edges ≥ {threshold_pp:.1f}%*"]
     for r in rows[:10]:
         side_label = (
-            r.home_short if r.pick_side == "H"
-            else r.away_short if r.pick_side == "A"
+            r.home_name if r.pick_side == "H"
+            else r.away_name if r.pick_side == "A"
             else "Draw"
         )
         ko = str(r.kickoff_time)[5:16] if r.kickoff_time else ""
         lines.append(
             f"{_league_emoji(r.league_code)} {ko} "
-            f"*{r.home_short}*-*{r.away_short}* → {side_label} "
+            f"*{r.home_name}*-*{r.away_name}* → {side_label} "
             f"@ {r.best_odds:.2f} (+{r.edge_pp:.1f}%)"
         )
     return "\n".join(lines)

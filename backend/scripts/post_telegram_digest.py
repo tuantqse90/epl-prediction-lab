@@ -79,8 +79,8 @@ async def _fetch(pool: asyncpg.Pool, horizon_hours: int) -> list[dict]:
                 ORDER BY p.match_id, p.created_at DESC
             )
             SELECT m.id, m.kickoff_time, m.league_code,
-                   ht.short_name AS home_short,
-                   at.short_name AS away_short,
+                   ht.name AS home_name,
+                   at.name AS away_name,
                    l.p_home_win, l.p_draw, l.p_away_win,
                    o.odds_home, o.odds_draw, o.odds_away
             FROM matches m
@@ -139,8 +139,8 @@ def _format(picks: list[dict], horizon_hours: int) -> str | None:
     for i, p in enumerate(picks, 1):
         m = p["match"]
         link = f"{SITE}/match/{m['id']}"
-        home = _escape(m["home_short"])
-        away = _escape(m["away_short"])
+        home = _escape(m["home_name"])
+        away = _escape(m["away_name"])
         prefix = _league_prefix(m.get("league_code"))
         verb = _outcome_verb(p["outcome"], home, away)
         lines.append(

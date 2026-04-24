@@ -93,7 +93,7 @@ async def run() -> None:
                     FROM match_odds o GROUP BY o.match_id
                 )
                 SELECT m.id, m.league_code, m.kickoff_time,
-                       ht.short_name AS home_short, at.short_name AS away_short,
+                       ht.name AS home_name, at.name AS away_name,
                        l.p_home_win, l.p_draw, l.p_away_win,
                        b.bh, b.bd, b.ba
                 FROM matches m
@@ -121,15 +121,15 @@ async def run() -> None:
             if not (5.0 <= edge_pp <= 30.0):
                 continue
             pick = (
-                r["home_short"] if side == "H"
-                else r["away_short"] if side == "A"
-                else "Draw"
+                r["home_name"] if side == "H"
+                else r["away_name"] if side == "A"
+                else "Hoà"
             )
             edges.append({
                 "match_id": r["id"],
                 "league_code": r["league_code"],
                 "ko": r["kickoff_time"],
-                "home": r["home_short"], "away": r["away_short"],
+                "home": r["home_name"], "away": r["away_name"],
                 "pick": pick, "conf": conf,
                 "odds": float(odds), "edge_pp": edge_pp,
             })

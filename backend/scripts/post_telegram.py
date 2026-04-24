@@ -171,10 +171,10 @@ def _format_message(value_bets: list[dict], confidence: list[dict]) -> str:
             side = vb["outcome"]
             model_p = round(probs[side] * 100)
             market_p = round(fair_map[side] * 100) if fair_map else None
-            verb = _outcome_verb(side, _escape_md(m["home_short"]), _escape_md(m["away_short"]))
+            verb = _outcome_verb(side, _escape_md(m["home_name"]), _escape_md(m["away_name"]))
             prefix = _league_prefix(m.get("league_code"))
             lines.append(
-                f"*{i}.* {prefix} · [{_escape_md(m['home_short'])} vs {_escape_md(m['away_short'])}]({link})"
+                f"*{i}.* {prefix} · [{_escape_md(m['home_name'])} vs {_escape_md(m['away_name'])}]({link})"
                 f" — _{_kickoff(m['kickoff_time'])}_"
             )
             lines.append(
@@ -193,10 +193,10 @@ def _format_message(value_bets: list[dict], confidence: list[dict]) -> str:
         for i, cp in enumerate(confidence, 1):
             m = cp["match"]
             link = f"{SITE}/match/{m['id']}"
-            verb = _outcome_verb(cp["outcome"], _escape_md(m["home_short"]), _escape_md(m["away_short"]))
+            verb = _outcome_verb(cp["outcome"], _escape_md(m["home_name"]), _escape_md(m["away_name"]))
             prefix = _league_prefix(m.get("league_code"))
             lines.append(
-                f"*{i}.* {prefix} · [{_escape_md(m['home_short'])} vs {_escape_md(m['away_short'])}]({link})"
+                f"*{i}.* {prefix} · [{_escape_md(m['home_name'])} vs {_escape_md(m['away_name'])}]({link})"
                 f" — _{_kickoff(m['kickoff_time'])}_"
             )
             lines.append(f"    → *{verb}* ({round(cp['confidence'] * 100)}%)")

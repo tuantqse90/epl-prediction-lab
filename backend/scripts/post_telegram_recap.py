@@ -122,11 +122,11 @@ def _format(rows: list[dict], days: int) -> str | None:
     def _row(e: dict, mark: str) -> str:
         link = f"{SITE}/match/{e['id']}"
         day = _day_label(e["kickoff_time"])
-        pick_label = _pick_label(e["pick"], _escape(e["home_short"]), _escape(e["away_short"]))
+        pick_label = _pick_label(e["pick"], _escape(e["home_name"]), _escape(e["away_name"]))
         prefix = _league_prefix(e.get("league_code"))
         return (
-            f"{mark} {prefix} · [{_escape(e['home_short'])} {e['home_goals']}-{e['away_goals']} "
-            f"{_escape(e['away_short'])}]({link}) "
+            f"{mark} {prefix} · [{_escape(e['home_name'])} {e['home_goals']}-{e['away_goals']} "
+            f"{_escape(e['away_name'])}]({link}) "
             f"· _{day}_ · dự đoán *{pick_label}* ({round(e['confidence'] * 100)}%)"
         )
 
@@ -139,8 +139,8 @@ def _format(rows: list[dict], days: int) -> str | None:
     if misses:
         lines.append("❌ *Đoán sai*")
         for e in misses:
-            home = _escape(e["home_short"])
-            away = _escape(e["away_short"])
+            home = _escape(e["home_name"])
+            away = _escape(e["away_name"])
             link = f"{SITE}/match/{e['id']}"
             day = _day_label(e["kickoff_time"])
             pick_label = _pick_label(e["pick"], home, away)

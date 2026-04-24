@@ -143,7 +143,7 @@ best AS (
     GROUP BY o.match_id
 )
 SELECT m.id,
-       ht.short_name AS home_short, at.short_name AS away_short,
+       ht.name AS home_name, at.name AS away_name,
        m.league_code, m.kickoff_time,
        l.p_home_win, l.p_draw, l.p_away_win,
        b.best_home, b.best_draw, b.best_away
@@ -183,8 +183,8 @@ def _row_to_pick(r):
     from types import SimpleNamespace
     return SimpleNamespace(
         match_id=r["id"],
-        home_short=r["home_short"],
-        away_short=r["away_short"],
+        home_name=r["home_name"],
+        away_name=r["away_name"],
         league_code=r["league_code"],
         kickoff_time=r["kickoff_time"],
         pick_side=side,
