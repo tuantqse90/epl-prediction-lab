@@ -46,6 +46,19 @@ export default async function sitemap({
       { url: `${SITE}/leagues/ligue1`,       changeFrequency: "daily",  priority: 0.8, lastModified: now },
       { url: `${SITE}/about`,                changeFrequency: "monthly",priority: 0.5, lastModified: now },
       { url: `${SITE}/faq`,                  changeFrequency: "monthly",priority: 0.6, lastModified: now },
+      { url: `${SITE}/glossary`,             changeFrequency: "monthly",priority: 0.6, lastModified: now },
+      { url: `${SITE}/methodology`,          changeFrequency: "monthly",priority: 0.7, lastModified: now },
+      { url: `${SITE}/changelog`,            changeFrequency: "weekly", priority: 0.4, lastModified: now },
+      { url: `${SITE}/press-kit`,            changeFrequency: "monthly",priority: 0.5, lastModified: now },
+      { url: `${SITE}/calibration`,          changeFrequency: "weekly", priority: 0.7, lastModified: now },
+      { url: `${SITE}/equity-curve`,         changeFrequency: "weekly", priority: 0.7, lastModified: now },
+      { url: `${SITE}/title-race`,           changeFrequency: "weekly", priority: 0.8, lastModified: now },
+      { url: `${SITE}/relegation`,           changeFrequency: "weekly", priority: 0.7, lastModified: now },
+      { url: `${SITE}/scorers-race`,         changeFrequency: "weekly", priority: 0.7, lastModified: now },
+      { url: `${SITE}/power-rankings`,       changeFrequency: "weekly", priority: 0.7, lastModified: now },
+      { url: `${SITE}/arbs`,                 changeFrequency: "daily",  priority: 0.6, lastModified: now },
+      { url: `${SITE}/middles`,              changeFrequency: "daily",  priority: 0.5, lastModified: now },
+      { url: `${SITE}/kelly-explorer`,       changeFrequency: "weekly", priority: 0.5, lastModified: now },
     ];
   }
 
