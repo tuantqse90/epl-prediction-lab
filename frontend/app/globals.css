@@ -6,12 +6,33 @@
   :root {
     color-scheme: dark;
   }
+  html[data-theme="light"] {
+    color-scheme: light;
+  }
   html,
   body {
     background-color: #000;
     color: #fff;
     font-family: "Geist", "Inter", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+  }
+  html[data-theme="light"] body {
+    background-color: #f8f8f5;
+    color: #111;
+  }
+  /* Light-theme overrides for the Payy design tokens — keep neon + the
+     structural colour roles, swap the surface/high/muted neutrals. */
+  html[data-theme="light"] .bg-surface { background-color: #f8f8f5 !important; }
+  html[data-theme="light"] .bg-high    { background-color: #e8e8e0 !important; }
+  html[data-theme="light"] .bg-raised  { background-color: #fff !important; }
+  html[data-theme="light"] .text-primary   { color: #111 !important; }
+  html[data-theme="light"] .text-secondary { color: #333 !important; }
+  html[data-theme="light"] .text-muted     { color: #666 !important; }
+  html[data-theme="light"] .border-border,
+  html[data-theme="light"] .border-border-muted { border-color: #ddd !important; }
+  html[data-theme="light"] .card {
+    background-color: #fff !important;
+    border-color: #e0e0d8 !important;
   }
   ::selection {
     background: #e0ff32;

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 
 import InstallPrompt from "@/components/InstallPrompt";
+import MobileBottomNav from "@/components/MobileBottomNav";
+import ShortcutsModal from "@/components/ShortcutsModal";
 import SiteHeader from "@/components/SiteHeader";
 import { LangProvider } from "@/lib/i18n-client";
 import type { Lang } from "@/lib/i18n";
@@ -27,7 +29,9 @@ async function ChromeOrEmbed({
     <>
       {!isEmbed && <SiteHeader lang={lang} />}
       {children}
+      {!isEmbed && <MobileBottomNav />}
       {!isEmbed && <InstallPrompt />}
+      {!isEmbed && <ShortcutsModal />}
     </>
   );
 }
