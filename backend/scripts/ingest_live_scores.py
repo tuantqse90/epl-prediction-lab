@@ -929,6 +929,176 @@ async def _enrich_goal_message_with_scorer(
         )
 
 
+async def _notify_kickoff(pool: asyncpg.Pool) -> int:
+    """Post a 'match starting' blast for any fixture that just flipped
+    into live status. Fan-out: main Telegram channel + team subscribers
+    + Discord webhooks + API webhooks (`event=match_start`). Idempotent
+    via `matches.kickoff_notified_at`.
+
+    Guard: only matches kicked off in the last 10 min so a backfill or
+    migration doesn't spam yesterday's fixtures.
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            WITH latest AS (
+                SELECT DISTINCT ON (p.match_id)
+                    p.match_id, p.p_home_win, p.p_draw, p.p_away_win
+                FROM predictions p
+                ORDER BY p.match_id, p.created_at DESC
+            )
+            SELECT m.id, m.kickoff_time, m.league_code,
+                   ht.short_name AS home_short, ht.slug AS home_slug, ht.name AS home_name,
+                   at.short_name AS away_short, at.slug AS away_slug, at.name AS away_name,
+                   l.p_home_win, l.p_draw, l.p_away_win
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            LEFT JOIN latest l ON l.match_id = m.id
+            WHERE m.status = 'live'
+              AND m.kickoff_notified_at IS NULL
+              AND m.kickoff_time > NOW() - INTERVAL '10 minutes'
+            ORDER BY m.kickoff_time ASC
+            LIMIT 20
+            """,
+        )
+
+    if not rows:
+        return 0
+
+    notified = 0
+    for r in rows:
+        match_id = r["id"]
+        prefix = _league_prefix(r.get("league_code"))
+        home_short = r["home_short"].replace("_", "\\_")
+        away_short = r["away_short"].replace("_", "\\_")
+        url = f"https://predictor.nullshift.sh/match/{match_id}"
+
+        # Model pick + conf line, if we have a prediction.
+        pick_line = ""
+        if r["p_home_win"] is not None:
+            probs = {
+                "H": float(r["p_home_win"]),
+                "D": float(r["p_draw"]),
+                "A": float(r["p_away_win"]),
+            }
+            side = max(probs, key=probs.get)
+            label = (
+                r["home_short"] if side == "H"
+                else r["away_short"] if side == "A" else "Draw"
+            )
+            pick_line = f"\nModel → *{label}* {int(probs[side]*100)}%"
+
+        # Main Telegram channel.
+        if token and chat_id:
+            tg_text = (
+                f"⏱️ *KICK-OFF* {prefix}\n"
+                f"*{home_short}* vs *{away_short}*"
+                f"{pick_line}\n{url}"
+            )
+            try:
+                _telegram_post(token, chat_id, tg_text)
+            except Exception as e:
+                print(f"[live-scores] kickoff telegram failed for {match_id}: {type(e).__name__}: {e}")
+
+        # Team-subscribers (users who followed home or away).
+        try:
+            from app.api.telegram import fan_out_to_team_subscribers
+            await fan_out_to_team_subscribers(
+                pool,
+                team_slugs=[r["home_slug"], r["away_slug"]],
+                text=(
+                    f"⏱️ *KICK-OFF* {prefix}\n"
+                    f"*{home_short}* vs *{away_short}*{pick_line}\n{url}"
+                ),
+            )
+        except Exception as e:
+            print(f"[live-scores] KO team-sub fanout failed for {match_id}: {type(e).__name__}: {e}")
+
+        # Discord webhooks registered for either club.
+        try:
+            from app.api.discord import fan_out_to_discord
+            await fan_out_to_discord(
+                pool,
+                team_slugs=[r["home_slug"], r["away_slug"]],
+                content=(
+                    f"⏱️ **KICK-OFF** · {r['home_short']} vs {r['away_short']}\n"
+                    f"<{url}>"
+                ),
+                kind="kickoff",
+            )
+        except Exception as e:
+            print(f"[live-scores] KO discord fanout failed for {match_id}: {type(e).__name__}: {e}")
+
+        # Web push for fans who follow either team.
+        try:
+            from app.api.push import dispatch_goal
+            await dispatch_goal(
+                pool,
+                [r["home_slug"], r["away_slug"]],
+                {
+                    "title": f"⏱️ Kick-off · {r['home_short']} vs {r['away_short']}",
+                    "body": r["league_code"] or "Football",
+                    "url": url,
+                },
+            )
+        except Exception as e:
+            print(f"[live-scores] KO push failed for {match_id}: {type(e).__name__}: {e}")
+
+        # Developer API webhooks — `event=match_start`.
+        try:
+            import json as _json
+            import urllib.request as _u
+            async with pool.acquire() as conn:
+                hooks = await conn.fetch(
+                    """
+                    SELECT id, url FROM api_webhooks
+                    WHERE 'match_start' = ANY(event_types)
+                    """,
+                )
+            body = _json.dumps({
+                "event": "match_start",
+                "match_id": match_id,
+                "home_slug": r["home_slug"], "away_slug": r["away_slug"],
+                "league_code": r["league_code"],
+                "kickoff_time": r["kickoff_time"].isoformat(),
+            }).encode("utf-8")
+            for h in hooks:
+                try:
+                    req = _u.Request(
+                        h["url"], data=body, method="POST",
+                        headers={"Content-Type": "application/json"},
+                    )
+                    with _u.urlopen(req, timeout=5):
+                        pass
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            "UPDATE api_webhooks SET last_ok_at = NOW(), last_error = NULL WHERE id = $1",
+                            h["id"],
+                        )
+                except Exception as e:
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            "UPDATE api_webhooks SET last_error = $2 WHERE id = $1",
+                            h["id"], f"{type(e).__name__}: {e}"[:500],
+                        )
+        except Exception as e:
+            print(f"[live-scores] KO webhook dispatch failed for {match_id}: {type(e).__name__}: {e}")
+
+        # Always mark, even if some legs failed — partial delivery beats
+        # a re-fire loop.
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE matches SET kickoff_notified_at = NOW() WHERE id = $1",
+                match_id,
+            )
+        notified += 1
+    return notified
+
+
 async def _notify_full_time(pool: asyncpg.Pool) -> int:
     """Post a Telegram (+ push) summary for any match that just went final
     but we haven't notified about yet. Idempotent via matches.ft_notified_at.
@@ -1525,6 +1695,9 @@ async def run() -> None:
         flipped = await _flip_stuck_live_to_final(pool)
         if flipped:
             print(f"[live-scores] flipped {flipped} stale live rows → final")
+        ko_posts = await _notify_kickoff(pool)
+        if ko_posts:
+            print(f"[live-scores] posted {ko_posts} kickoff notifications")
         ht_posts = await _notify_halftime(pool)
         if ht_posts:
             print(f"[live-scores] posted {ht_posts} half-time notifications")
