@@ -541,7 +541,109 @@ Blocks 17 → 18 → 19 → 20 is the default ship order, but swap if data tells
 
 ---
 
-## 28. Out of scope (explicit)
+## 28. Growth + expansion phases (current — post-feature-complete)
+
+Blocks 17-34 shipped. Phase 36-38 shipped (wiring, outrights, in-play). Project is now feature-complete against the original roadmap. What follows is a different shape of work: **grow the audience, expand the data surface, start revenue probe**.
+
+Everything below is *deliberately not-engineering-maxi*. Each phase has a clear non-technical success metric.
+
+---
+
+### Phase 39 — Champions League + Europa League (~6 days)
+
+Biggest audience-expansion data we haven't ingested. UCL nights pull 10× normal EPL audience. Every feature we've built applies transparently — fixtures / predictions / outrights / in-play / embeds all surface UCL too.
+
+| # | Ship | Hours | Notes |
+|---|---|---|---|
+| 39.1 | **API-Football UCL/UEL ingest** | 6 | Uses existing af-odds quota; add league ids 2 (UCL) + 3 (UEL) |
+| 39.2 | **Model behaviour on cup fixtures** | 4 | `competition_type = 'europe'` already exists; use cup prior (Block 21.6). Short-format knockout stages harder — accept it, surface the uncertainty. |
+| 39.3 | **/europe dedicated page** | 4 | Next UCL matchday · bracket context · country-to-country odds |
+| 39.4 | **Per-matchday Telegram digest** | 3 | Specific to UCL nights (Tue/Wed 20:00 UTC) |
+| 39.5 | **Playoff / final bracket predictor** | 5 | Monte Carlo through remaining bracket to show "P(team lifts trophy)" |
+| 39.6 | **H2H data enrichment** | 3 | UCL rivalries often cross-league; extend /compare/history to read UCL finals |
+
+**Success metric.** At next UCL matchday: /europe pulls 3× homepage pageviews (measurable via `/admin/analytics`). Telegram channel growth delta > 50 subs.
+
+---
+
+### Phase 40 — Growth / distribution push (~5 days)
+
+We have all the distribution channels (Telegram, Discord, email, embed, /sync). Zero actual audience beyond the 5-member test group. This phase is about filling them.
+
+| # | Ship | Hours |
+|---|---|---|
+| 40.1 | **Landing page** (new, not homepage) — single-scroll, VN+EN, hero + proof + subscribe CTA | 6 |
+| 40.2 | **Twitter/X thread auto-generation** each matchday — "these 3 games have +5% edge" | 4 |
+| 40.3 | **Reddit / Facebook pitch toolkit** — copy-paste templates for /r/soccerbetting, VN football FB groups | 2 |
+| 40.4 | **Partner outreach list** — 10 football blogs × English + VN · offer the embed widget | 3 |
+| 40.5 | **Matchday-morning Telegram notification** at 10:00 UTC with top 3 edges | 3 |
+| 40.6 | **Facebook page + cross-posting** — auto-share key LLM recaps | 3 |
+
+**Success metric.** 500+ Telegram channel subs by end of month (currently 5). 100+ email subscribers (currently 0 confirmed). 3+ partner sites embedding a widget.
+
+---
+
+### Phase 41 — Monetisation MVP (~5 days)
+
+"Paid tier" was out-of-scope in the original roadmap because the product wasn't ready. It's ready now. Not to fund lifestyle — just to validate whether anyone pays.
+
+| # | Ship | Hours | Notes |
+|---|---|---|---|
+| 41.1 | **Donation link** (Ko-Fi / Buy Me a Coffee) in footer | 1 | Zero-risk probe |
+| 41.2 | **Pricing page** — free vs pro comparison | 3 | Free: everything except paid features. Pro: private API key / higher rate limits / email priority / CLV-per-match drill |
+| 41.3 | **Stripe integration** (recurring only) — Checkout + webhook | 6 | Use the existing api_keys table — upgrade path just flips a column. |
+| 41.4 | **Billing dashboard at /billing** | 4 | Shows current plan, invoice history (read-only initially), cancel button |
+| 41.5 | **Grandfather existing API keys as "pro-free"** | 2 | Until 2027-01-01; visible in their dashboard |
+
+**Success metric.** 1+ paid subscriber within 60 days (~$10-30/mo). If ≥ 3, build out further. If 0, kill the tier — not every product should monetise.
+
+---
+
+### Phase 42 — Content engine (~4 days)
+
+`generate_weekly_blog` + `generate_team_narratives` write ok-quality content now. Rate and variety of content drives SEO + social sharing. This phase turns up the content pipeline.
+
+| # | Ship | Hours |
+|---|---|---|
+| 42.1 | **Per-match story** — LLM writes 300-500 word narrative post-FT · auto-published to /match/:id | 5 |
+| 42.2 | **Manager-of-the-month post** first of each month, data-driven: xG improvement under new boss, lineup consistency, etc | 3 |
+| 42.3 | **Team-of-the-week auto-picked** — highest xG overperformers | 2 |
+| 42.4 | **Hot/cold finishing callouts** — use Block 27's `form_streaks.py` to surface 3 teams due for regression | 3 |
+| 42.5 | **Weekend preview every Friday 18:00** — LLM writes 600-word preview covering all 5 leagues · also goes to email digest | 4 |
+
+**Success metric.** Published content density doubles (from ~5 to 10+ per week). Organic search clicks to /blog/* up month-over-month in `/admin/analytics`.
+
+---
+
+### Phase 43 — Mobile + international expansion (~6 days, stretch)
+
+Only if 39-42 land successfully. Not a day-one priority.
+
+| # | Ship | Hours |
+|---|---|---|
+| 43.1 | **WSL (Women's EPL) ingest** | 4 |
+| 43.2 | **Argentine Primera** / J-League (Asian market) | 6 |
+| 43.3 | **iOS native app** via Capacitor wrapping the PWA | 6 |
+| 43.4 | **Deep-link handling** for Telegram bot → app | 3 |
+
+---
+
+## 29. Cheat sheet for Phase 39-43
+
+```
+Phase 39  UCL/UEL data expansion    6d   most user-expansion per hour
+Phase 40  Growth / distribution     5d   turn engineering into audience
+Phase 41  Monetisation MVP          5d   validate willingness to pay
+Phase 42  Content engine            4d   compound SEO + social
+---
+Phase 43  Mobile + WSL / Asia       6d   if 39-42 work, scale geographically
+```
+
+**Rule of thumb:** measure Phase 40's Telegram/email numbers after 2 weeks. If they hit targets, Phase 41 makes sense. If they don't, diagnose distribution before building more.
+
+---
+
+## 30. Out of scope (explicit)
 
 - Live stake placement / API bridge to any book or exchange
 - Handling real user money
