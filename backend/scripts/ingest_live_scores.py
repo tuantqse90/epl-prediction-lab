@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import sys
+import time
 import urllib.request
 from pathlib import Path
 
@@ -1235,6 +1236,200 @@ async def _enrich_goal_message_with_scorer(
         )
 
 
+async def _notify_pre_match(pool: asyncpg.Pool) -> int:
+    """Announce a fixture across social channels 20-45 min before KO.
+
+    Catches every scheduled match in that window; idempotent via
+    `matches.pre_match_notified_at`. Fan-out: main Telegram channel +
+    team subscribers + Discord webhooks + optional X/Twitter (if
+    X_API_KEY family is set).
+
+    Purposely NOT fired for matches kicking off <20 min away — the
+    KO notification itself covers that 0-10 min window. 45-min upper
+    bound matches the typical pre-match buildup users expect.
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            WITH latest AS (
+                SELECT DISTINCT ON (p.match_id)
+                    p.match_id, p.p_home_win, p.p_draw, p.p_away_win,
+                    p.top_scorelines
+                FROM predictions p
+                ORDER BY p.match_id, p.created_at DESC
+            )
+            SELECT m.id, m.kickoff_time, m.league_code,
+                   ht.short_name AS home_short, ht.slug AS home_slug, ht.name AS home_name,
+                   at.short_name AS away_short, at.slug AS away_slug, at.name AS away_name,
+                   l.p_home_win, l.p_draw, l.p_away_win, l.top_scorelines
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            LEFT JOIN latest l ON l.match_id = m.id
+            WHERE m.status = 'scheduled'
+              AND m.pre_match_notified_at IS NULL
+              AND m.kickoff_time > NOW() + INTERVAL '20 minutes'
+              AND m.kickoff_time <= NOW() + INTERVAL '45 minutes'
+            ORDER BY m.kickoff_time ASC
+            LIMIT 20
+            """,
+        )
+
+    if not rows:
+        return 0
+
+    notified = 0
+    for r in rows:
+        match_id = r["id"]
+        prefix = _league_prefix(r.get("league_code"))
+        home_full = r["home_name"].replace("_", "\\_")
+        away_full = r["away_name"].replace("_", "\\_")
+        url = f"https://predictor.nullshift.sh/match/{match_id}"
+
+        # Minutes until kickoff, rounded to nearest 5 min.
+        ko_dt = r["kickoff_time"]
+        mins_until = int(round((ko_dt.timestamp() - time.time()) / 60 / 5) * 5)
+        ko_hhmm = ko_dt.strftime("%H:%M UTC")
+
+        # Model block.
+        pick_block = ""
+        if r["p_home_win"] is not None:
+            probs = {
+                "H": float(r["p_home_win"]),
+                "D": float(r["p_draw"]),
+                "A": float(r["p_away_win"]),
+            }
+            side = max(probs, key=probs.get)
+            label = (
+                home_full if side == "H"
+                else away_full if side == "A" else "Hoà"
+            )
+            pick_block = f"\n🤖 Model nghiêng về *{label}* · {int(probs[side]*100)}%"
+            sl = r["top_scorelines"]
+            if isinstance(sl, str):
+                try:
+                    sl = json.loads(sl)
+                except Exception:
+                    sl = None
+            if sl:
+                try:
+                    top = sl[0]
+                    pick_block += (
+                        f"\n🎯 Tỷ số dự đoán: *{int(top['home'])}–{int(top['away'])}*"
+                    )
+                except Exception:
+                    pass
+
+        tg_text = (
+            f"🔔 *CÒN {mins_until} PHÚT NỮA KICK-OFF* · {prefix}\n\n"
+            f"*{home_full}*  🆚  *{away_full}*\n"
+            f"_Kick-off {ko_hhmm}_"
+            f"{pick_block}\n\n"
+            f"[🔗 Xem phân tích →]({url})"
+        )
+
+        if token and chat_id:
+            try:
+                _telegram_post(token, chat_id, tg_text)
+            except Exception as e:
+                print(f"[live-scores] pre-match telegram failed for {match_id}: {type(e).__name__}: {e}")
+
+        # Team-subscribers.
+        try:
+            from app.api.telegram import fan_out_to_team_subscribers
+            await fan_out_to_team_subscribers(
+                pool,
+                team_slugs=[r["home_slug"], r["away_slug"]],
+                text=tg_text,
+            )
+        except Exception as e:
+            print(f"[live-scores] pre-match team-sub fanout failed for {match_id}: {type(e).__name__}: {e}")
+
+        # Discord webhooks.
+        try:
+            from app.api.discord import fan_out_to_discord
+            await fan_out_to_discord(
+                pool,
+                team_slugs=[r["home_slug"], r["away_slug"]],
+                content=(
+                    f"🔔 **Kick-off in {mins_until} min** · {r['league_code'] or ''}\n"
+                    f"**{r['home_name']}** 🆚 **{r['away_name']}** · {ko_hhmm}\n"
+                    f"<{url}>"
+                ),
+                kind="pre_match",
+            )
+        except Exception as e:
+            print(f"[live-scores] pre-match discord fanout failed for {match_id}: {type(e).__name__}: {e}")
+
+        # X/Twitter — only if keys are all present; skip silently otherwise.
+        try:
+            x_keys = all(
+                os.environ.get(k)
+                for k in ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET")
+            )
+            if x_keys:
+                try:
+                    import tweepy
+                    client = tweepy.Client(
+                        consumer_key=os.environ["X_API_KEY"],
+                        consumer_secret=os.environ["X_API_SECRET"],
+                        access_token=os.environ["X_ACCESS_TOKEN"],
+                        access_token_secret=os.environ["X_ACCESS_TOKEN_SECRET"],
+                    )
+                    pick_text = ""
+                    if r["p_home_win"] is not None:
+                        probs = {
+                            "H": float(r["p_home_win"]),
+                            "D": float(r["p_draw"]),
+                            "A": float(r["p_away_win"]),
+                        }
+                        side = max(probs, key=probs.get)
+                        side_label = (
+                            r["home_name"] if side == "H"
+                            else r["away_name"] if side == "A" else "Draw"
+                        )
+                        pick_text = f"\nModel → {side_label} {int(probs[side]*100)}%"
+                    tweet = (
+                        f"🔔 Kick-off in {mins_until} min\n"
+                        f"{r['home_name']} vs {r['away_name']} · {ko_hhmm}"
+                        f"{pick_text}\n{url}"
+                    )
+                    client.create_tweet(text=tweet)
+                except Exception as e:
+                    print(f"[live-scores] pre-match x/twitter failed for {match_id}: {type(e).__name__}: {e}")
+        except Exception as e:
+            print(f"[live-scores] pre-match x-gate failed for {match_id}: {type(e).__name__}: {e}")
+
+        # Web push for team fans.
+        try:
+            from app.api.push import dispatch_goal
+            await dispatch_goal(
+                pool,
+                [r["home_slug"], r["away_slug"]],
+                {
+                    "title": (
+                        f"🔔 Kick-off in {mins_until} min · "
+                        f"{r['home_name']} vs {r['away_name']}"
+                    ),
+                    "body": f"{ko_hhmm} · {r['league_code'] or 'Football'}",
+                    "url": url,
+                },
+            )
+        except Exception as e:
+            print(f"[live-scores] pre-match push failed for {match_id}: {type(e).__name__}: {e}")
+
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE matches SET pre_match_notified_at = NOW() WHERE id = $1",
+                match_id,
+            )
+        notified += 1
+    return notified
+
+
 async def _notify_midway(pool: asyncpg.Pool) -> int:
     """Post a mid-game check-in once a live match reaches ≥ 60'.
 
@@ -2245,6 +2440,9 @@ async def run() -> None:
         flipped = await _flip_stuck_live_to_final(pool)
         if flipped:
             print(f"[live-scores] flipped {flipped} stale live rows → final")
+        pre_posts = await _notify_pre_match(pool)
+        if pre_posts:
+            print(f"[live-scores] posted {pre_posts} pre-match notifications")
         ko_posts = await _notify_kickoff(pool)
         if ko_posts:
             print(f"[live-scores] posted {ko_posts} kickoff notifications")
