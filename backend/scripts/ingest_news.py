@@ -45,6 +45,12 @@ FEEDS: list[Feed] = [
     # same beat with stable feeds.
     Feed("sky",         "https://www.skysports.com/rss/12040"),
     Feed("independent", "https://www.independent.co.uk/sport/football/rss"),
+    # Added 2026-04-24 — user wanted faster refresh & more variety.
+    # All four verified returning valid RSS (≥25 items) on probe.
+    Feed("telegraph",   "https://www.telegraph.co.uk/football/rss.xml"),
+    Feed("mirror",      "https://www.mirror.co.uk/sport/football/rss.xml"),
+    Feed("metro",       "https://metro.co.uk/sport/football/feed/"),
+    Feed("90min",       "https://www.90min.com/posts.rss"),
 ]
 
 _STRIP_TAGS = re.compile(r"<[^>]+>")
