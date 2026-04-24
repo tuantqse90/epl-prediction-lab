@@ -140,17 +140,32 @@ async def list_matches(
     limit: int = Query(20, ge=1, le=200),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     league: str | None = Query(None, description="league slug or code (e.g. epl, laliga)"),
+    tricky: bool = Query(False, description="Only matches where top-2 prob margin < 10pp"),
 ) -> list[MatchOut]:
     from app.leagues import get_league
     league_code = get_league(league).code if league else None
     rows = await queries.list_matches(
         request.app.state.pool,
         upcoming_only=upcoming_only,
-        limit=limit,
+        # Pull extra rows when filtering so the page still has `limit` after
+        # the tricky filter trims them. 4x is a safe over-fetch factor.
+        limit=(limit * 4) if tricky else limit,
         offset=offset,
         league_code=league_code,
     )
-    return [MatchOut.model_validate(queries.record_to_match_dict(r)) for r in rows]
+    out = [MatchOut.model_validate(queries.record_to_match_dict(r)) for r in rows]
+    if tricky:
+        out = [m for m in out if _is_tricky(m)]
+        out = out[:limit]
+    return out
+
+
+def _is_tricky(m) -> bool:
+    p = m.prediction
+    if not p:
+        return False
+    probs = sorted([p.p_home_win, p.p_draw, p.p_away_win], reverse=True)
+    return (probs[0] - probs[1]) < 0.10
 
 
 @router.get("/{match_id}", response_model=MatchOut)

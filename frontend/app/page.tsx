@@ -62,7 +62,7 @@ const PAGE_SIZE = 24;
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string }>;
+  searchParams: Promise<{ p?: string; tricky?: string }>;
 }) {
   const lang = await getLang();
   const league = await getLeagueSlug();
@@ -70,6 +70,7 @@ export default async function HomePage({
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.p ?? "1") || 1);
   const offset = (page - 1) * PAGE_SIZE;
+  const tricky = sp.tricky === "1" || sp.tricky === "true";
 
   const leagueParam = leagueForApi(league);
   let matches: MatchOut[] = [];
@@ -83,6 +84,7 @@ export default async function HomePage({
       limit: PAGE_SIZE + 1,
       offset,
       league: leagueParam,
+      tricky,
     });
     hasNext = res.length > PAGE_SIZE;
     matches = res.slice(0, PAGE_SIZE);
@@ -137,8 +139,38 @@ export default async function HomePage({
         </div>
       )}
 
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href="/"
+          className={`rounded-full px-3 py-1 font-mono text-xs uppercase tracking-wide border ${
+            !tricky
+              ? "border-neon bg-neon text-on-neon"
+              : "border-border text-secondary hover:border-neon hover:text-neon"
+          }`}
+        >
+          {lang === "vi" ? "Tất cả trận" : "All matches"}
+        </Link>
+        <Link
+          href="/?tricky=1"
+          className={`rounded-full px-3 py-1 font-mono text-xs uppercase tracking-wide border ${
+            tricky
+              ? "border-neon bg-neon text-on-neon"
+              : "border-border text-secondary hover:border-neon hover:text-neon"
+          }`}
+          title={lang === "vi" ? "Top-2 margin < 10pp" : "Top-2 margin < 10pp"}
+        >
+          {lang === "vi" ? "⚠️ Trận khó dự đoán" : "⚠️ Tricky calls"}
+        </Link>
+      </div>
+
       {!error && matches.length === 0 && (
-        <div className="card text-secondary">{t("dash.empty")}</div>
+        <div className="card text-secondary">
+          {tricky
+            ? (lang === "vi"
+                ? "Không có trận nào có margin < 10pp trong lượt này."
+                : "No fixtures with < 10pp top-2 margin in this window.")
+            : t("dash.empty")}
+        </div>
       )}
 
       <ProofStrip league={leagueParam} lang={lang} />
