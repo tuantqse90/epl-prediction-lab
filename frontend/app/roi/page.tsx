@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import KellyChart from "@/components/KellyChart";
 import RoiChart from "@/components/RoiChart";
+import TaxToggle from "@/components/TaxToggle";
 import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
 import { getLeague } from "@/lib/leagues";
 
@@ -101,6 +102,8 @@ export default async function RoiPage({
       ) : (
         <RoiChart season={season} threshold={active} league={leagueForApi(league)} lang={lang} />
       )}
+
+      <TaxToggle threshold={active} season={season} />
     </main>
   );
 }
