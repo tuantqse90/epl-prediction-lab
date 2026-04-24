@@ -2,6 +2,13 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-25 00:50 +07 — Backup observability + DR runbook
+
+- Migration 033 + `backup_log` table — one row per successful dump. `backup_db.sh` INSERTs at end of run (tolerated-failure if table missing).
+- `ops_watchdog._check_missed_backup` surfaces two failure modes: (a) latest row > 26 h old (cron stopped), (b) `r2_uploaded=false` (local-only, off-site stale). Alert via existing Telegram path.
+- First proper run: backup row written (`id=1, size=5.4 MB, r2_uploaded=true`). Watchdog → `all green`.
+- `docs/ops-recovery.md` section 5 rewritten end-to-end — local + R2 retention, watchdog coverage, weekly R2 drill, step-by-step fresh-VPS restore procedure (`rclone copy` → `gunzip` → `psql`).
+
 ## 2026-04-25 00:40 +07 — R2 drill wired (real DR path)
 
 - `restore_drill.sh` now defaults to `DRILL_SOURCE=auto` — pulls the latest dump straight from R2, restores to a scratch Postgres, asserts row counts. The Sunday 05:00 UTC cron is now a true disaster-recovery smoke test, not a local-only sanity check.
