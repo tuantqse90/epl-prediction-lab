@@ -62,6 +62,27 @@ class ErrorLogMiddleware(BaseHTTPMiddleware):
             # Single-line JSON so downstream log processors don't split it.
             print(json.dumps(payload), file=sys.stderr, flush=True)
             _RECENT.append((time.time(), request.url.path, type(exc).__name__))
+            # Persist to error_events so /api/admin/errors can show them
+            # across restarts. Best-effort — swallow if the DB isn't up.
+            try:
+                pool = getattr(request.app.state, "pool", None)
+                if pool is not None:
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            """
+                            INSERT INTO error_events (
+                                request_id, method, path, query,
+                                error_class, message, traceback
+                            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                            """,
+                            request_id, request.method, request.url.path,
+                            str(request.url.query or ""),
+                            type(exc).__name__, str(exc)[:2000], tb[:10_000],
+                        )
+            except Exception as e:
+                print(json.dumps({"lvl": "warn", "msg": "error_events insert failed",
+                                  "error": f"{type(e).__name__}: {e}"}),
+                      file=sys.stderr, flush=True)
             # Re-raise so FastAPI's default handler still returns a 500 +
             # the client sees something sane.
             raise

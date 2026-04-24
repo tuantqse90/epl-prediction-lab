@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 
 import InstallPrompt from "@/components/InstallPrompt";
 import MobileBottomNav from "@/components/MobileBottomNav";
+import PageViewTracker from "@/components/PageViewTracker";
 import ShortcutsModal from "@/components/ShortcutsModal";
 import SiteHeader from "@/components/SiteHeader";
 import { LangProvider } from "@/lib/i18n-client";
@@ -32,6 +33,7 @@ async function ChromeOrEmbed({
       {!isEmbed && <MobileBottomNav />}
       {!isEmbed && <InstallPrompt />}
       {!isEmbed && <ShortcutsModal />}
+      {!isEmbed && <PageViewTracker />}
     </>
   );
 }
