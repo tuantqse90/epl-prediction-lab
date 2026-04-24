@@ -17,6 +17,7 @@ import MatchTabs from "@/components/MatchTabs";
 import LiveBadge from "@/components/LiveBadge";
 import LivePoller from "@/components/LivePoller";
 import MatchEventsList from "@/components/MatchEventsList";
+import MatchStoryCard from "@/components/MatchStoryCard";
 import LineMovementPanel from "@/components/LineMovementPanel";
 import LogPickButton from "@/components/LogPickButton";
 import MarketsEdge from "@/components/MarketsEdge";
@@ -267,6 +268,8 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
           </h1>
         </div>
       </header>
+
+      {isFinal && <MatchStoryCard matchId={matchId} />}
 
       {p ? (
         <section className="card space-y-6 relative overflow-hidden">

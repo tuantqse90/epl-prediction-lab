@@ -77,3 +77,61 @@ def build_recap_prompt(
         f"(3) 1 yếu tố bất ngờ hoặc khớp mô hình. "
         f"Giọng anh em, không khoa trương, tối đa 3 câu."
     )
+
+
+STORY_SYSTEM = (
+    "Bạn là một cây bút bóng đá. Viết văn mượt, không sáo rỗng. "
+    "Dùng số liệu cụ thể, không phóng đại. Tiếng Việt chuẩn, dễ đọc. "
+    "400-500 từ, chia 3 đoạn."
+)
+
+
+def build_story_prompt(
+    *,
+    home_team: str,
+    away_team: str,
+    home_goals: int,
+    away_goals: int,
+    home_xg: float | None,
+    away_xg: float | None,
+    home_shots: int | None,
+    away_shots: int | None,
+    league_code: str | None,
+    predicted_outcome: str,
+    predicted_confidence: float,
+    top_scoreline: tuple[int, int],
+    actual_outcome: str,
+    hit: bool,
+    h2h_summary: str | None = None,
+) -> str:
+    outcome_vi = {"H": "chủ nhà thắng", "D": "hòa", "A": "đội khách thắng"}
+    th, ta = top_scoreline
+    xg_line = (
+        f"xG: {home_team} {home_xg:.2f} - {away_xg:.2f} {away_team}"
+        if home_xg is not None and away_xg is not None
+        else "xG: không có dữ liệu"
+    )
+    shot_line = (
+        f"Dứt điểm: {home_team} {home_shots} - {away_shots} {away_team}"
+        if home_shots is not None and away_shots is not None
+        else ""
+    )
+    h2h_line = f"H2H: {h2h_summary}" if h2h_summary else ""
+    league_line = f"Giải: {league_code}" if league_code else ""
+    verdict = "đoán ĐÚNG" if hit else "đoán SAI"
+    return (
+        f"Viết một bài narrative 400-500 từ, tiếng Việt, chia 3 đoạn:\n"
+        f"- Đoạn 1: bối cảnh + kết quả + ai xứng đáng thắng theo xG\n"
+        f"- Đoạn 2: diễn biến chính + bước ngoặt (dựa trên số liệu xG/dứt điểm)\n"
+        f"- Đoạn 3: model {verdict} ra sao + 1 take-away sắc bén\n\n"
+        f"DỮ LIỆU:\n"
+        f"Trận: {home_team} {home_goals}-{away_goals} {away_team}\n"
+        f"{league_line}\n"
+        f"{xg_line}\n"
+        f"{shot_line}\n"
+        f"{h2h_line}\n"
+        f"Model predict: {outcome_vi[predicted_outcome]} "
+        f"({round(predicted_confidence * 100)}%), tỷ số {th}-{ta}\n"
+        f"Thực tế: {outcome_vi[actual_outcome]}\n\n"
+        f"Không dùng emoji. Không tạo số liệu không có trong dữ liệu trên."
+    )

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import LangToggle from "./LangToggle";
 import LeagueSelector from "./LeagueSelector";
+import MobileNavDrawer from "./MobileNavDrawer";
 import NavLinks from "./NavLinks";
 import SearchModal from "./SearchModal";
 import ThemeToggle from "./ThemeToggle";
@@ -28,23 +29,25 @@ export default async function SiteHeader({ lang }: { lang: Lang }) {
           <span className="group-hover:text-neon transition-colors">Prediction Lab</span>
         </Link>
 
-        {/* Center nav — 4 dropdown groups fit on every viewport; don't
-            clip with overflow:auto, otherwise the dropdown popover (positioned
-            top-full) gets hidden on desktop because overflow-x:auto implicitly
-            sets overflow-y:auto per the CSS spec. */}
-        <div className="relative flex items-center gap-5 font-mono min-w-0 px-2 -mx-2">
+        {/* Center nav — 4 dropdown groups on desktop only. On mobile the
+            MobileBottomNav takes over: the nav groups overlap the league
+            selector in a 375-px viewport otherwise. */}
+        <div className="relative hidden md:flex items-center gap-5 font-mono min-w-0 px-2 -mx-2">
           <NavLinks lang={lang} />
         </div>
 
-        {/* Right controls with subtle separators. */}
+        {/* Right controls. On mobile we keep only league + lang so the
+            header doesn't crowd; search/theme are secondary and only
+            appear ≥ md. */}
         <div className="flex items-center gap-2 shrink-0">
           <LeagueSelector current={league} />
           <span aria-hidden className="hidden md:inline h-4 w-px bg-border" />
-          <SearchModal />
+          <span className="hidden md:inline-flex"><SearchModal /></span>
           <span aria-hidden className="hidden md:inline h-4 w-px bg-border" />
-          <ThemeToggle />
+          <span className="hidden md:inline-flex"><ThemeToggle /></span>
           <span aria-hidden className="hidden md:inline h-4 w-px bg-border" />
           <LangToggle />
+          <MobileNavDrawer />
         </div>
       </nav>
     </header>

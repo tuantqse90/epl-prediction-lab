@@ -1311,6 +1311,25 @@ async def _select_finals_needing_recap(pool: asyncpg.Pool) -> list[int]:
     return [int(r["id"]) for r in rows]
 
 
+async def _select_finals_needing_story(pool: asyncpg.Pool) -> list[int]:
+    """Matches finalised in last 6h that have a recap but no long story."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT m.id
+            FROM matches m
+            WHERE m.status = 'final'
+              AND m.home_goals IS NOT NULL
+              AND m.recap IS NOT NULL
+              AND m.story IS NULL
+              AND m.kickoff_time > NOW() - INTERVAL '6 hours'
+              AND EXISTS (SELECT 1 FROM predictions p WHERE p.match_id = m.id)
+            ORDER BY m.kickoff_time DESC
+            """,
+        )
+    return [int(r["id"]) for r in rows]
+
+
 async def _generate_recaps_on_ft(
     pool: asyncpg.Pool,
     *,
@@ -1521,6 +1540,19 @@ async def run() -> None:
                 print(f"[live-scores] wrote {recaps_written} post-match recaps")
         except Exception as e:
             print(f"[live-scores] recap pass failed: {type(e).__name__}: {e}")
+
+        # Phase 42.1 — long-form story after the short recap. Qwen-plus call
+        # is ~5s per match; hard-cap 2 per tick so the 10s cadence holds.
+        try:
+            from app.llm.story import generate_story
+            stories = await _generate_recaps_on_ft(
+                pool, selector=_select_finals_needing_story,
+                generator=generate_story, limit=2,
+            )
+            if stories:
+                print(f"[live-scores] wrote {stories} long-form stories")
+        except Exception as e:
+            print(f"[live-scores] story pass failed: {type(e).__name__}: {e}")
 
         if not await _has_potential_live(pool):
             print("[live-scores] no match within live window; skipping API call")

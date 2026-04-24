@@ -179,6 +179,31 @@ async def get_match(match_id: int, request: Request) -> MatchOut:
     return MatchOut.model_validate(data)
 
 
+@router.get("/{match_id}/story")
+async def match_story(match_id: int, request: Request) -> dict:
+    """Phase 42.1 — long-form 400-500 word narrative for a finished match.
+
+    Returns `{story, model, generated_at}` or 404 if not yet generated.
+    """
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT story, story_model, story_generated_at "
+            "FROM matches WHERE id = $1",
+            match_id,
+        )
+    if row is None or not row["story"]:
+        raise HTTPException(404, "story not available for this match")
+    return {
+        "story": row["story"],
+        "model": row["story_model"],
+        "generated_at": (
+            row["story_generated_at"].isoformat()
+            if row["story_generated_at"] else None
+        ),
+    }
+
+
 @router.get("/{match_id}/h2h", response_model=list[H2HMatch])
 async def match_h2h(
     match_id: int,

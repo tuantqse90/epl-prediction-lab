@@ -264,6 +264,21 @@ export async function getCI(matchId: number): Promise<PredictionCI | null> {
   return (await res.json()) as PredictionCI | null;
 }
 
+export type MatchStory = {
+  story: string;
+  model: string | null;
+  generated_at: string | null;
+};
+
+export async function getMatchStory(matchId: number): Promise<MatchStory | null> {
+  const res = await fetch(`${BASE}/api/matches/${matchId}/story`, {
+    next: { revalidate: 600 },
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as MatchStory | null;
+}
+
+
 export async function fetchSuggestedPrompts(matchId: number): Promise<string[]> {
   const res = await fetch(`${BASE}/api/chat/suggest/${matchId}`, { cache: "no-store" });
   if (!res.ok) return [];

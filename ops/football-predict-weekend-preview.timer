@@ -1,0 +1,10 @@
+[Unit]
+Description=football-predict — Friday 18:00 UTC weekend preview
+
+[Timer]
+OnCalendar=Fri *-*-* 18:00:00
+Unit=football-predict-weekend-preview.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

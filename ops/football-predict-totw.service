@@ -1,0 +1,11 @@
+[Unit]
+Description=football-predict — Monday team-of-the-week Telegram post
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/football-predict
+EnvironmentFile=/opt/football-predict/.env
+ExecStart=/usr/bin/docker compose exec -T api python scripts/post_team_of_week.py
+User=root

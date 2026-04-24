@@ -65,6 +65,11 @@ run python scripts/predict_upcoming.py --horizon-days "$HORIZON_DAYS" --with-rea
 # Post-match LLM recaps for finals in the last 7d (cheap, idempotent).
 run python scripts/generate_recaps.py --days 7 --limit 120 || true
 
+# Phase 42.1 — long-form match stories (Qwen-Plus, ~$0.02/call).
+# Scoped to last 14 days + cap 30/day so a catch-up batch doesn't blow
+# the budget. Idempotent via `story IS NULL` guard.
+run python scripts/generate_stories.py --days 14 --limit 30 || true
+
 # Social distribution — tolerated failure (missing creds, rate limit, etc.)
 run python scripts/post_twitter.py --horizon-days 3 --threshold 0.07 --max 5 || true
 run python scripts/post_twitter_recap.py || true

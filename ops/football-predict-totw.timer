@@ -1,0 +1,10 @@
+[Unit]
+Description=football-predict — Monday 10:00 UTC team-of-the-week
+
+[Timer]
+OnCalendar=Mon *-*-* 10:00:00
+Unit=football-predict-totw.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
