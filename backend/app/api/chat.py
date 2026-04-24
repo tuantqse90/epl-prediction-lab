@@ -157,7 +157,7 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
     async def gen() -> AsyncIterator[str]:
         buffer = ""
         try:
-            async for token in _stream_qwen(messages, "qwen-turbo"):
+            async for token in _stream_qwen(messages, "qwen-plus"):
                 buffer += token
                 yield token
         except Exception as e:

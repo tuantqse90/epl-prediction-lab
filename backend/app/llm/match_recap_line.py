@@ -64,7 +64,7 @@ def match_recap_line(
 
     try:
         text = _call_qwen(
-            prompt, "dashscope/qwen-turbo",
+            prompt, "dashscope/qwen-plus",
             system=SYSTEM, max_tokens=90, temperature=0.75,
         )
     except Exception:

@@ -156,7 +156,7 @@ async def run(force: bool) -> None:
             return
 
         body_md = _call_qwen(
-            _prompt(week, now), "dashscope/qwen-turbo",
+            _prompt(week, now), "dashscope/qwen-plus",
             system=SYSTEM, max_tokens=1400, temperature=0.55,
         )
         if not body_md:
@@ -172,7 +172,7 @@ async def run(force: bool) -> None:
             await conn.execute(
                 """
                 INSERT INTO auto_blog_posts (slug, title, excerpt, body_md, tags, lang, model)
-                VALUES ($1, $2, $3, $4, ARRAY['weekly','model']::text[], 'en', 'dashscope/qwen-turbo')
+                VALUES ($1, $2, $3, $4, ARRAY['weekly','model']::text[], 'en', 'dashscope/qwen-plus')
                 ON CONFLICT (slug) DO UPDATE SET
                   title = EXCLUDED.title,
                   excerpt = EXCLUDED.excerpt,
