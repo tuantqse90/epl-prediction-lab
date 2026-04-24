@@ -24,7 +24,7 @@ async def generate_recap(
     pool: asyncpg.Pool,
     match_id: int,
     *,
-    model: str = "dashscope/qwen-plus",
+    model: str = "dashscope/qwen-plus-latest",
 ) -> str | None:
     """Generate recap for a single final match, persist, and return the text.
 

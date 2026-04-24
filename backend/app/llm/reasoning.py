@@ -100,7 +100,7 @@ async def explain_prediction(
     pool: asyncpg.Pool,
     match_id: int,
     *,
-    model: str = "dashscope/qwen-plus",
+    model: str = "dashscope/qwen-plus-latest",
 ) -> str | None:
     """Build the Qwen prompt from DB context, call the model, persist reasoning.
 

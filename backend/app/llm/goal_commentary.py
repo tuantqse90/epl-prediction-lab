@@ -82,7 +82,7 @@ def goal_commentary(
             is_own_goal=is_own_goal, is_penalty=is_penalty,
         )
         text = _call_qwen(
-            prompt, "dashscope/qwen-plus",
+            prompt, "dashscope/qwen-plus-latest",
             system=SYSTEM, max_tokens=80, temperature=0.7,
         )
     except Exception:

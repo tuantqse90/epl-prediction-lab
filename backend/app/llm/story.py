@@ -47,7 +47,7 @@ async def generate_story(
     pool: asyncpg.Pool,
     match_id: int,
     *,
-    model: str = "dashscope/qwen-plus",
+    model: str = "dashscope/qwen-plus-latest",
 ) -> str | None:
     """Generate and persist a 400-500 word narrative for a finished match.
 

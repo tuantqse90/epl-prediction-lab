@@ -217,7 +217,7 @@ async def run(limit: int) -> None:
 
             try:
                 story = _call_qwen(
-                    _prompt(ctx), "dashscope/qwen-plus",
+                    _prompt(ctx), "dashscope/qwen-plus-latest",
                     system=SYSTEM, max_tokens=1400, temperature=0.5,
                 )
             except Exception as e:
