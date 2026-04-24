@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-25 01:35 +07 — Match event timeline strip
+
+- New `MatchEventsTimeline` component — horizontal 0→90+ pitch clock, home events above the centerline and away below. ⚽/🟨/🟥/🔄/🎥 per event type, positioned by minute. Ticks at 0/15/30/45/60/75/90 with halftime divider heavier than the quarter-ticks. Extra-time minutes compress into the final 10 % so they stay visible.
+- Sits above the existing `MatchEventsList` on `/match/[id]` — list keeps player-by-player detail, timeline gives at-a-glance shape.
+- Pure CSS + absolute positioning; no SVG, no bundle bloat.
+- xG shot-map deferred — would need shot-level x/y + per-shot xG we don't ingest. Event timeline is the strongest visual we can build from existing `match_events` data today.
+- Verified live on matches 4754 / 4753 / 4752 — timeline heading rendered on all three.
+
 ## 2026-04-25 01:25 +07 — League hero crest strip + match detail symmetric hero
 
 - `/leagues/[slug]` hero now ends with up to 16 unique club crests (40-px + short-name caption), de-duped from upcoming fixtures. Every league page was previously text-only + identical on scroll.
