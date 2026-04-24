@@ -753,6 +753,41 @@ class FatigueContext(BaseModel):
     is_midweek: bool
 
 
+class DerbyInfo(BaseModel):
+    name: str
+    description: str
+    variance_multiplier: float
+
+
+@router.get("/{match_id}/derby", response_model=DerbyInfo | None)
+async def match_derby(match_id: int, request: Request) -> DerbyInfo | None:
+    """Null unless the fixture is a known rivalry pair."""
+    from app.models.derbies import derby_tag
+
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT ht.slug AS home_slug, at.slug AS away_slug
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            WHERE m.id = $1
+            """,
+            match_id,
+        )
+    if not row:
+        return None
+    tag = derby_tag(row["home_slug"], row["away_slug"])
+    if not tag:
+        return None
+    return DerbyInfo(
+        name=tag.name,
+        description=tag.description,
+        variance_multiplier=tag.variance_multiplier,
+    )
+
+
 @router.get("/{match_id}/fatigue", response_model=FatigueContext | None)
 async def match_fatigue(match_id: int, request: Request) -> FatigueContext | None:
     """Rest + 14-day congestion + midweek flag. Displayed as a chip on
