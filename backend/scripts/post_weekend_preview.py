@@ -155,7 +155,7 @@ async def run() -> None:
     try:
         body = _call_qwen(
             prompt,
-            model="dashscope/qwen-plus",
+            model="dashscope/qwen-turbo",
             system=PREVIEW_SYSTEM,
             max_tokens=1200,
             temperature=0.6,
