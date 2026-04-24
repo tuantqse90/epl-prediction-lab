@@ -182,6 +182,7 @@ def _row_to_pick(r):
         edge_pp = (conf * best_odds - 1) * 100
     from types import SimpleNamespace
     return SimpleNamespace(
+        match_id=r["id"],
         home_short=r["home_short"],
         away_short=r["away_short"],
         league_code=r["league_code"],

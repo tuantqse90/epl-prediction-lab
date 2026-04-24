@@ -51,6 +51,7 @@ const SECTIONS: Section[] = [
       { href: "/docs/model", label: { en: "How the model works", vi: "Mô hình" } },
       { href: "/methodology", label: { en: "Methodology", vi: "Phương pháp" } },
       { href: "/blog", label: { en: "Blog", vi: "Blog" } },
+      { href: "/stories", label: { en: "Match stories", vi: "Câu chuyện" } },
       { href: "/changelog", label: { en: "Changelog", vi: "Nhật ký" } },
       { href: "/pricing", label: { en: "Pricing", vi: "Giá" } },
       { href: "/faq", label: { en: "FAQ", vi: "FAQ" } },

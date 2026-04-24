@@ -1624,3 +1624,88 @@ async def scorers(
             )
         )
     return out
+
+
+# ---------------------------------------------------------------------------
+# Phase 42 content — long-form story index
+# ---------------------------------------------------------------------------
+
+
+class StoryCard(BaseModel):
+    match_id: int
+    kickoff: str
+    league_code: str | None
+    home_slug: str
+    home_short: str
+    home_goals: int
+    away_slug: str
+    away_short: str
+    away_goals: int
+    excerpt: str
+    generated_at: str | None
+
+
+class StoriesOut(BaseModel):
+    total: int
+    stories: list[StoryCard]
+
+
+@router.get("/stories", response_model=StoriesOut)
+async def list_stories(
+    request: Request,
+    league: str | None = Query(default=None),
+    limit: int = Query(30, ge=1, le=100),
+    offset: int = Query(0, ge=0, le=500),
+) -> StoriesOut:
+    """List matches that have a long-form `story` — used by /stories index."""
+    code = _resolve_league_code(league)
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        total = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM matches m
+            WHERE m.status = 'final' AND m.story IS NOT NULL
+              AND ($1::text IS NULL OR m.league_code = $1)
+            """,
+            code,
+        )
+        rows = await conn.fetch(
+            """
+            SELECT m.id AS match_id, m.kickoff_time, m.league_code,
+                   m.home_goals, m.away_goals,
+                   ht.slug AS home_slug, ht.short_name AS home_short,
+                   at.slug AS away_slug, at.short_name AS away_short,
+                   m.story, m.story_generated_at
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            WHERE m.status = 'final' AND m.story IS NOT NULL
+              AND ($1::text IS NULL OR m.league_code = $1)
+            ORDER BY m.kickoff_time DESC
+            LIMIT $2 OFFSET $3
+            """,
+            code, limit, offset,
+        )
+    out: list[StoryCard] = []
+    for r in rows:
+        text = r["story"] or ""
+        excerpt = text[:240].rsplit(" ", 1)[0] + ("…" if len(text) > 240 else "")
+        out.append(
+            StoryCard(
+                match_id=r["match_id"],
+                kickoff=r["kickoff_time"].isoformat(),
+                league_code=r["league_code"],
+                home_slug=r["home_slug"],
+                home_short=r["home_short"],
+                home_goals=int(r["home_goals"]),
+                away_slug=r["away_slug"],
+                away_short=r["away_short"],
+                away_goals=int(r["away_goals"]),
+                excerpt=excerpt,
+                generated_at=(
+                    r["story_generated_at"].isoformat()
+                    if r["story_generated_at"] else None
+                ),
+            )
+        )
+    return StoriesOut(total=int(total or 0), stories=out)

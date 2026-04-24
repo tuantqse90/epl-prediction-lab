@@ -62,6 +62,7 @@ export default async function sitemap({
       { url: `${SITE}/kelly-explorer`,       changeFrequency: "weekly", priority: 0.5, lastModified: now },
       { url: `${SITE}/pricing`,              changeFrequency: "monthly",priority: 0.6, lastModified: now },
       { url: `${SITE}/billing`,              changeFrequency: "monthly",priority: 0.3, lastModified: now },
+      { url: `${SITE}/stories`,              changeFrequency: "daily",  priority: 0.8, lastModified: now },
     ];
   }
 

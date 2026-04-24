@@ -97,10 +97,14 @@ def _league_emoji(league_code: str | None) -> str:
     }.get(league_code or "", "⚽")
 
 
+SITE = "https://predictor.nullshift.sh"
+
+
 def format_pick(rows: Iterable, *, window_label: str = "today") -> str:
     """Render the model's top picks for a window. Each row needs:
         home_short, away_short, league_code, kickoff_time,
-        pick_side (H|D|A), pick_conf, best_odds, edge_pp
+        pick_side (H|D|A), pick_conf, best_odds, edge_pp,
+        match_id (optional — renders a deep-link when present)
     """
     rows = list(rows)
     if not rows:
@@ -118,9 +122,16 @@ def format_pick(rows: Iterable, *, window_label: str = "today") -> str:
         )
         odds_str = f"@ {r.best_odds:.2f}" if r.best_odds else ""
         conf = int(round(r.pick_conf * 100))
+        mid = getattr(r, "match_id", None)
+        # Markdown link wraps the fixture name — Telegram renders it as a
+        # tappable deep-link straight to /match/:id (43.4).
+        fixture = (
+            f"[*{r.home_short}* vs *{r.away_short}*]({SITE}/match/{int(mid)})"
+            if mid is not None
+            else f"*{r.home_short}* vs *{r.away_short}*"
+        )
         lines.append(
-            f"{_league_emoji(r.league_code)} {ko}  "
-            f"*{r.home_short}* vs *{r.away_short}*\n"
+            f"{_league_emoji(r.league_code)} {ko}  {fixture}\n"
             f"   → {side_label} · {conf}% {odds_str} {edge_str}"
         )
     return "\n\n".join(lines)
