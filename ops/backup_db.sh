@@ -47,10 +47,11 @@ if [ "$DOW" = "7" ]; then
   echo "[backup] also promoted to weekly: $WEEKLY_FILE"
 fi
 
-# Rotation — keep last 14 dailies, last 8 weeklies locally.
+# Rotation — keep last 14 dailies, last 8 weeklies locally. `|| true`
+# because `ls` with no glob match returns exit 2 under `set -e`.
 echo "[backup] rotating local …"
-ls -1t "$BACKUP_DIR"/epl-daily-*.sql.gz 2>/dev/null | awk 'NR>14' | xargs -r rm -v
-ls -1t "$BACKUP_DIR"/epl-weekly-*.sql.gz 2>/dev/null | awk 'NR>8' | xargs -r rm -v
+(ls -1t "$BACKUP_DIR"/epl-daily-*.sql.gz 2>/dev/null | awk 'NR>14' | xargs -r rm -v) || true
+(ls -1t "$BACKUP_DIR"/epl-weekly-*.sql.gz 2>/dev/null | awk 'NR>8' | xargs -r rm -v) || true
 
 # Off-site mirror — Cloudflare R2 if rclone + the [r2] remote are
 # configured. The remote is set up separately (one-shot) via:
@@ -71,14 +72,16 @@ if command -v rclone >/dev/null 2>&1 \
       rclone copyto "$WEEKLY_FILE" "r2:$R2_BUCKET/$(basename "$WEEKLY_FILE")" \
         --s3-no-check-bucket --quiet || true
     fi
-    # Remote rotation.
+    # Remote rotation. `head -n -N` drops the last N lines, keeping the
+    # older ones to delete. Wrap in `|| true` so set -e doesn't abort
+    # the run when there's nothing to prune yet.
     echo "[backup] rotating remote …"
-    rclone ls "r2:$R2_BUCKET" --include "epl-daily-*.sql.gz" 2>/dev/null \
+    (rclone ls "r2:$R2_BUCKET" --include "epl-daily-*.sql.gz" 2>/dev/null \
       | awk '{print $2}' | sort | head -n -60 \
-      | while read -r f; do rclone delete "r2:$R2_BUCKET/$f" || true; done
-    rclone ls "r2:$R2_BUCKET" --include "epl-weekly-*.sql.gz" 2>/dev/null \
+      | while read -r f; do rclone delete "r2:$R2_BUCKET/$f" || true; done) || true
+    (rclone ls "r2:$R2_BUCKET" --include "epl-weekly-*.sql.gz" 2>/dev/null \
       | awk '{print $2}' | sort | head -n -26 \
-      | while read -r f; do rclone delete "r2:$R2_BUCKET/$f" || true; done
+      | while read -r f; do rclone delete "r2:$R2_BUCKET/$f" || true; done) || true
   else
     echo "[backup] r2 upload FAILED — local copy still intact"
   fi
