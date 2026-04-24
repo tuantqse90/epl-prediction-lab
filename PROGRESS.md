@@ -2,6 +2,13 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-25 01:25 +07 — League hero crest strip + match detail symmetric hero
+
+- `/leagues/[slug]` hero now ends with up to 16 unique club crests (40-px + short-name caption), de-duped from upcoming fixtures. Every league page was previously text-only + identical on scroll.
+- `/match/[id]` h1 redesigned into 3-column grid: 72-px home logo + name · centered score-or-vs (neon text-3xl/5xl when live/final) · 72-px away logo + name, right-aligned. Consistent with FeaturedMatch banner.
+- Logo density across pages after the wave-2 ship: `/leagues/*` 52, `/match/:id` 16, `/` 82, `/stories` 2×45, `/scorers` ~60.
+- Team page already had an elite 88-px + animated color-glow hero — no change needed.
+
 ## 2026-04-25 01:15 +07 — Homepage FeaturedMatch hero
 
 - Above-the-fold now shows the most-immediate fixture (any live match first, else the next scheduled within 48 h) as a full-width banner — 96-px home/away logos, score-or-vs in the middle, H/D/A probability bar, model's pick surfaced in one line, neon radial halo.
