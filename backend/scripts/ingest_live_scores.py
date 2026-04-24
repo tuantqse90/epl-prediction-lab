@@ -1323,11 +1323,52 @@ async def _notify_pre_match(pool: asyncpg.Pool) -> int:
                 except Exception:
                     pass
 
+        # AI hook — 1-sentence pre-match caption. Tolerated failure.
+        hook_line = ""
+        try:
+            from app.llm.match_hooks import pre_match_hook
+            pick_label = None
+            pick_conf = None
+            top_sc = None
+            if r["p_home_win"] is not None:
+                probs = {
+                    "H": float(r["p_home_win"]),
+                    "D": float(r["p_draw"]),
+                    "A": float(r["p_away_win"]),
+                }
+                s = max(probs, key=probs.get)
+                pick_label = (
+                    r["home_name"] if s == "H"
+                    else r["away_name"] if s == "A" else "Hoà"
+                )
+                pick_conf = probs[s]
+                sl = r["top_scorelines"]
+                if isinstance(sl, str):
+                    try: sl = json.loads(sl)
+                    except Exception: sl = None
+                if sl:
+                    try:
+                        top_sc = (int(sl[0]["home"]), int(sl[0]["away"]))
+                    except Exception:
+                        pass
+            hook = pre_match_hook(
+                home_team=r["home_name"], away_team=r["away_name"],
+                league=r.get("league_code"),
+                pick_side_label=pick_label,
+                pick_confidence=pick_conf,
+                top_scoreline=top_sc,
+            )
+            if hook:
+                hook_line = f"\n\n💬 _{hook}_"
+        except Exception as e:
+            print(f"[live-scores] pre-match hook failed for {match_id}: {type(e).__name__}: {e}")
+
         tg_text = (
             f"🔔 *CÒN {mins_until} PHÚT NỮA KICK-OFF* · {prefix}\n\n"
             f"*{home_full}*  🆚  *{away_full}*\n"
             f"_Kick-off {ko_hhmm}_"
-            f"{pick_block}\n\n"
+            f"{pick_block}"
+            f"{hook_line}\n\n"
             f"[🔗 Xem phân tích →]({url})"
         )
 
@@ -1542,11 +1583,38 @@ async def _notify_midway(pool: asyncpg.Pool) -> int:
             stat_lines.append(f"Phạt góc: {corners}")
         stats_block = "\n".join(f"• {s}" for s in stat_lines)
 
+        hook_line = ""
+        try:
+            from app.llm.match_hooks import midway_hook
+            def _num(v):
+                if v is None: return None
+                try: return float(v)
+                except Exception: return None
+            hook = midway_hook(
+                home_team=r["home_name"], away_team=r["away_name"],
+                home_goals=hg, away_goals=ag,
+                minute=int(r["minute"]),
+                home_xg=_num(h.get("xg")), away_xg=_num(a.get("xg")),
+                home_shots=h.get("shots_total") if isinstance(h.get("shots_total"), int) else None,
+                away_shots=a.get("shots_total") if isinstance(a.get("shots_total"), int) else None,
+                home_possession=(
+                    int(h["possession_pct"])
+                    if isinstance(h.get("possession_pct"), (int, str))
+                    and str(h.get("possession_pct")).isdigit()
+                    else None
+                ),
+            )
+            if hook:
+                hook_line = f"\n💬 _{hook}_"
+        except Exception as e:
+            print(f"[live-scores] midway hook failed for {match_id}: {type(e).__name__}: {e}")
+
         tg_body = (
             f"⏱️ *PHÚT {r['minute']}* · {prefix}\n\n"
             f"*{home_full}*  {hg} – {ag}  *{away_full}*\n\n"
             f"{stats_block}"
-            f"{prob_line}\n\n"
+            f"{prob_line}"
+            f"{hook_line}\n\n"
             f"[🔗 Xem trực tiếp →]({url})"
         )
 
@@ -2314,10 +2382,24 @@ async def _notify_halftime(pool: asyncpg.Pool) -> int:
                 f"Hoà {pd_}% · {away_full} {pa}%"
             )
 
+        hook_line = ""
+        try:
+            from app.llm.match_hooks import halftime_hook
+            hook = halftime_hook(
+                home_team=r["home_name"], away_team=r["away_name"],
+                home_goals=hg, away_goals=ag,
+                league=r.get("league_code"),
+            )
+            if hook:
+                hook_line = f"\n\n💬 _{hook}_"
+        except Exception as e:
+            print(f"[live-scores] HT hook failed for {match_id}: {type(e).__name__}: {e}")
+
         text = (
             f"⏸️ *HẾT HIỆP 1* · {prefix}\n\n"
             f"*{home_full}*  {hg} – {ag}  *{away_full}*"
-            f"{probs_line}\n\n"
+            f"{probs_line}"
+            f"{hook_line}\n\n"
             f"[🔗 Xem chi tiết →]({url})"
         )
 
