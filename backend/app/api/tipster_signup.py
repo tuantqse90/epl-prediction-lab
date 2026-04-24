@@ -31,15 +31,15 @@ async def signup(body: SignupBody, request: Request) -> dict:
     pool = request.app.state.pool
     hashed = _hash_pin(body.pin)
     async with pool.acquire() as conn:
-        # Check slug available
+        # Check handle available
         existing = await conn.fetchval(
-            "SELECT id FROM tipsters WHERE slug = $1", body.slug,
+            "SELECT id FROM tipsters WHERE handle = $1", body.slug,
         )
         if existing:
-            raise HTTPException(400, "slug taken")
+            raise HTTPException(400, "handle taken")
         await conn.execute(
             """
-            INSERT INTO tipsters (slug, display_name, pin_hash, created_at)
+            INSERT INTO tipsters (handle, display_name, pin_hash, created_at)
             VALUES ($1, $2, $3, NOW())
             """,
             body.slug, body.display_name, hashed,
@@ -76,8 +76,8 @@ async def leaderboard(request: Request) -> list[LeaderboardRow]:
                 JOIN matches m ON m.id = tp.match_id
                 WHERE m.status = 'final' AND m.home_goals IS NOT NULL
             )
-            SELECT t.slug,
-                   COALESCE(t.display_name, t.slug) AS display_name,
+            SELECT t.handle AS slug,
+                   COALESCE(t.display_name, t.handle) AS display_name,
                    COUNT(g.tipster_id)::int AS picks,
                    COUNT(g.tipster_id) FILTER (WHERE g.pick = g.actual)::int AS hits,
                    AVG(
@@ -87,7 +87,7 @@ async def leaderboard(request: Request) -> list[LeaderboardRow]:
                    )::float AS log_loss
             FROM tipsters t
             LEFT JOIN graded g ON g.tipster_id = t.id
-            GROUP BY t.slug, t.display_name
+            GROUP BY t.handle, t.display_name
             HAVING COUNT(g.tipster_id) >= 5
             ORDER BY AVG(
               -LN(GREATEST(1e-6, LEAST(1 - 1e-6,
