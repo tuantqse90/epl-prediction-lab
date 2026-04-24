@@ -16,7 +16,7 @@ from fastapi.responses import PlainTextResponse
 router = APIRouter(tags=["ops"])
 
 
-@router.get("/metrics", response_class=PlainTextResponse)
+@router.get("/api/metrics", response_class=PlainTextResponse)
 async def metrics(request: Request) -> str:
     pool = request.app.state.pool
     async with pool.acquire() as conn:

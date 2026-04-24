@@ -58,19 +58,42 @@ class LeaderboardRow(BaseModel):
 
 @router.get("/leaderboard", response_model=list[LeaderboardRow])
 async def leaderboard(request: Request) -> list[LeaderboardRow]:
+    # Score each pick from the actual match outcome; log-loss uses the
+    # tipster's stated confidence. tipster_picks has no hit/log_loss
+    # columns — derive in SQL via matches.home_goals/away_goals.
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT t.slug, t.display_name,
-                   COUNT(tp.id) AS picks,
-                   COUNT(tp.id) FILTER (WHERE tp.hit) AS hits,
-                   AVG(tp.log_loss)::float AS log_loss
+            WITH graded AS (
+                SELECT tp.tipster_id, tp.pick, tp.confidence,
+                       CASE
+                         WHEN m.home_goals > m.away_goals THEN 'H'
+                         WHEN m.home_goals < m.away_goals THEN 'A'
+                         ELSE 'D'
+                       END AS actual
+                FROM tipster_picks tp
+                JOIN matches m ON m.id = tp.match_id
+                WHERE m.status = 'final' AND m.home_goals IS NOT NULL
+            )
+            SELECT t.slug,
+                   COALESCE(t.display_name, t.slug) AS display_name,
+                   COUNT(g.tipster_id)::int AS picks,
+                   COUNT(g.tipster_id) FILTER (WHERE g.pick = g.actual)::int AS hits,
+                   AVG(
+                     -LN(GREATEST(1e-6, LEAST(1 - 1e-6,
+                       CASE WHEN g.pick = g.actual THEN g.confidence ELSE 1 - g.confidence END
+                     )))
+                   )::float AS log_loss
             FROM tipsters t
-            LEFT JOIN tipster_picks tp ON tp.tipster_id = t.id AND tp.log_loss IS NOT NULL
+            LEFT JOIN graded g ON g.tipster_id = t.id
             GROUP BY t.slug, t.display_name
-            HAVING COUNT(tp.id) >= 5
-            ORDER BY AVG(tp.log_loss) ASC NULLS LAST
+            HAVING COUNT(g.tipster_id) >= 5
+            ORDER BY AVG(
+              -LN(GREATEST(1e-6, LEAST(1 - 1e-6,
+                CASE WHEN g.pick = g.actual THEN g.confidence ELSE 1 - g.confidence END
+              )))
+            ) ASC NULLS LAST
             LIMIT 50
             """,
         )
