@@ -255,6 +255,28 @@ async def _injury_impact(
     return max(0.0, min(0.5, share))
 
 
+async def _team_domestic_league(pool: asyncpg.Pool, team_name: str) -> str | None:
+    """Return the most-recent non-cup league_code where a team has played
+    a finished match with xG — used by the UCL/UEL predict path to pull
+    xG from the team's domestic league."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT m.league_code
+            FROM matches m
+            JOIN teams t ON (t.id = m.home_team_id OR t.id = m.away_team_id)
+            WHERE t.name = $1
+              AND m.status = 'final'
+              AND m.home_xg IS NOT NULL
+              AND m.league_code NOT LIKE 'UEFA-%'
+            ORDER BY m.kickoff_time DESC
+            LIMIT 1
+            """,
+            team_name,
+        )
+    return row["league_code"] if row else None
+
+
 async def predict_and_persist(
     pool: asyncpg.Pool,
     match_id: int,
@@ -270,7 +292,22 @@ async def predict_and_persist(
         raise ValueError(f"match {match_id} not found")
 
     league_code = match["league_code"] if match["league_code"] else None
-    df = await queries.fetch_finished_matches_df(pool, league_code=league_code)
+
+    # European cups (UCL/UEL): Understat doesn't cover them, so there's no
+    # xG for the cup league itself. Pull each team's domestic-league
+    # history instead — Arsenal's EPL profile + Atletico's La Liga profile
+    # together give us the strengths needed for this matchup.
+    if league_code and league_code.startswith("UEFA-"):
+        df_list = []
+        for name in (match["home_name"], match["away_name"]):
+            dom_code = await _team_domestic_league(pool, name)
+            if dom_code:
+                team_df = await queries.fetch_finished_matches_df(pool, league_code=dom_code)
+                df_list.append(team_df)
+        df = pd.concat(df_list, ignore_index=True) if df_list else pd.DataFrame()
+    else:
+        df = await queries.fetch_finished_matches_df(pool, league_code=league_code)
+
     if df.empty:
         raise RuntimeError(
             f"no finished matches with xG for league {league_code!r} — run ingest first"
