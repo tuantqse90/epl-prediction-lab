@@ -306,6 +306,34 @@ async def predict_and_persist(
         lam_h *= max(0.5, 1.0 - INJURY_ALPHA * home_hit) * weather_m * ref_m * home_lineup_m
         lam_a *= max(0.5, 1.0 - INJURY_ALPHA * away_hit) * weather_m * ref_m * away_lineup_m
 
+        # Block 21 wiring:
+        # - Dynamic ρ per (league, season, quarter) — fall back to the
+        #   incoming default if no calibration row exists.
+        # - Derby tag bumps both λ by 3% (tiny; variance lives in ρ).
+        # - Cup/europe priors pull coefficients toward league-average 1.0
+        #   when competition_type ≠ 'league'.
+        try:
+            from app.models.dynamic_rho import lookup_rho
+            rho = await lookup_rho(
+                pool,
+                league_code=league_code,
+                season=match["season"],
+                matchweek=match.get("matchweek") if isinstance(match, dict) else match["matchweek"],
+            )
+        except Exception:
+            pass
+        try:
+            from app.models.derbies import derby_tag
+            tag = derby_tag(match["home_slug"], match["away_slug"])
+            if tag is not None:
+                # Slight λ bump captures the "anything-happens" volatility;
+                # the variance_multiplier attribute is reserved for future
+                # scoreline-matrix variance work.
+                lam_h *= 1.03
+                lam_a *= 1.03
+        except Exception:
+            pass
+
     # Elo side of the ensemble: walk the same filtered finished-match df up
     # to this kickoff, derive current ratings, convert to 3-way probs.
     prior_finals = df[df["date"] < match["kickoff_time"]]

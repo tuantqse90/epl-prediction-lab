@@ -4,6 +4,7 @@ import LangToggle from "./LangToggle";
 import LeagueSelector from "./LeagueSelector";
 import NavLinks from "./NavLinks";
 import SearchModal from "./SearchModal";
+import ThemeToggle from "./ThemeToggle";
 import type { Lang } from "@/lib/i18n";
 import { getLeagueSlug } from "@/lib/i18n-server";
 
@@ -40,6 +41,8 @@ export default async function SiteHeader({ lang }: { lang: Lang }) {
           <LeagueSelector current={league} />
           <span aria-hidden className="hidden md:inline h-4 w-px bg-border" />
           <SearchModal />
+          <span aria-hidden className="hidden md:inline h-4 w-px bg-border" />
+          <ThemeToggle />
           <span aria-hidden className="hidden md:inline h-4 w-px bg-border" />
           <LangToggle />
         </div>

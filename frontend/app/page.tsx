@@ -4,6 +4,7 @@ import FavoritesSection from "@/components/FavoritesSection";
 import KeyboardNavHint from "@/components/KeyboardNavHint";
 import LivePoller from "@/components/LivePoller";
 import MatchCard from "@/components/MatchCard";
+import MatchOfWeekCard from "@/components/MatchOfWeekCard";
 import ProofStrip from "@/components/ProofStrip";
 import PushButton from "@/components/PushButton";
 import QuickPicks from "@/components/QuickPicks";
@@ -172,6 +173,8 @@ export default async function HomePage({
             : t("dash.empty")}
         </div>
       )}
+
+      <MatchOfWeekCard lang={lang} />
 
       <ProofStrip league={leagueParam} lang={lang} />
 

@@ -1232,6 +1232,48 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
         except Exception as e:
             print(f"[live-scores] FT team-sub fanout failed for {match_id}: {type(e).__name__}: {e}")
 
+        # Dispatch registered developer webhooks ("match_final" event).
+        # Fire-and-forget — keeping the cron fast is more important than
+        # waiting on third-party endpoints.
+        try:
+            import json as _json
+            import urllib.request as _u
+            async with pool.acquire() as conn:
+                hooks = await conn.fetch(
+                    """
+                    SELECT id, url FROM api_webhooks
+                    WHERE 'match_final' = ANY(event_types)
+                    """,
+                )
+            body = _json.dumps({
+                "event": "match_final",
+                "match_id": match_id,
+                "home_slug": r["home_slug"], "away_slug": r["away_slug"],
+                "home_goals": hg, "away_goals": ag,
+                "league_code": r.get("league_code") if isinstance(r, dict) else r["league_code"],
+            }).encode("utf-8")
+            for h in hooks:
+                try:
+                    req = _u.Request(
+                        h["url"], data=body, method="POST",
+                        headers={"Content-Type": "application/json"},
+                    )
+                    with _u.urlopen(req, timeout=5):
+                        pass
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            "UPDATE api_webhooks SET last_ok_at = NOW(), last_error = NULL WHERE id = $1",
+                            h["id"],
+                        )
+                except Exception as e:
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            "UPDATE api_webhooks SET last_error = $2 WHERE id = $1",
+                            h["id"], f"{type(e).__name__}: {e}"[:500],
+                        )
+        except Exception as e:
+            print(f"[live-scores] webhook dispatch failed: {type(e).__name__}: {e}")
+
         # Always mark notified — even if telegram failed — so we don't spam
         # retry on every 10s tick. Missed FT posts are acceptable; duplicate
         # posts are not.

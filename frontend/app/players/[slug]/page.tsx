@@ -80,6 +80,8 @@ export default async function PlayerPage({
 
   const careerDelta = p.career_goals - p.career_xg;
 
+  const PlayerRadar = (await import("@/components/PlayerRadar")).default;
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-12 space-y-8">
       <nav className="flex items-center gap-2 font-mono text-xs text-muted" aria-label="Breadcrumb">
@@ -206,6 +208,8 @@ export default async function PlayerPage({
           </tbody>
         </table>
       </section>
+
+      <PlayerRadar slug={slug} lang={lang} />
     </main>
   );
 }
