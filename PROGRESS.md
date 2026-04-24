@@ -2,6 +2,13 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-25 01:55 +07 — HT parity + red-card alerts
+
+- **HT parity**: HT notify now fires all 5 channels (Telegram main, team subs, Discord kind='halftime', web push, API webhook event='match_halftime'). Previously only Telegram main + web push — mismatch with KO/FT that both do 5-channel fan-out.
+- **Red-card alerts**: new `_notify_red_card_events` runs inside the event-ingest loop right after `_upsert_events`. Fires for `Red Card` + `Second Yellow card` — plain yellows skipped (spam). Full 4-channel fan-out (Telegram + team subs + Discord kind='card' + web push). Idempotent via `match_events.notified_at`.
+- Penalty goals already carry `event_detail='Penalty'` and flow through the existing goal-notify path with 🎯 icon; no new path needed.
+- All 4 notifiers verified importable on the live container.
+
 ## 2026-04-25 01:45 +07 — Kickoff notifications (multi-channel fan-out)
 
 - Migration 034: `matches.kickoff_notified_at` + partial index (matches `ft_notified_at` / `ht_notified_at` pattern).
