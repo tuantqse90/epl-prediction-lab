@@ -83,17 +83,57 @@ def _days_rest(history: pd.DataFrame, team: str, as_of: pd.Timestamp) -> float:
 
 
 def _is_derby(home: str, away: str) -> float:
-    """Crude city-prefix derby flag. Manchester / London / Milan / Madrid etc."""
-    CITY_TOKENS = [
-        "Manchester", "Liverpool", "London",
-        "Madrid", "Barcelona", "Sevilla", "Bilbao", "Sociedad",
-        "Milan", "Roma", "Lazio", "Inter",
-        "Munich", "Leverkusen", "Berlin",
-        "Paris", "Saint",
-    ]
-    for tok in CITY_TOKENS:
-        if tok in home and tok in away:
-            return 1.0
+    """Derby flag via the curated Block 21 pair list.
+
+    The prior version used a city-token heuristic ("Manchester" in both
+    names, etc.) which over-matched (e.g. "Atletico Madrid" vs "Rayo
+    Vallecano" is NOT a derby) and missed valid ones ("Juventus vs Inter"
+    share no city token).
+
+    Curated pairs live in `app.models.derbies`. Names here map through
+    the known Understat → canonical normalisation used at ingest time.
+    """
+    NAME_TO_SLUG: dict[str, str] = {
+        # EPL (team_name as stored in matches)
+        "Arsenal": "arsenal",
+        "Tottenham": "tottenham",
+        "Liverpool": "liverpool",
+        "Everton": "everton",
+        "Manchester United": "manchester-united",
+        "Manchester City": "manchester-city",
+        "Chelsea": "chelsea",
+        # La Liga
+        "Real Madrid": "real-madrid",
+        "Barcelona": "barcelona",
+        "Atletico Madrid": "atletico-madrid",
+        "Espanyol": "espanyol",
+        "Sevilla": "sevilla",
+        "Real Betis": "real-betis",
+        # Serie A
+        "Juventus": "juventus",
+        "Inter": "inter",
+        "Milan": "ac-milan",
+        "AC Milan": "ac-milan",
+        "Roma": "roma",
+        "Lazio": "lazio",
+        # Bundesliga
+        "Bayern Munich": "bayern-munich",
+        "Borussia Dortmund": "borussia-dortmund",
+        "Schalke 04": "schalke-04",
+        "Hamburger SV": "hamburger-sv",
+        "Werder Bremen": "werder-bremen",
+        # Ligue 1
+        "Paris Saint Germain": "paris-saint-germain",
+        "Paris Saint-Germain": "paris-saint-germain",
+        "Marseille": "marseille",
+        "Lyon": "lyon",
+        "Saint-Etienne": "saint-etienne",
+    }
+    from app.models.derbies import derby_tag
+    h_slug = NAME_TO_SLUG.get(home)
+    a_slug = NAME_TO_SLUG.get(away)
+    if h_slug and a_slug and derby_tag(h_slug, a_slug) is not None:
+        return 1.0
     return 0.0
 
 
