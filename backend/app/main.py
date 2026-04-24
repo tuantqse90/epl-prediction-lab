@@ -15,6 +15,7 @@ from app.api import equity_curve as equity_curve_router
 from app.api import internal_tools as internal_tools_router
 from app.api import keys as keys_router
 from app.api import line_movement as line_movement_router
+from app.api import live_edge as live_edge_router
 from app.api import player_analytics as player_analytics_router
 from app.api import manager as manager_router
 from app.api import match_of_week as motw_router
@@ -81,6 +82,7 @@ app.include_router(blog_router.router)
 app.include_router(calibration_router.router)
 app.include_router(by_team_router.router)
 app.include_router(line_movement_router.router)
+app.include_router(live_edge_router.router)
 app.include_router(manager_router.router)
 app.include_router(equity_curve_router.router)
 app.include_router(sync_router.router)
