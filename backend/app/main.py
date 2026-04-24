@@ -13,6 +13,7 @@ from app.api import calibration as calibration_router
 from app.api import clv_by_market as clv_by_market_router
 from app.api import equity_curve as equity_curve_router
 from app.api import internal_tools as internal_tools_router
+from app.api import keys as keys_router
 from app.api import line_movement as line_movement_router
 from app.api import manager as manager_router
 from app.api import match_of_week as motw_router
@@ -85,6 +86,7 @@ app.include_router(middles_router.router)
 app.include_router(clv_by_market_router.router)
 app.include_router(internal_tools_router.router)
 app.include_router(motw_router.router)
+app.include_router(keys_router.router)
 
 
 @app.get("/health")
