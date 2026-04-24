@@ -2,6 +2,14 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-25 01:45 +07 — Kickoff notifications (multi-channel fan-out)
+
+- Migration 034: `matches.kickoff_notified_at` + partial index (matches `ft_notified_at` / `ht_notified_at` pattern).
+- `_notify_kickoff` in `ingest_live_scores.py` — fires once per fixture on the `scheduled → live` flip, idempotent. Guard: `kickoff_time > NOW() - 10m` so backfills don't spam old matches.
+- Fan-out across 5 channels: main Telegram channel, team subscribers (`/subscribe arsenal`), Discord webhooks (kind=kickoff), web push for team fans, developer API webhooks (event=match_start).
+- Wired into main loop before `_notify_halftime`. Independent try/except per channel — partial delivery still marks notified.
+- Verified importable; live service tail shows clean "no match within live window" between ticks (no real KOs at deploy time).
+
 ## 2026-04-25 01:35 +07 — Match event timeline strip
 
 - New `MatchEventsTimeline` component — horizontal 0→90+ pitch clock, home events above the centerline and away below. ⚽/🟨/🟥/🔄/🎥 per event type, positioned by minute. Ticks at 0/15/30/45/60/75/90 with halftime divider heavier than the quarter-ticks. Extra-time minutes compress into the final 10 % so they stay visible.
