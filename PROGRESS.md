@@ -2,6 +2,17 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 10:55 +07 — Block 22 done: sharp tooling v2 (6 items)
+
+1. **22.1 Arbitrage detector** — `app/models/arbitrage.py` + 5 TDD + `/api/stats/arbs` + `/arbs`. 34 opps found on first scan.
+2. **22.2 O/U middle finder** — `app/models/middles.py` + 4 TDD + `/api/stats/middles` + `/middles`.
+3. **22.3 CLV by market** — `/api/stats/clv-by-market`; 1X2 live, OU/AH/BTTS placeholders.
+4. **22.4 Kelly explorer** — `/kelly-explorer` renders 6 Kelly caps side-by-side.
+5. **22.5 Book weights** — `book_weights.py` Pinnacle 1.0 / retail 0.5 / default 0.3 + `weighted_consensus()`.
+6. **22.6 Tax-aware ROI** — `tax.py` VN/EN/EU/US jurisdictions + `apply_tax()`.
+
+9/9 new tests green.
+
 ## 2026-04-24 10:30 +07 — Block 21 done: model depth v2 (6 items)
 
 Infrastructure-only ship so prod behaviour unchanged; future retrain wires these into the predict path.
