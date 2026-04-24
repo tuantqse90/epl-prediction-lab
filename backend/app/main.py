@@ -24,6 +24,7 @@ from app.api import predictions as predictions_router
 from app.api import push as push_router
 from app.api import search as search_router
 from app.api import stats as stats_router
+from app.api import sync as sync_router
 from app.api import table as table_router
 from app.api import teams as teams_router
 from app.api import telegram as telegram_router
@@ -71,6 +72,7 @@ app.include_router(calibration_router.router)
 app.include_router(by_team_router.router)
 app.include_router(line_movement_router.router)
 app.include_router(equity_curve_router.router)
+app.include_router(sync_router.router)
 
 
 @app.get("/health")
