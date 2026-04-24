@@ -2,6 +2,13 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 14:00 +07 — Phase 36 wrap + data activation
+
+- `<TaxToggle>` live on `/roi` — none / UK / EU / VN / US dropdown shows after-tax P&L side-by-side with raw.
+- `seed_manager_tenure.py` seeded 22 current managers across top-5 leagues. `/api/teams/arsenal/manager` returns Arteta 2317 days.
+- ρ calibration now covers 7 seasons × 5 leagues = 35 rows. Bundesliga consistently −0.15..−0.25; EPL swings +0.05..−0.20. Default −0.15 was wrong for 4/5 leagues in 2024-25.
+- `predict_upcoming` re-run: 93 predictions under new dynamic ρ + derby bump path.
+
 ## 2026-04-24 13:30 +07 — Phase 36 + 37 shipped
 
 **Phase 36 (close-out):**
