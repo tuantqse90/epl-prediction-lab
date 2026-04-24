@@ -73,7 +73,8 @@ async def run() -> None:
                 "ALTER TABLE matches ADD COLUMN IF NOT EXISTS morning_notified_at TIMESTAMPTZ"
             )
 
-        today_utc = datetime.now(timezone.utc).date().isoformat()
+        today_date = datetime.now(timezone.utc).date()
+        today_utc = today_date.isoformat()
 
         async with pool.acquire() as conn:
             rows = await conn.fetch(
@@ -101,10 +102,10 @@ async def run() -> None:
                 JOIN latest l ON l.match_id = m.id
                 LEFT JOIN best b ON b.match_id = m.id
                 WHERE m.status = 'scheduled'
-                  AND m.kickoff_time::date = $1::date
+                  AND m.kickoff_time::date = $1
                   AND m.morning_notified_at IS NULL
                 """,
-                today_utc,
+                today_date,
             )
 
         edges: list[dict] = []
