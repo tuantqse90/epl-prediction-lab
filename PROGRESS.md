@@ -2,6 +2,28 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 23:00 +07 — Deep perf + i18n polish + SEO
+
+**Perf**
+- `EdgeCacheMiddleware` stamps `Cache-Control` + `CDN-Cache-Control` on every public GET response. Buckets: 3600s (story body + historical stats), 300s (stats/table/MC/brackets), 60s (matches list + match subfetches). Write/personal paths (admin/billing/keys/chat/sync/ops/live) → `no-store`. Cloudflare free tier doesn't cache JSON by default — a CF Cache Rule on `/api/*` will activate it.
+- Frontend `lib/api.ts`: 17× `cache: "no-store"` → `next: { revalidate: 60 }` (CI + suggested prompts bumped to 600s). Next now dedupes repeated fetches across the same render tree.
+- `/match/[id]` page: 12 sequential awaits collapsed into a single `Promise.all`. Expected ~5-10× page-render drop once past the first `getMatch`.
+- Homepage: 3 sequential → 1 parallel batch (listMatches + accuracy + ROI).
+- Warm TTFB measured: `/` 416ms, `/match/:id` 346ms, `/stories` 280ms, `/table` 313ms.
+
+**SEO**
+- `MatchStoryCard` now emits `schema.org/NewsArticle` JSON-LD beside the existing SportsEvent LD — Google indexes the 400-500 word narrative under /match/:id.
+- `/stories` sitemap entry (priority 0.8).
+
+**i18n**
+- `/stories` + `MobileNavDrawer` localised fully to en/vi/th/zh/ko (was en+vi with fallthrough).
+
+**Fix**
+- Caddy predictor block's `handle /docs*` was swallowing `/docs/model` (Next page) and returning FastAPI's swagger-UI 404 for the sub-path. Replaced with `handle /redoc` on VPS (in-place edit, no code commit); every `/docs/*` URL now reaches the frontend.
+
+**Cleanup**
+- Removed unused `frontend/components/Skeleton.tsx` (no callers).
+
 ## 2026-04-24 22:00 +07 — /stories index + 42.2 MOTM + 43.4 Telegram deep-links
 
 - **`/stories`** — public SEO index at predictor.nullshift.sh/stories listing every AI-written match narrative (score, league flag, 240-char excerpt). Backed by `GET /api/stats/stories?league=&limit=&offset=`. Sitemap priority 0.8. MobileNavDrawer surfaces it in Lab.
