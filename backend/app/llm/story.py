@@ -131,4 +131,83 @@ async def generate_story(
             """,
             match_id, text, model,
         )
+
+    # Teaser broadcast — first paragraph + link to /match/:id. Fires
+    # once per story (idempotent via story_generated_at being NOT NULL
+    # before this write, so a rerun won't re-broadcast). Tolerated
+    # failure — the story is already persisted.
+    try:
+        await _broadcast_story_teaser(pool, match_id, text, row)
+    except Exception as e:
+        print(f"[story] broadcast failed for {match_id}: {type(e).__name__}: {e}")
+
     return text
+
+
+async def _broadcast_story_teaser(
+    pool: asyncpg.Pool,
+    match_id: int,
+    story: str,
+    row,
+) -> None:
+    """Post the story's first paragraph to the Telegram main channel +
+    team-subscriber fan-out + Discord, with a link to the full page."""
+    import os
+    import urllib.parse
+    import urllib.request
+
+    first = story.split("\n\n", 1)[0].strip()
+    # Telegram markdown caps Title at ~1024 chars; trim hard.
+    if len(first) > 600:
+        first = first[:600].rsplit(" ", 1)[0] + "…"
+
+    home = row["home_name"]
+    away = row["away_name"]
+    hg = int(row["home_goals"])
+    ag = int(row["away_goals"])
+    url = f"https://predictor.nullshift.sh/match/{match_id}"
+
+    headline = f"📝 *{home} {hg}-{ag} {away}*"
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if token and chat_id:
+        body = urllib.parse.urlencode({
+            "chat_id": chat_id,
+            "text": f"{headline}\n\n{first}\n\n[Đọc tiếp →]({url})",
+            "parse_mode": "Markdown",
+            "disable_web_page_preview": "true",
+        }).encode("utf-8")
+        try:
+            req = urllib.request.Request(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                data=body, method="POST",
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            with urllib.request.urlopen(req, timeout=10):
+                pass
+        except Exception as e:
+            print(f"[story] telegram post failed: {type(e).__name__}: {e}")
+
+    # Team subscribers — fan out to anyone following home or away.
+    try:
+        from app.api.telegram import fan_out_to_team_subscribers
+        async with pool.acquire() as conn:
+            slugs = await conn.fetchrow(
+                """
+                SELECT ht.slug AS home_slug, at.slug AS away_slug
+                FROM matches m
+                JOIN teams ht ON ht.id = m.home_team_id
+                JOIN teams at ON at.id = m.away_team_id
+                WHERE m.id = $1
+                """,
+                match_id,
+            )
+        if slugs:
+            await fan_out_to_team_subscribers(
+                pool,
+                team_slugs=[slugs["home_slug"], slugs["away_slug"]],
+                text=f"{headline}\n\n{first}\n\n{url}",
+            )
+    except Exception as e:
+        print(f"[story] team-sub fanout failed: {type(e).__name__}: {e}")
