@@ -2,6 +2,15 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 15:40 +07 — Phase 38: /live in-play value-bet scanner
+
+Joined already-live probabilities (Poisson residual over remaining minutes, computed in `queries.record_to_match_dict`) against latest best-of-books 1X2 odds to surface in-play value bets.
+
+- `/api/live-edge?min_edge_pp=2` — returns live match × best-edge outcome rows.
+- `/live` page auto-refreshes every 20s, renders card per live match with pick + odds + edge + 3-way bar.
+
+Zero new schema. Reuses `predictions`, `match_odds_history`, and the existing `live_probabilities()` function. Empty while no match is live — populates organically when matches kick off.
+
 ## 2026-04-24 15:10 +07 — XGB retrain with upgraded is_derby: DID NOT WORK, rolled back
 
 Swapped the crude city-token `_is_derby` heuristic for the curated Block 21 pair list, then retrained. Holdout 2024-25 (1,748 matches) went **worse**: accuracy 53.38% (was 55.41%, −2pp), log-loss 0.981 (was 0.979, +0.2%). Market-feature gain share dropped 27.4% → 11.0% — the booster stopped leaning on the signal it used to rely on.
