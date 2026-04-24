@@ -11,6 +11,7 @@ from app.api import by_team as by_team_router
 from app.api import calibration as calibration_router
 from app.api import equity_curve as equity_curve_router
 from app.api import line_movement as line_movement_router
+from app.api import manager as manager_router
 from app.api import chat as chat_router
 from app.api import compare as compare_router
 from app.api import discord as discord_router
@@ -71,6 +72,7 @@ app.include_router(blog_router.router)
 app.include_router(calibration_router.router)
 app.include_router(by_team_router.router)
 app.include_router(line_movement_router.router)
+app.include_router(manager_router.router)
 app.include_router(equity_curve_router.router)
 app.include_router(sync_router.router)
 
