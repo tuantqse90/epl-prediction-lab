@@ -36,7 +36,7 @@ class CalibrationResponse(BaseModel):
     bins: list[Bin]
 
 
-@router.get("/calibration", response_model=CalibrationResponse)
+@router.get("/reliability", response_model=CalibrationResponse)
 async def calibration(
     request: Request,
     league: str | None = Query(None, description="optional league_code filter"),

@@ -26,7 +26,7 @@ type CalibrationResponse = {
 
 async function fetchData(): Promise<CalibrationResponse | null> {
   try {
-    const res = await fetch(`${BASE}/api/stats/calibration?n_bins=10`, {
+    const res = await fetch(`${BASE}/api/stats/reliability?n_bins=10`, {
       next: { revalidate: 3600 },
     });
     if (!res.ok) return null;
