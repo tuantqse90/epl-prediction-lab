@@ -2,6 +2,12 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 22:00 +07 — /stories index + 42.2 MOTM + 43.4 Telegram deep-links
+
+- **`/stories`** — public SEO index at predictor.nullshift.sh/stories listing every AI-written match narrative (score, league flag, 240-char excerpt). Backed by `GET /api/stats/stories?league=&limit=&offset=`. Sitemap priority 0.8. MobileNavDrawer surfaces it in Lab.
+- **42.2 Manager of the Month** — `post_manager_of_month.py` ranks active-tenure managers by 45-day xG-overperformance. **First post live: Cristian Chivu** top overperformer across 19 active tenures. Timer 1st-of-month 09:00 UTC.
+- **43.4 Telegram deep-links** — `format_pick` wraps fixture names in markdown links to `/match/:id` when match_id is present. Every `/pick` / team-pick / edge digest now tap-through opens the detailed page.
+
 ## 2026-04-24 21:30 +07 — Phase 42 content engine + mobile nav fix
 
 - **42.1 Per-match story**: migration 032 adds `matches.story`; `generate_story()` writes 400-500 word Qwen-Turbo narrative on FT (cap 2/tick) + daily backfill via `generate_stories.py --days 14 --limit 30`. Endpoint `/api/matches/:id/story` + `<MatchStoryCard/>` on match page. **First 5 backfill stories live** (Real Oviedo 1-1 Villarreal etc).
