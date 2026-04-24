@@ -2,6 +2,13 @@
 
 > Dated summary log. **One short entry per meaningful step.** Format: `## YYYY-MM-DD HH:MM TZ — <summary>`. Keep each entry to 1–3 lines. Details live in code + docs, not here.
 
+## 2026-04-24 16:00 +07 — Phase 39: UCL + UEL ingest shipped
+
+- `app/leagues.py` +2 entries (UCL api_id=2, UEL api_id=3) so every league-scoped surface picks them up.
+- `scripts/ingest_european_cups.py` pulls fixtures + 1X2 odds from API-Football Ultra. Upserts via `af:{fid}` external_id + `competition_type='europe'` (Block 21.6 cup prior activates at predict time).
+- **550 fixtures ingested** (280 UCL + 270 UEL) on first run. Real UCL semis live on `/europe`: PSG vs Bayern (28/4) + Atletico vs Arsenal (29/4) and return legs.
+- `/europe` page, sitemap entry priority 0.9, daily cron wire.
+
 ## 2026-04-24 15:40 +07 — Phase 38: /live in-play value-bet scanner
 
 Joined already-live probabilities (Poisson residual over remaining minutes, computed in `queries.record_to_match_dict`) against latest best-of-books 1X2 odds to surface in-play value bets.
