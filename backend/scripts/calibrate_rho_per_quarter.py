@@ -43,9 +43,38 @@ def _poisson(k: int, lam: float) -> float:
     return math.exp(-lam) * (lam ** k) / math.factorial(k)
 
 
-def _match_ll(lam_h: float, lam_a: float, hg: int, ag: int, rho: float) -> float:
-    p = _poisson(hg, lam_h) * _poisson(ag, lam_a) * _dc_correction(lam_h, lam_a, hg, ag, rho)
-    return -math.log(max(1e-9, p))
+def _match_ll_3way(
+    lam_h: float, lam_a: float, hg: int, ag: int, rho: float, *, k_max: int = 8,
+) -> float:
+    """3-way log-loss of the predicted H/D/A probabilities against the
+    actual outcome. This matches how we evaluate predictions in
+    backtest_block21.py and the calibration page, so the ρ that minimizes
+    this objective is the one we actually want.
+    """
+    # Build a small scoreline matrix + apply DC correction + collapse to 3-way.
+    p_h = p_d = p_a = 0.0
+    for i in range(k_max + 1):
+        pi = _poisson(i, lam_h)
+        for j in range(k_max + 1):
+            pj = _poisson(j, lam_a)
+            cell = pi * pj * _dc_correction(lam_h, lam_a, i, j, rho)
+            if i > j:
+                p_h += cell
+            elif i < j:
+                p_a += cell
+            else:
+                p_d += cell
+    total = p_h + p_d + p_a
+    if total <= 0:
+        return -math.log(1e-9)
+    p_h /= total; p_d /= total; p_a /= total
+    if hg > ag:
+        target = p_h
+    elif hg < ag:
+        target = p_a
+    else:
+        target = p_d
+    return -math.log(max(1e-9, target))
 
 
 async def _fit(pool, league: str, season: str) -> dict[int, tuple[float, float, int]]:
@@ -75,7 +104,7 @@ async def _fit(pool, league: str, season: str) -> dict[int, tuple[float, float, 
         for rho in CANDIDATES:
             ll = 0.0
             for r in matches:
-                ll += _match_ll(
+                ll += _match_ll_3way(
                     float(r["home_xg"]), float(r["away_xg"]),
                     int(r["home_goals"]), int(r["away_goals"]), rho,
                 )
