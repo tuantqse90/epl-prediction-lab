@@ -143,9 +143,7 @@
      olive but keep a subtle lime backing-stripe to hint at the brand.
   */
   html[data-theme="light"] .text-neon.tabular-nums,
-  html[data-theme="light"] .stat.text-neon,
-  html[data-theme="light"] .stat.text-base,
-  html[data-theme="light"] .stat.text-3xl {
+  html[data-theme="light"] .stat.text-neon {
     color: #2d4a00 !important;
   }
 
