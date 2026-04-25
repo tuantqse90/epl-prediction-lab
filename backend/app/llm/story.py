@@ -141,6 +141,17 @@ async def generate_story(
     except Exception as e:
         print(f"[story] broadcast failed for {match_id}: {type(e).__name__}: {e}")
 
+    # Bing/Yandex IndexNow push — new story page surfaces in search
+    # within minutes instead of waiting for sitemap re-crawl.
+    try:
+        from app.indexnow import submit as indexnow_submit
+        indexnow_submit([
+            f"https://predictor.nullshift.sh/match/{match_id}",
+            "https://predictor.nullshift.sh/stories",
+        ])
+    except Exception as e:
+        print(f"[story] indexnow submit failed: {type(e).__name__}: {e}")
+
     return text
 
 

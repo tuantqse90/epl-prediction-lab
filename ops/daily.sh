@@ -95,6 +95,11 @@ run python scripts/generate_recaps.py --days 7 --limit 120 || true
 # the budget. Idempotent via `story IS NULL` guard.
 run python scripts/generate_stories.py --days 14 --limit 30 || true
 
+# IndexNow bulk re-submission — bumps every NewsArticle (story) URL
+# to Bing/Yandex once a day. The on-write hook in app/llm/story.py
+# already pings them as new stories land; this is the catch-up sweep.
+run python scripts/submit_indexnow.py || true
+
 # Social distribution — tolerated failure (missing creds, rate limit, etc.)
 run python scripts/post_twitter.py --horizon-days 3 --threshold 0.07 --max 5 || true
 run python scripts/post_twitter_recap.py || true
