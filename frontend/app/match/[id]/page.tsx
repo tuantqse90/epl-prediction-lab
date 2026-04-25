@@ -24,6 +24,7 @@ import LogPickButton from "@/components/LogPickButton";
 import MarketsEdge from "@/components/MarketsEdge";
 import MarketsPanel from "@/components/MarketsPanel";
 import MatchJsonLd from "@/components/MatchJsonLd";
+import { alternatesFor, breadcrumbLd } from "@/lib/seo";
 import ScorerOddsPanel from "@/components/ScorerOddsPanel";
 import WeatherPanel from "@/components/WeatherPanel";
 import PredictionBar from "@/components/PredictionBar";
@@ -63,6 +64,7 @@ export async function generateMetadata({
     return {
       title,
       description: desc,
+      alternates: alternatesFor(`/match/${id}`),
       openGraph: { title, description: desc, url: `/match/${id}`, type: "article" },
       twitter: { card: "summary_large_image", title, description: desc },
     };
@@ -163,6 +165,23 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 space-y-10">
       <MatchJsonLd match={match} url={`https://predictor.nullshift.sh/match/${match.id}`} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            breadcrumbLd([
+              { name: "Home", path: "/" },
+              ...(leagueInfo
+                ? [{ name: leagueInfo.name_en, path: `/leagues/${leagueInfo.slug}` }]
+                : []),
+              {
+                name: `${match.home.name} vs ${match.away.name}`,
+                path: `/match/${match.id}`,
+              },
+            ]),
+          ),
+        }}
+      />
       {isLive && <LivePoller />}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <nav className="flex items-center gap-2 font-mono text-xs text-muted" aria-label="Breadcrumb">

@@ -151,12 +151,47 @@ const QUESTIONS: QA[] = [
   },
 ];
 
+// Parallel plain-text answers for FAQPage JSON-LD — Google's rich
+// results require strings, not JSX. Keep questions in lockstep with the
+// QUESTIONS array above; if you add a Q&A there, add the prose answer here.
+const LD_ANSWERS: string[] = [
+  "Two specific differences. (1) Every probability is SHA-256 committed from the canonical JSON body before kickoff, so probabilities can't be silently edited after the fact — the hash would no longer match. (2) We publish negative evidence on the same page as positive evidence. The /proof page shows the model beats bookmakers by +2.1pp over the last 30 days and loses to them by −2.0pp across 3,760 finals since 2019. Most prediction sites hide the second number.",
+  "Kelly stake is shown for any outcome with ≥5pp edge over fair market price, fractional Kelly capped at 25% of bankroll. That's a peer-reviewable number, not advice. Even a well-calibrated model has losing streaks. If you choose to bet, size down. If you're new, don't.",
+  "Walk-forward: every feature is computed from matches with a kickoff strictly before the target match. Scripts are open-source on GitHub. We retrain XGBoost weekly on all prior seasons holding out the current one for honest out-of-sample metrics.",
+  "Each prediction's canonical JSON body (probabilities, top scoreline, expected goals) is hashed with SHA-256 before kickoff. If we ever change the numbers post-fact, the hash on the original commitment row would no longer match — and we expose every commitment hash on /match/:id.",
+  "Free forever. Pro tier ($9/mo, optional) unlocks 10× higher API rate limits + early access to new features. The model itself is the same on both tiers.",
+  "5 European top leagues — EPL, La Liga, Serie A, Bundesliga, Ligue 1 — plus UEFA Champions League and Europa League. ~2,000 matches per season covered with full pre-match xG ensemble.",
+  "API-Football Ultra (75k requests/day) for 1X2 + over/under + BTTS + Asian handicap odds across 60+ bookmakers. The-odds-api as fallback. Closing odds snapshotted 5 minutes before kickoff for CLV measurement.",
+  "Goals + cards + substitutions + VAR events come from API-Football's /fixtures/events endpoint, polled every 10 seconds during live matches. Live model probabilities recompute from remaining-time Poisson mass on the same cadence.",
+  "Predictions refresh daily at 06:00 UTC for the next 14 days of fixtures, plus a full retrain of XGBoost every Monday 02:00 UTC. During live matches, a 10-second systemd timer re-pulls scores and updates remaining-time probabilities from the current score + remaining Poisson mass.",
+  "A small independent research group. See /about. No commercial backers. Funded out-of-pocket at ~$13/month running cost.",
+];
+
+function faqPageLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: QUESTIONS.map((qa, i) => ({
+      "@type": "Question",
+      name: qa.q,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: LD_ANSWERS[i] ?? "",
+      },
+    })),
+  };
+}
+
 export default async function FAQPage() {
   const lang = await getLang();
   const t = tFor(lang);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 space-y-10">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPageLd()) }}
+      />
       <Link href="/" className="btn-ghost text-sm">{t("common.back")}</Link>
 
       <header className="space-y-3">

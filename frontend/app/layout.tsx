@@ -9,6 +9,7 @@ import SiteHeader from "@/components/SiteHeader";
 import { LangProvider } from "@/lib/i18n-client";
 import type { Lang } from "@/lib/i18n";
 import { getLang } from "@/lib/i18n-server";
+import { alternatesFor, organizationLd, websiteLd } from "@/lib/seo";
 
 import "./globals.css";
 
@@ -86,6 +87,7 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  alternates: alternatesFor("/"),
   appleWebApp: {
     capable: true,
     title: "EPL Lab",
@@ -118,6 +120,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           ships an empty head on first paint, then React hydration races
           with the injected link and the CSS briefly/permanently vanishes. */}
       <body className="min-h-screen bg-surface text-primary">
+        {/* Organization + WebSite/SearchAction JSON-LD — emitted once at
+            the root so Google can build a knowledge-panel + sitelinks
+            search box without scraping per-page. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationLd()) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteLd()) }}
+        />
         {plausibleHost && plausibleDomain && (
           <script
             defer
