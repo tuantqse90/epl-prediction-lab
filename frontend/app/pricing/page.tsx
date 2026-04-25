@@ -36,8 +36,46 @@ export default function PricingPage() {
     }
   }
 
+  const productLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: "EPL Prediction Lab Pro",
+    description:
+      "Higher API rate limits, early access to new features, priority email digest, optional supporter badge.",
+    brand: { "@type": "Brand", name: "EPL Prediction Lab" },
+    offers: [
+      {
+        "@type": "Offer",
+        name: "Free",
+        price: "0",
+        priceCurrency: "USD",
+        availability: "https://schema.org/InStock",
+        description: "Every prediction across 5 leagues + UCL/UEL · 60 req/min",
+      },
+      {
+        "@type": "Offer",
+        name: "Pro",
+        price: "9",
+        priceCurrency: "USD",
+        availability: "https://schema.org/InStock",
+        priceSpecification: {
+          "@type": "UnitPriceSpecification",
+          price: "9",
+          priceCurrency: "USD",
+          billingIncrement: 1,
+          unitCode: "MON",
+        },
+        description: "10× API rate limit · early access · cancel anytime",
+      },
+    ],
+  };
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-12 space-y-10">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productLd) }}
+      />
       <Link href="/" className="btn-ghost text-sm">
         {tLang(lang, { en: "← Back", vi: "← Quay lại", th: "← กลับ", zh: "← 返回", ko: "← 뒤로" })}
       </Link>

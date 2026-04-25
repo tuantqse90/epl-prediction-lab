@@ -4,6 +4,7 @@ import Link from "next/link";
 import TeamLogo from "@/components/TeamLogo";
 import { getLang, tFor } from "@/lib/i18n-server";
 import { tLang } from "@/lib/i18n-fallback";
+import { breadcrumbLd } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Match Stories · predictor.nullshift.sh",
@@ -60,6 +61,17 @@ export default async function StoriesIndex() {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12 space-y-10">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            breadcrumbLd([
+              { name: "Home", path: "/" },
+              { name: "Stories", path: "/stories" },
+            ]),
+          ),
+        }}
+      />
       <Link href="/" className="btn-ghost text-sm">
         {t("common.back")}
       </Link>

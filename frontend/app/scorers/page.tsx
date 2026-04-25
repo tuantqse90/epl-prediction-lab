@@ -107,6 +107,7 @@ export default async function ScorersPage({
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 space-y-8">
+      {page > 1 && <meta name="robots" content="noindex,follow" />}
       <Link href="/" className="btn-ghost text-sm">{t("common.back")}</Link>
 
       <header className="space-y-3">

@@ -105,6 +105,11 @@ export default async function HomePage({
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12 space-y-10">
+      {/* noindex on paginated views (page ≥ 2) — Google should index
+          the canonical first page; deeper pages are duplicate content
+          for SEO purposes. follow stays on so internal links keep
+          flowing PageRank back to the rest of the site. */}
+      {(page > 1 || tricky) && <meta name="robots" content="noindex,follow" />}
       {hasLive && <LivePoller />}
       <WorldCupCountdown lang={lang} />
       <header className="space-y-4">

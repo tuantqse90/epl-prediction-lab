@@ -10,6 +10,7 @@ import { formatShortDate } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
 import AnimatedNumber from "@/components/AnimatedNumber";
 import { leagueByCode } from "@/lib/leagues";
+import { breadcrumbLd } from "@/lib/seo";
 import { colorFor } from "@/lib/team-colors";
 
 export const dynamic = "force-dynamic";
@@ -196,6 +197,20 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            breadcrumbLd([
+              { name: "Home", path: "/" },
+              ...(leagueInfo
+                ? [{ name: leagueInfo.name_en, path: `/leagues/${leagueInfo.slug}` }]
+                : []),
+              { name: p.name, path: `/teams/${p.slug}` },
+            ]),
+          ),
+        }}
       />
       <nav className="flex items-center gap-2 font-mono text-xs text-muted" aria-label="Breadcrumb">
         <Link href="/" className="hover:text-neon">Home</Link>

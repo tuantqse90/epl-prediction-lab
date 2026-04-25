@@ -8,7 +8,7 @@ import { listMatches } from "@/lib/api";
 import { formatDateOnly } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
 import { REAL_LEAGUES, getLeague } from "@/lib/leagues";
-import { alternatesFor } from "@/lib/seo";
+import { alternatesFor, breadcrumbLd } from "@/lib/seo";
 import type { Lang } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -141,6 +141,18 @@ export default async function LeaguePage({
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12 space-y-10">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            breadcrumbLd([
+              { name: "Home", path: "/" },
+              { name: "Leagues", path: "/leagues" },
+              { name: label, path: `/leagues/${slug}` },
+            ]),
+          ),
+        }}
+      />
       <Link href="/" className="btn-ghost text-sm">{t("common.back")}</Link>
 
       {/* Hero + team-logo strip — scan the upcoming fixture list for

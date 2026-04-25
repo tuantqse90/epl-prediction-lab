@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 
 import { getPost, listPosts, renderMarkdown } from "@/lib/blog";
 import { getLang, tFor } from "@/lib/i18n-server";
-import { alternatesFor } from "@/lib/seo";
+import { alternatesFor, breadcrumbLd } from "@/lib/seo";
+
+const SITE = "https://predictor.nullshift.sh";
 
 export async function generateStaticParams() {
   const posts = await listPosts();
@@ -46,8 +48,37 @@ export default async function BlogPostPage({
   const t = tFor(lang);
   const html = renderMarkdown(post.body);
 
+  const articleLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    description: post.excerpt,
+    datePublished: post.date,
+    dateModified: post.date,
+    author: { "@type": "Organization", name: "EPL Prediction Lab", url: SITE },
+    publisher: { "@type": "Organization", name: "EPL Prediction Lab", url: SITE },
+    mainEntityOfPage: `${SITE}/blog/${post.slug}`,
+    keywords: post.tags.join(", "),
+  };
+
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 space-y-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            breadcrumbLd([
+              { name: "Home", path: "/" },
+              { name: "Blog", path: "/blog" },
+              { name: post.title, path: `/blog/${post.slug}` },
+            ]),
+          ),
+        }}
+      />
       <Link href="/blog" className="btn-ghost text-sm">
         ← blog
       </Link>
