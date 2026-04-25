@@ -163,6 +163,7 @@ export default function WorldCupCountdown({ lang }: { lang: Lang }) {
   return (
     <section
       aria-label="World Cup 2026 countdown"
+      data-wc-banner
       className="relative overflow-hidden rounded-2xl border border-neon/40 bg-black"
     >
       {/* Layer 1: stadium-pitch stripes (alternating dark greens) evokes a

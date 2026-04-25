@@ -236,6 +236,68 @@
   html[data-theme="light"] section.card .border-l.border-dashed {
     border-color: rgba(0, 0, 0, 0.18) !important;
   }
+
+  /* ── World Cup 2026 banner ──
+     The component is dark-first (bg-black + neon stripes + radial
+     halos hardcoded inline). On light mode it lands as a billboard
+     dropped on a paper page. Override every layer.
+     Marker class added in WorldCupCountdown.tsx: [data-wc-banner]. */
+  html[data-theme="light"] [data-wc-banner] {
+    background-color: #fffefa !important;
+    border-color: #c9e828 !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+                0 8px 28px rgba(0, 0, 0, 0.06);
+  }
+  /* Layer 1 (turf stripes) — invert from near-black greens to a soft
+     beige/cream alternation so the banner still has 'pitch' rhythm
+     without bruising the page. */
+  html[data-theme="light"] [data-wc-banner] > div[aria-hidden]:first-of-type {
+    background:
+      repeating-linear-gradient(90deg,
+        rgba(232, 240, 200, 0.55) 0 60px,
+        rgba(244, 248, 230, 0.55) 60px 120px) !important;
+  }
+  /* Layer 2 (neon goal-net mesh) — already opacity 0.09, but the lime
+     mesh on cream looks nicer than on black. Bump opacity slightly. */
+  html[data-theme="light"] [data-wc-banner] > div[aria-hidden]:nth-of-type(2) {
+    opacity: 0.18 !important;
+  }
+  /* Layer 3 (radial floodlight halos) — darkened olive halos so the
+     glow registers without pumping more saturated lime. */
+  html[data-theme="light"] [data-wc-banner] > div[aria-hidden]:nth-of-type(3) {
+    background:
+      radial-gradient(closest-side at 85% -10%, rgba(150, 180, 30, 0.25), transparent 55%),
+      radial-gradient(closest-side at -5% 110%, rgba(150, 180, 30, 0.15), transparent 55%) !important;
+  }
+  /* Trophy SVG: stroke from neon-lime to deep olive so the silhouette
+     reads on a cream surface. */
+  html[data-theme="light"] [data-wc-banner] svg[viewBox="0 0 160 220"] {
+    stroke: #4a7000 !important;
+    opacity: 0.55 !important;
+  }
+  html[data-theme="light"] [data-wc-banner] svg[viewBox="0 0 160 220"] circle {
+    fill: #4a7000 !important;
+  }
+  /* Big banner text (`text-neon` h2 + countdown digits) — flip to
+     deep-olive so the giant headline reads on cream without screaming. */
+  html[data-theme="light"] [data-wc-banner] .text-neon {
+    color: #2d4a00 !important;
+  }
+  /* Drop the dark-mode neon glow under the digits — the
+     drop-shadow neon halo over white turns into a yellow smear. */
+  html[data-theme="light"] [data-wc-banner] [class*="drop-shadow"] {
+    filter: none !important;
+  }
+  /* Live ping dot remains lime + 25 % opacity ring so it still hints
+     'live' but doesn't dominate. */
+  html[data-theme="light"] [data-wc-banner] .animate-ping {
+    opacity: 0.25 !important;
+  }
+  /* Host flags ribbon (left side, desktop) was opacity 0.3 on dark;
+     bump to 0.5 on cream so they don't fade out. */
+  html[data-theme="light"] [data-wc-banner] [aria-hidden].opacity-30 {
+    opacity: 0.55 !important;
+  }
   ::selection {
     background: #e0ff32;
     color: #000;
