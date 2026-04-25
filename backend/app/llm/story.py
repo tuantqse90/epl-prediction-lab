@@ -162,10 +162,22 @@ async def _broadcast_story_teaser(
     row,
 ) -> None:
     """Post the story's first paragraph to the Telegram main channel +
-    team-subscriber fan-out + Discord, with a link to the full page."""
+    team-subscriber fan-out + Discord, with a link to the full page.
+
+    Recency guard: only fires for matches kicked off in the last 24h.
+    This stops a bulk daily backfill (which can write 25+ stories in
+    one run) from machine-gunning Telegram with stories about matches
+    from 2 weeks ago.
+    """
     import os
     import urllib.parse
     import urllib.request
+    from datetime import datetime, timedelta, timezone
+
+    ko = row["kickoff_time"]
+    if ko and ko < datetime.now(timezone.utc) - timedelta(hours=24):
+        # Old match — story is for SEO only; no Telegram fan-out.
+        return
 
     first = story.split("\n\n", 1)[0].strip()
     # Telegram markdown caps Title at ~1024 chars; trim hard.
