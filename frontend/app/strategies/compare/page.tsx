@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
+import { alternatesFor } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
   description:
     "Four named staking strategies on the same season + same bet universe. " +
     "Watch Martingale ruin vs high-confidence filter survive on real data.",
-  alternates: { canonical: "/strategies/compare" },
+  alternates: alternatesFor("/strategies/compare"),
 };
 
 const BASE = process.env.SERVER_API_URL ?? "http://localhost:8000";

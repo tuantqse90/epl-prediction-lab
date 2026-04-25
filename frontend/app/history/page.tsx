@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
 import type { Lang } from "@/lib/i18n";
 import { getLeague, leagueByCode } from "@/lib/leagues";
+import { alternatesFor } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
   title: "Historical accuracy — season by season · predictor.nullshift.sh",
   description:
     "Walk-forward model accuracy per season across every league we track.",
-  alternates: { canonical: "/history" },
+  alternates: alternatesFor("/history"),
 };
 
 const BASE = process.env.SERVER_API_URL ?? "http://localhost:8000";

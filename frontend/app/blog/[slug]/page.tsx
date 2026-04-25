@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { getPost, listPosts, renderMarkdown } from "@/lib/blog";
 import { getLang, tFor } from "@/lib/i18n-server";
+import { alternatesFor } from "@/lib/seo";
 
 export async function generateStaticParams() {
   const posts = await listPosts();
@@ -29,7 +30,7 @@ export async function generateMetadata({
       tags: post.tags,
     },
     twitter: { card: "summary_large_image", title: post.title, description: post.excerpt },
-    alternates: { canonical: `/blog/${post.slug}` },
+    alternates: alternatesFor(`/blog/${post.slug}`),
   };
 }
 

@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { getLang, tFor } from "@/lib/i18n-server";
+import { alternatesFor } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "FAQ · predictor.nullshift.sh",
   description:
     "Answers to the most-asked questions about the model, the commitment hash, the backtest methodology, and why we publish losing numbers alongside winning ones.",
-  alternates: { canonical: "/faq" },
+  alternates: alternatesFor("/faq"),
 };
 
 type QA = { q: string; a: React.ReactNode };

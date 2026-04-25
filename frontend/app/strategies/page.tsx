@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import StrategyChart from "@/components/StrategyChart";
 import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
+import { alternatesFor } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
     "Retrospective bankroll simulator across named betting strategies. " +
     "Value ladder, Kelly, Martingale, contrarian — same bets, same season, " +
     "different sizing rules. Watch what would have happened.",
-  alternates: { canonical: "/strategies" },
+  alternates: alternatesFor("/strategies"),
 };
 
 const STRATEGIES = [

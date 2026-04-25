@@ -8,6 +8,7 @@ import { listMatches } from "@/lib/api";
 import { formatDateOnly } from "@/lib/date";
 import { getLang, tFor } from "@/lib/i18n-server";
 import { REAL_LEAGUES, getLeague } from "@/lib/leagues";
+import { alternatesFor } from "@/lib/seo";
 import type { Lang } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -97,7 +98,7 @@ export async function generateMetadata({
     description,
     openGraph: { title, description, url: `/leagues/${slug}` },
     twitter: { card: "summary_large_image", title, description },
-    alternates: { canonical: `/leagues/${slug}` },
+    alternates: alternatesFor(`/leagues/${slug}`),
   };
 }
 

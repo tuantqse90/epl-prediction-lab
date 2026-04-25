@@ -5,6 +5,7 @@ import { getLang, tFor } from "@/lib/i18n-server";
 import type { Lang } from "@/lib/i18n";
 import { tLang } from "@/lib/i18n-fallback";
 import { leagueByCode } from "@/lib/leagues";
+import { alternatesFor } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
     "Flat-stake ROI split per league on every model edge ≥ 5pp. " +
     "Walks the same bet universe as /roi but tells you which market the P&L " +
     "is actually coming from — EPL vs La Liga vs Serie A vs Bundesliga vs Ligue 1.",
-  alternates: { canonical: "/roi/by-league" },
+  alternates: alternatesFor("/roi/by-league"),
 };
 
 const BASE = process.env.SERVER_API_URL ?? "http://localhost:8000";

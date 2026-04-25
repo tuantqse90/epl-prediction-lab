@@ -6,13 +6,14 @@ import { getLang, tFor } from "@/lib/i18n-server";
 import type { Lang } from "@/lib/i18n";
 import { colorFor } from "@/lib/team-colors";
 import { leagueByCode } from "@/lib/leagues";
+import { alternatesFor } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Compare teams — head-to-head · predictor.nullshift.sh",
   description: "Side-by-side stats comparison for any two teams in a top-5 season.",
-  alternates: { canonical: "/compare" },
+  alternates: alternatesFor("/compare"),
 };
 
 const BASE = process.env.SERVER_API_URL ?? "http://localhost:8000";

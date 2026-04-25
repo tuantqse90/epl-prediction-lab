@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { getLang, tFor } from "@/lib/i18n-server";
+import { alternatesFor } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "About · predictor.nullshift.sh",
   description:
     "Predictor Labs is a small independent research group shipping an open 3-leg football forecasting model. Here's who we are, why we built this, and how we pay for it.",
-  alternates: { canonical: "/about" },
+  alternates: alternatesFor("/about"),
 };
 
 export default async function AboutPage() {

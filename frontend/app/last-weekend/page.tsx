@@ -6,6 +6,7 @@ import { formatDateOnly } from "@/lib/date";
 import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
 import type { Lang } from "@/lib/i18n";
 import { getLeague, leagueByCode } from "@/lib/leagues";
+import { alternatesFor } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export async function generateMetadata({
     description,
     openGraph: { title, description, type: "article", url: "/last-weekend" },
     twitter: { card: "summary_large_image", title, description },
-    alternates: { canonical: "/last-weekend" },
+    alternates: alternatesFor("/last-weekend"),
   };
 }
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import TeamLogo from "@/components/TeamLogo";
 import { getLang, getLeagueSlug, leagueForApi, tFor } from "@/lib/i18n-server";
+import { alternatesFor } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
   description:
     "Every tracked player this season, sortable by goals + searchable by name. " +
     "Click a card for full xG / xA / games history.",
-  alternates: { canonical: "/players" },
+  alternates: alternatesFor("/players"),
 };
 
 const BASE = process.env.SERVER_API_URL ?? "http://localhost:8000";
