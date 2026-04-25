@@ -39,6 +39,7 @@ services:
       X_API_SECRET: ${X_API_SECRET:-}
       X_ACCESS_TOKEN: ${X_ACCESS_TOKEN:-}
       X_ACCESS_TOKEN_SECRET: ${X_ACCESS_TOKEN_SECRET:-}
+      INDEXNOW_KEY: ${INDEXNOW_KEY:-}
       XGB_MODEL_PATH: /data/football-predict-xgb.json
     volumes:
       - modeldata:/data
