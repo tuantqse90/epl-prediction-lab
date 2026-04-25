@@ -63,6 +63,7 @@ export default async function sitemap({
       { url: `${SITE}/pricing`,              changeFrequency: "monthly",priority: 0.6, lastModified: now },
       { url: `${SITE}/billing`,              changeFrequency: "monthly",priority: 0.3, lastModified: now },
       { url: `${SITE}/stories`,              changeFrequency: "daily",  priority: 0.8, lastModified: now },
+      { url: `${SITE}/discord`,              changeFrequency: "monthly",priority: 0.4, lastModified: now },
     ];
   }
 

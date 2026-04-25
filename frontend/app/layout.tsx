@@ -42,6 +42,7 @@ async function ChromeOrEmbed({
           <a href="/press-kit" className="hover:text-neon">press</a>
           <a href="/changelog" className="hover:text-neon">changelog</a>
           <a href="/pricing" className="hover:text-neon">pricing</a>
+          <a href="/discord" className="hover:text-neon">discord</a>
           <a href="https://ko-fi.com/predictor" target="_blank" rel="noopener" className="hover:text-neon">☕ tip</a>
           <span className="flex-1" />
           <a href="/privacy" className="hover:text-neon">privacy</a>

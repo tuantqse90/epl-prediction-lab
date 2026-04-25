@@ -69,4 +69,9 @@ run python scripts/generate_team_narratives.py --limit 200 || true
 # slug (week-N-YYYY); a mid-week re-run does nothing unless --force.
 run python scripts/generate_weekly_blog.py || true
 
+# Reddit cross-post — only fires when the 5 REDDIT_* env vars are set.
+# Conservative: 1 thread per subreddit per week. See growth-playbook.md
+# for subreddit selection guidance before adding heavy hitters.
+run python scripts/post_reddit_weekly.py || true
+
 echo "[weekly] done"
