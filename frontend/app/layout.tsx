@@ -120,6 +120,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           ships an empty head on first paint, then React hydration races
           with the injected link and the CSS briefly/permanently vanishes. */}
       <body className="min-h-screen bg-surface text-primary">
+        {/* Theme bootstrap — runs synchronously before React hydrates so
+            light-mode users don't see a flash of dark. Reads the same
+            localStorage key the ThemeToggle writes. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('epl-lab:theme');" +
+              "if(t==='light')document.documentElement.dataset.theme='light';}catch(e){}})();",
+          }}
+        />
         {/* Organization + WebSite/SearchAction JSON-LD — emitted once at
             the root so Google can build a knowledge-panel + sitelinks
             search box without scraping per-page. */}

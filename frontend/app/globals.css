@@ -16,23 +16,124 @@
     font-family: "Geist", "Inter", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
+  /* ── LIGHT THEME ─────────────────────────────────────────────
+     Payy is dark-first, but mid-day Vietnamese matchday viewers
+     wanted a polished light option. Goal: same brand identity
+     (neon-lime accent, font-mono labels, sharp typography) on a
+     warm-white surface that doesn't strain eyes in daylight.
+
+     Palette:
+       page bg     #fafaf7   warm off-white (less harsh than #fff)
+       elevated    #ffffff   crisp white for cards
+       hover/high  #f0eee5   subtle warm tint
+       border      #d4d4cc   stronger contrast than light gray
+       primary txt #0d0d0d   near-black, more readable than #111
+       secondary   #2a2a2a
+       muted       #707070
+       neon dim    #4a8000   (links, badges — neon-lime on white is
+                              blinding; darken to a deep olive only
+                              for non-bg uses)
+  */
   html[data-theme="light"] body {
-    background-color: #f8f8f5;
-    color: #111;
+    background-color: #fafaf7;
+    color: #0d0d0d;
   }
-  /* Light-theme overrides for the Payy design tokens — keep neon + the
-     structural colour roles, swap the surface/high/muted neutrals. */
-  html[data-theme="light"] .bg-surface { background-color: #f8f8f5 !important; }
-  html[data-theme="light"] .bg-high    { background-color: #e8e8e0 !important; }
-  html[data-theme="light"] .bg-raised  { background-color: #fff !important; }
-  html[data-theme="light"] .text-primary   { color: #111 !important; }
-  html[data-theme="light"] .text-secondary { color: #333 !important; }
-  html[data-theme="light"] .text-muted     { color: #666 !important; }
+  html[data-theme="light"] .bg-surface,
+  html[data-theme="light"] .bg-surface\/85,
+  html[data-theme="light"] .bg-surface\/95 { background-color: #fafaf7 !important; }
+  html[data-theme="light"] .bg-high,
+  html[data-theme="light"] .bg-high\/40,
+  html[data-theme="light"] .bg-high\/50,
+  html[data-theme="light"] .bg-high\/60,
+  html[data-theme="light"] .bg-high\/80 { background-color: #f0eee5 !important; }
+  html[data-theme="light"] .bg-raised   { background-color: #fff !important; }
+
+  html[data-theme="light"] .text-primary    { color: #0d0d0d !important; }
+  html[data-theme="light"] .text-secondary  { color: #2a2a2a !important; }
+  html[data-theme="light"] .text-muted,
+  html[data-theme="light"] .text-muted\/50,
+  html[data-theme="light"] .text-muted\/70  { color: #707070 !important; }
+
   html[data-theme="light"] .border-border,
-  html[data-theme="light"] .border-border-muted { border-color: #ddd !important; }
+  html[data-theme="light"] .border-border\/30,
+  html[data-theme="light"] .border-border\/40,
+  html[data-theme="light"] .border-border\/60,
+  html[data-theme="light"] .border-border\/70,
+  html[data-theme="light"] .border-border\/80,
+  html[data-theme="light"] .border-border-muted { border-color: #d4d4cc !important; }
+
+  /* Cards on light: drop the dark-mode border-only look in favour of
+     a soft shadow + crisp white background. Reads as "elevated" the
+     way Payy cards do on dark via subtle border + inner halo. */
   html[data-theme="light"] .card {
     background-color: #fff !important;
-    border-color: #e0e0d8 !important;
+    border-color: #e6e6df !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+                0 4px 12px rgba(0, 0, 0, 0.03);
+  }
+
+  /* Neon usage on light:
+       backgrounds (bg-neon, btn-primary)   → keep #E0FF32 + black text
+       text/borders (text-neon, border-neon) → swap to a darkened
+                                               'neon-dim-on-light' so
+                                               it stays readable.
+     CSS variable approach: --neon-text resolves per theme. */
+  html[data-theme="light"] {
+    --neon-text-on-bg: #4a7000;
+  }
+  html[data-theme="light"] .text-neon,
+  html[data-theme="light"] .group-hover\:text-neon:hover,
+  html[data-theme="light"] .hover\:text-neon:hover {
+    color: var(--neon-text-on-bg, #4a7000) !important;
+  }
+  html[data-theme="light"] .border-neon,
+  html[data-theme="light"] .border-neon\/50,
+  html[data-theme="light"] .border-neon\/55 {
+    border-color: #c9e828 !important;
+  }
+  /* bg-neon (filled CTA) keeps the lime; text on it stays dark. */
+
+  /* Inputs need explicit light-mode styling — bg-raised is white but
+     same-as-card → inputs disappear. Soft border + tinted bg fixes. */
+  html[data-theme="light"] input,
+  html[data-theme="light"] textarea,
+  html[data-theme="light"] select {
+    background-color: #f6f5ee !important;
+    border-color: #d4d4cc !important;
+    color: #0d0d0d !important;
+  }
+  html[data-theme="light"] input:focus,
+  html[data-theme="light"] textarea:focus,
+  html[data-theme="light"] select:focus {
+    background-color: #fff !important;
+    border-color: #4a7000 !important;
+  }
+
+  /* Site header: backdrop blur + dark-bg-with-alpha doesn't translate
+     to light. Use plain white with a thin shadow so it reads sticky. */
+  html[data-theme="light"] header.sticky {
+    background-color: rgba(255, 255, 255, 0.92) !important;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+  }
+
+  /* Match-page hero red glow gradients tuned for dark were reading
+     bruise-purple on light. Tone them down. */
+  html[data-theme="light"] [aria-hidden][style*="radial-gradient"],
+  html[data-theme="light"] [aria-hidden][style*="linear-gradient"] {
+    opacity: 0.18 !important;
+  }
+
+  /* Code / preformatted blocks (live-stats panel etc.) */
+  html[data-theme="light"] code,
+  html[data-theme="light"] pre {
+    background-color: #f0eee5 !important;
+    color: #0d0d0d !important;
+  }
+
+  /* Live-pulse + ping dots on light: keep the lime, but soften the
+     opacity of the outer ping ring so it doesn't strobe. */
+  html[data-theme="light"] .animate-ping {
+    opacity: 0.35 !important;
   }
   ::selection {
     background: #e0ff32;
