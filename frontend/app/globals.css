@@ -135,6 +135,109 @@
   html[data-theme="light"] .animate-ping {
     opacity: 0.35 !important;
   }
+
+  /* ── Round 2 polish — kill remaining harsh notes on light ───────
+
+     Big neon scoreboard numbers (text-3xl/4xl/5xl/7xl + text-neon)
+     read as 'TV game-show' on a white page. Swap the colour to deep
+     olive but keep a subtle lime backing-stripe to hint at the brand.
+  */
+  html[data-theme="light"] .text-neon.tabular-nums,
+  html[data-theme="light"] .stat.text-neon,
+  html[data-theme="light"] .stat.text-base,
+  html[data-theme="light"] .stat.text-3xl {
+    color: #2d4a00 !important;
+  }
+
+  /* Pill backgrounds with alpha (bg-neon/15, bg-neon/55, …) on light
+     translate to washed-out yellow-stripe noise. Use a soft lime
+     tint that reads as 'brand colour' without being a highlighter. */
+  html[data-theme="light"] .bg-neon\/15,
+  html[data-theme="light"] .bg-neon\/55 {
+    background-color: rgba(224, 255, 50, 0.35) !important;
+  }
+
+  /* Card hover lift — replaces dark-mode 'border-neon' interaction
+     with a real micro-elevation that reads on light. */
+  html[data-theme="light"] .card {
+    transition: box-shadow 0.18s ease, transform 0.18s ease;
+  }
+  html[data-theme="light"] a.card:hover,
+  html[data-theme="light"] button.card:hover {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05),
+                0 8px 24px rgba(0, 0, 0, 0.06);
+    transform: translateY(-1px);
+    border-color: #c9e828 !important;
+  }
+
+  /* Headlines: dial back the all-caps shouty energy. Same letterform,
+     slightly softer weight + true-black text for readability instead
+     of the dark-surface white-text contrast trick. */
+  html[data-theme="light"] .headline-hero,
+  html[data-theme="light"] .headline-section {
+    color: #0d0d0d !important;
+  }
+
+  /* Subtle paper texture on the page bg — radial vignette so the
+     content area feels 'set' rather than floating on a flat slab.
+     Pure CSS, no images. */
+  html[data-theme="light"] body {
+    background-image:
+      radial-gradient(1200px 600px at 50% -10%, rgba(224, 255, 50, 0.08), transparent 70%),
+      radial-gradient(900px 500px at 100% 100%, rgba(0, 0, 0, 0.025), transparent 70%);
+    background-attachment: fixed;
+  }
+
+  /* Match-hero score (live + final): replace the text-neon-lime with
+     deep-olive on light so a 7-0 doesn't bleach. The mx-2 dash stays
+     muted-grey. */
+  html[data-theme="light"] .text-neon.tabular-nums.whitespace-nowrap {
+    color: #2d4a00 !important;
+  }
+
+  /* Outline on focus: lime ring is hard to see against pale neon
+     pills. Use a darker olive ring on light. */
+  html[data-theme="light"] *:focus-visible {
+    outline-color: #4a7000 !important;
+  }
+
+  /* Mobile bottom nav: pure-black-on-dark default reads as a heavy
+     stripe on light. Lighten it. */
+  html[data-theme="light"] nav.fixed.bottom-0 {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    border-top-color: #d4d4cc !important;
+  }
+
+  /* Footer link separators / anchors — match the page tone. */
+  html[data-theme="light"] footer a {
+    color: #2a2a2a !important;
+  }
+  html[data-theme="light"] footer a:hover {
+    color: #4a7000 !important;
+  }
+
+  /* Tables / scoreboards: soft alternating rows + clearer hover. */
+  html[data-theme="light"] tbody tr:nth-child(even) {
+    background-color: #f6f5ee !important;
+  }
+  html[data-theme="light"] tbody tr:hover {
+    background-color: #efeed5 !important;
+  }
+
+  /* Accuracy/score pill (used on /scorers podium rank chips, /pricing
+     "Pro" badge, etc.): bg-neon → keep lime but darken the on-bg text
+     slightly so 1pt body reads sharper on the saturated background. */
+  html[data-theme="light"] .text-on-neon {
+    color: #0d0d0d !important;
+    font-weight: 700;
+  }
+
+  /* Match-event timeline: divider lines + tick marks were dashed
+     border-color from --border which is now #d4d4cc. Bump to slightly
+     darker so the timeline reads on white. */
+  html[data-theme="light"] section.card .border-l.border-dashed {
+    border-color: rgba(0, 0, 0, 0.18) !important;
+  }
   ::selection {
     background: #e0ff32;
     color: #000;
