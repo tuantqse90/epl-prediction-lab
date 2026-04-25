@@ -29,19 +29,12 @@ const SECTIONS: Section[] = [
       { href: "/stats", label: { en: "Accuracy", vi: "Độ chính xác", th: "ความแม่นยำ", zh: "准确率", ko: "정확도" } },
       { href: "/calibration", label: { en: "Calibration", vi: "Hiệu chỉnh", th: "การสอบเทียบ", zh: "校准", ko: "보정" } },
       { href: "/history", label: { en: "History", vi: "Theo mùa", th: "ฤดูกาล", zh: "赛季", ko: "시즌" } },
+      { href: "/fpl", label: { en: "FPL picks", vi: "FPL", th: "FPL", zh: "FPL", ko: "FPL" } },
     ],
   },
-  {
-    title: { en: "Bets", vi: "Kèo", th: "แทง", zh: "投注", ko: "베팅" },
-    links: [
-      { href: "/roi", label: { en: "ROI", vi: "ROI", th: "ROI", zh: "ROI", ko: "ROI" } },
-      { href: "/strategies", label: { en: "Strategies", vi: "Chiến thuật", th: "กลยุทธ์", zh: "策略", ko: "전략" } },
-      { href: "/strategies/compare", label: { en: "Compare all", vi: "So sánh", th: "เทียบทั้งหมด", zh: "全部对比", ko: "전체 비교" } },
-      { href: "/parlay", label: { en: "Parlay", vi: "Xiên", th: "พาร์เลย์", zh: "串关", ko: "병행" } },
-      { href: "/arbs", label: { en: "Arbs", vi: "Arb", th: "อาร์บิ", zh: "套利", ko: "차익" } },
-      { href: "/fpl", label: { en: "FPL", vi: "FPL", th: "FPL", zh: "FPL", ko: "FPL" } },
-    ],
-  },
+  // Bets section (ROI / strategies / parlay / arbs) intentionally
+  // dropped from primary mobile nav. Pages still resolve at their URL,
+  // and the FPL fantasy link moves to Stats since it's not betting.
   {
     title: { en: "Lab", vi: "Lab", th: "Lab", zh: "实验", ko: "연구" },
     links: [

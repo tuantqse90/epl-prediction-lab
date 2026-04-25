@@ -2010,9 +2010,10 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
                 else away_full if pick == "A"
                 else "Hoà"
             )
-            verdict_tag = "✅ ĐÚNG" if hit else "❌ SAI"
+            # Soft framing: 'Model dự đoán: X 62%' — no win/lose verdict.
+            # Users browse for entertainment + analysis, not P&L tracking.
             pick_line = (
-                f"\n⚫ *Chốt của model:* {pick_label} ({round(conf * 100)}%) — *{verdict_tag}*"
+                f"\n⚫ *Model dự đoán:* {pick_label} ({round(conf * 100)}%)"
             )
             # Streak: wins/total in same league over last 10 scored matches.
             if r.get("league_code"):
@@ -2052,7 +2053,11 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
                         hits += 1
                     total += 1
                 if total > 0:
-                    streak_block = f"\n🔥 *Streak {prefix}*: {hits}/{total} gần nhất"
+                    # Show accuracy only as positive %, no 'X/Y' loss framing.
+                    pct = round((hits / total) * 100) if total else 0
+                    streak_block = (
+                        f"\n🔥 *Độ chính xác {prefix}* (10 trận gần): {pct}%"
+                    )
 
         # AI match recap line. Uses Qwen; tolerant of LLM outages (just
         # drops the line quietly).
@@ -2110,12 +2115,8 @@ async def _notify_full_time(pool: asyncpg.Pool) -> int:
         # Web push (best-effort, independent of Telegram).
         try:
             from app.api.push import dispatch_goal
-            if hit is True:
-                body = f"Đúng kèo! {r['home_name']} {hg}-{ag} {r['away_name']}"
-            elif hit is False:
-                body = f"Miss kèo. {r['home_name']} {hg}-{ag} {r['away_name']}"
-            else:
-                body = f"{r['home_name']} {hg}-{ag} {r['away_name']}"
+            # Neutral body — no win/lose framing.
+            body = f"{r['home_name']} {hg}-{ag} {r['away_name']}"
             await dispatch_goal(
                 pool,
                 [r["home_slug"], r["away_slug"]],

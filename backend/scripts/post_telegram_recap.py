@@ -113,9 +113,9 @@ def _format(rows: list[dict], days: int) -> str | None:
     n = len(rows)
     acc = len(hits) / n
     lines = [
-        f"📈 *Top 5 giải — mô hình đoán {len(hits)}/{n} ({round(acc * 100)}%)*",
+        f"📈 *Top 5 giải — độ chính xác {round(acc * 100)}%* ({len(hits)} trận đúng / {n} trận đã đá)",
         "",
-        f"_Nhìn lại {days} ngày qua: model dự đoán đúng/sai những trận nào._",
+        f"_Nhìn lại {days} ngày qua: những trận model dự đoán đúng._",
         "",
     ]
 
@@ -130,27 +130,14 @@ def _format(rows: list[dict], days: int) -> str | None:
             f"· _{day}_ · dự đoán *{pick_label}* ({round(e['confidence'] * 100)}%)"
         )
 
+    # Show only the wins — the recap is meant to celebrate accuracy,
+    # not litigate misses. Misses are still computed (for the % at the
+    # top), but not enumerated. Users who want the full list can hit
+    # /last-weekend.
     if hits:
-        lines.append("✅ *Đoán đúng*")
+        lines.append("✅ *Trận model đoán đúng*")
         for e in hits:
             lines.append(_row(e, "•"))
-        lines.append("")
-
-    if misses:
-        lines.append("❌ *Đoán sai*")
-        for e in misses:
-            home = _escape(e["home_name"])
-            away = _escape(e["away_name"])
-            link = f"{SITE}/match/{e['id']}"
-            day = _day_label(e["kickoff_time"])
-            pick_label = _pick_label(e["pick"], home, away)
-            actual_phrase = _actual_phrase(e["home_goals"], e["away_goals"], home, away)
-            prefix = _league_prefix(e.get("league_code"))
-            lines.append(
-                f"• {prefix} · [{home} {e['home_goals']}-{e['away_goals']} {away}]({link}) "
-                f"· _{day}_ · dự đoán *{pick_label}* ({round(e['confidence'] * 100)}%), "
-                f"thực tế _{actual_phrase}_"
-            )
         lines.append("")
 
     lines.append(f"📊 [Xem đầy đủ]({SITE}/last-weekend)")

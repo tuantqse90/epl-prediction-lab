@@ -36,7 +36,6 @@ async function ChromeOrEmbed({
           <a href="/methodology" className="hover:text-neon">methodology</a>
           <a href="/glossary" className="hover:text-neon">glossary</a>
           <a href="/calibration" className="hover:text-neon">calibration</a>
-          <a href="/equity-curve" className="hover:text-neon">equity curve</a>
           <a href="/api-docs" className="hover:text-neon">api</a>
           <a href="/embed-docs" className="hover:text-neon">embed</a>
           <a href="/press-kit" className="hover:text-neon">press</a>

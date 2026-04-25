@@ -63,7 +63,7 @@ const GROUPS: readonly NavGroup[] = [
     key: "stats",
     icon: "Σ",
     labels: { en: "Stats", vi: "Số liệu", th: "สถิติ", zh: "统计", ko: "통계" },
-    pathPrefixes: ["/table", "/scorers", "/players", "/stats", "/history", "/benchmark", "/compare"],
+    pathPrefixes: ["/table", "/scorers", "/players", "/stats", "/history", "/benchmark", "/compare", "/fpl"],
     links: [
       {
         href: "/table",
@@ -103,50 +103,17 @@ const GROUPS: readonly NavGroup[] = [
         href: "/compare",
         labels: { en: "Head-to-head", vi: "So đầu đối đầu", th: "เจอกันตัวต่อตัว", zh: "交锋战绩", ko: "상대 전적" },
       },
-    ],
-  },
-  {
-    key: "bets",
-    icon: "¤",
-    labels: { en: "Bets", vi: "Kèo", th: "แทง", zh: "投注", ko: "베팅" },
-    pathPrefixes: ["/roi", "/strategies", "/parlay", "/betslip", "/fpl"],
-    links: [
-      {
-        href: "/roi",
-        labels: { en: "ROI · flat vs Kelly", vi: "ROI · Flat vs Kelly", th: "ROI · flat vs Kelly", zh: "ROI · 固定 vs 凯利", ko: "ROI · 플랫 vs 켈리" },
-      },
-      {
-        href: "/roi/by-league",
-        labels: { en: "ROI by league", vi: "ROI theo giải", th: "ROI ตามลีก", zh: "各联赛 ROI", ko: "리그별 ROI" },
-      },
-      {
-        href: "/strategies",
-        labels: { en: "Strategies", vi: "Chiến thuật", th: "กลยุทธ์", zh: "策略", ko: "전략" },
-        desc: {
-          en: "Value ladder · Kelly · Martingale · fade",
-          vi: "Bậc thang · Kelly · Martingale · ngược",
-          th: "กลยุทธ์ต่างๆ ในข้อมูลจริง", zh: "多种投注策略对比", ko: "여러 전략 비교",
-        },
-      },
-      {
-        href: "/strategies/compare",
-        labels: { en: "Compare all", vi: "So sánh tất cả", th: "เทียบทั้งหมด", zh: "全部对比", ko: "전체 비교" },
-        desc: {
-          en: "4 strategies · one chart · real 2025-26",
-          vi: "4 chiến thuật · 1 biểu đồ · data 2025-26",
-          th: "4 กลยุทธ์ในหนึ่งกราฟ", zh: "4 种策略同图对比", ko: "4 전략 한 차트",
-        },
-      },
-      {
-        href: "/parlay",
-        labels: { en: "Parlay builder", vi: "Dựng xiên", th: "สร้างพาร์เลย์", zh: "串关构建", ko: "병행 조합" },
-      },
       {
         href: "/fpl",
         labels: { en: "FPL picks", vi: "FPL picks", th: "FPL", zh: "FPL", ko: "FPL" },
       },
     ],
   },
+  // 'Bets' group (ROI / strategies / parlay / arbs) intentionally
+  // hidden from primary nav. Pages still resolve at /roi, /strategies/*,
+  // /parlay, /arbs, /middles, /kelly-explorer for power users who type
+  // the URL — but the nav primes everyone toward the accuracy story
+  // first. FPL stays under Stats since it's fantasy, not betting.
   {
     key: "lab",
     icon: "⌬",
