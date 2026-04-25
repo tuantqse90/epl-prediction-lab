@@ -95,6 +95,11 @@ run python scripts/generate_recaps.py --days 7 --limit 120 || true
 # the budget. Idempotent via `story IS NULL` guard.
 run python scripts/generate_stories.py --days 14 --limit 30 || true
 
+# Translate fresh stories to en/th/zh/ko (Qwen-Plus-Latest, ~$0.005/lang/story).
+# Cap 20 stories × 4 langs = 80 calls / day. Idempotent — skips existing.
+run python scripts/translate_stories.py --days 14 --limit 20 \
+    --langs en,th,zh,ko || true
+
 # IndexNow bulk re-submission — bumps every NewsArticle (story) URL
 # to Bing/Yandex once a day. The on-write hook in app/llm/story.py
 # already pings them as new stories land; this is the catch-up sweep.

@@ -1,9 +1,11 @@
 import { getMatchStory } from "@/lib/api";
+import { getLang } from "@/lib/i18n-server";
 
 const SITE = "https://predictor.nullshift.sh";
 
 export default async function MatchStoryCard({ matchId }: { matchId: number }) {
-  const data = await getMatchStory(matchId);
+  const lang = await getLang();
+  const data = await getMatchStory(matchId, lang);
   if (!data) return null;
 
   const paragraphs = data.story

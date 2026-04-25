@@ -271,10 +271,14 @@ export type MatchStory = {
   generated_at: string | null;
 };
 
-export async function getMatchStory(matchId: number): Promise<MatchStory | null> {
-  const res = await fetch(`${BASE}/api/matches/${matchId}/story`, {
-    next: { revalidate: 600 },
-  });
+export async function getMatchStory(
+  matchId: number,
+  lang: string = "vi",
+): Promise<MatchStory | null> {
+  const res = await fetch(
+    `${BASE}/api/matches/${matchId}/story?lang=${encodeURIComponent(lang)}`,
+    { next: { revalidate: 600 } },
+  );
   if (!res.ok) return null;
   return (await res.json()) as MatchStory | null;
 }

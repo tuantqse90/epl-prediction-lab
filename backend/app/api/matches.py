@@ -180,26 +180,49 @@ async def get_match(match_id: int, request: Request) -> MatchOut:
 
 
 @router.get("/{match_id}/story")
-async def match_story(match_id: int, request: Request) -> dict:
+async def match_story(
+    match_id: int,
+    request: Request,
+    lang: str = "vi",
+) -> dict:
     """Phase 42.1 — long-form 400-500 word narrative for a finished match.
 
-    Returns `{story, model, generated_at}` or 404 if not yet generated.
+    `lang` selects the language: 'vi' (default) reads matches.story
+    directly; 'en'/'th'/'zh'/'ko' reads from match_story_translations
+    (populated by the daily translate_stories cron). Falls back to VI
+    if the translation hasn't been generated yet.
+
+    Returns `{story, model, generated_at, lang}` or 404 if no story
+    in any language.
     """
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
+        base = await conn.fetchrow(
             "SELECT story, story_model, story_generated_at "
             "FROM matches WHERE id = $1",
             match_id,
         )
-    if row is None or not row["story"]:
-        raise HTTPException(404, "story not available for this match")
+        if base is None or not base["story"]:
+            raise HTTPException(404, "story not available for this match")
+        served_lang = "vi"
+        story = base["story"]
+        if lang in ("en", "th", "zh", "ko"):
+            tr = await conn.fetchrow(
+                "SELECT story, model, translated_at "
+                "FROM match_story_translations "
+                "WHERE match_id = $1 AND lang = $2",
+                match_id, lang,
+            )
+            if tr:
+                served_lang = lang
+                story = tr["story"]
     return {
-        "story": row["story"],
-        "model": row["story_model"],
+        "story": story,
+        "lang": served_lang,
+        "model": base["story_model"],
         "generated_at": (
-            row["story_generated_at"].isoformat()
-            if row["story_generated_at"] else None
+            base["story_generated_at"].isoformat()
+            if base["story_generated_at"] else None
         ),
     }
 
