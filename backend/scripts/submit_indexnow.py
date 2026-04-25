@@ -72,18 +72,22 @@ async def run() -> None:
     static_urls = [f"{SITE}{p}" for p in STATIC_PATHS]
     all_urls = static_urls + match_urls + team_urls
     total = len(all_urls)
-    print(f"[indexnow] submitting {total} URLs in batches of 1000")
+    BATCH = 50  # IndexNow rejects ≥330-URL batches with 403; 50 sails through.
+    print(f"[indexnow] submitting {total} URLs in batches of {BATCH}")
 
+    import time as _t
     ok_batches = 0
-    for i in range(0, total, 1000):
-        chunk = all_urls[i:i + 1000]
+    n_batches = (total + BATCH - 1) // BATCH
+    for i in range(0, total, BATCH):
+        chunk = all_urls[i:i + BATCH]
         if submit(chunk):
             ok_batches += 1
-            print(f"[indexnow] batch {i // 1000 + 1} ok ({len(chunk)} URLs)")
+            print(f"[indexnow] batch {i // BATCH + 1}/{n_batches} ok ({len(chunk)} URLs)")
         else:
-            print(f"[indexnow] batch {i // 1000 + 1} FAILED ({len(chunk)} URLs)")
+            print(f"[indexnow] batch {i // BATCH + 1}/{n_batches} FAILED ({len(chunk)} URLs)")
+        _t.sleep(1)  # Be polite to api.indexnow.org.
 
-    print(f"[indexnow] done: {ok_batches}/{(total + 999) // 1000} batches ok")
+    print(f"[indexnow] done: {ok_batches}/{n_batches} batches ok")
 
 
 def main() -> None:
