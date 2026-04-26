@@ -2507,82 +2507,129 @@ async def _notify_halftime(pool: asyncpg.Pool) -> int:
     return notified
 
 
+async def _tick(pool: asyncpg.Pool, key: str) -> None:
+    """Single polling cycle. Pure — caller owns the pool lifecycle.
+
+    Used by both the legacy oneshot path (`run`) and the daemon loop
+    (`run_daemon`). Failures inside one phase do not block subsequent
+    phases — every block is independently try/except'd.
+    """
+    # DB-only cleanups run unconditionally — they don't call API-Football,
+    # so they must keep working even when the daily quota is exhausted.
+    flipped = await _flip_stuck_live_to_final(pool)
+    if flipped:
+        print(f"[live-scores] flipped {flipped} stale live rows → final")
+    pre_posts = await _notify_pre_match(pool)
+    if pre_posts:
+        print(f"[live-scores] posted {pre_posts} pre-match notifications")
+    ko_posts = await _notify_kickoff(pool)
+    if ko_posts:
+        print(f"[live-scores] posted {ko_posts} kickoff notifications")
+    ht_posts = await _notify_halftime(pool)
+    if ht_posts:
+        print(f"[live-scores] posted {ht_posts} half-time notifications")
+    mw_posts = await _notify_midway(pool)
+    if mw_posts:
+        print(f"[live-scores] posted {mw_posts} mid-game check-ins")
+    ft_posts = await _notify_full_time(pool)
+    if ft_posts:
+        print(f"[live-scores] posted {ft_posts} full-time notifications")
+
+    try:
+        recaps_written = await _generate_recaps_on_ft(pool)
+        if recaps_written:
+            print(f"[live-scores] wrote {recaps_written} post-match recaps")
+    except Exception as e:
+        print(f"[live-scores] recap pass failed: {type(e).__name__}: {e}")
+
+    try:
+        from app.llm.story import generate_story
+        stories = await _generate_recaps_on_ft(
+            pool, selector=_select_finals_needing_story,
+            generator=generate_story, limit=2,
+        )
+        if stories:
+            print(f"[live-scores] wrote {stories} long-form stories")
+    except Exception as e:
+        print(f"[live-scores] story pass failed: {type(e).__name__}: {e}")
+
+    if not await _has_potential_live(pool):
+        return
+    fixtures = _fetch(key)
+    if fixtures is None:
+        return
+    if fixtures:
+        print(f"[live-scores] {len(fixtures)} live top-5 league fixtures")
+    touched = 0
+    for f in fixtures:
+        try:
+            if await _update(pool, f, key):
+                touched += 1
+        except Exception as e:
+            print(f"[live-scores] skip fixture: {type(e).__name__}: {e}")
+    if touched:
+        print(f"[live-scores] updated {touched} rows")
+
+
 async def run() -> None:
+    """One-shot mode — used by the legacy systemd oneshot timer path
+    and by interactive `python scripts/ingest_live_scores.py` invocation.
+    Daemon mode (run_daemon) is now the default for live polling."""
     key = os.environ.get("API_FOOTBALL_KEY")
     if not key:
         print("[live-scores] no API_FOOTBALL_KEY; skipping")
         return
-
     settings = get_settings()
     pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=2)
     try:
-        # DB-only cleanups run unconditionally — they don't call API-Football,
-        # so they must keep working even when the daily quota is exhausted.
-        # Without this, a quota exhaustion would leave matches stuck "LIVE 90'"
-        # in the UI until the UTC reset.
-        flipped = await _flip_stuck_live_to_final(pool)
-        if flipped:
-            print(f"[live-scores] flipped {flipped} stale live rows → final")
-        pre_posts = await _notify_pre_match(pool)
-        if pre_posts:
-            print(f"[live-scores] posted {pre_posts} pre-match notifications")
-        ko_posts = await _notify_kickoff(pool)
-        if ko_posts:
-            print(f"[live-scores] posted {ko_posts} kickoff notifications")
-        ht_posts = await _notify_halftime(pool)
-        if ht_posts:
-            print(f"[live-scores] posted {ht_posts} half-time notifications")
-        mw_posts = await _notify_midway(pool)
-        if mw_posts:
-            print(f"[live-scores] posted {mw_posts} mid-game check-ins")
-        ft_posts = await _notify_full_time(pool)
-        if ft_posts:
-            print(f"[live-scores] posted {ft_posts} full-time notifications")
+        await _tick(pool, key)
+    finally:
+        await pool.close()
 
-        # Same tick as FT → recap prose. Without this, recaps waited until
-        # the 06:00 UTC daily cron (up to 9h lag for an evening fixture).
-        try:
-            recaps_written = await _generate_recaps_on_ft(pool)
-            if recaps_written:
-                print(f"[live-scores] wrote {recaps_written} post-match recaps")
-        except Exception as e:
-            print(f"[live-scores] recap pass failed: {type(e).__name__}: {e}")
 
-        # Phase 42.1 — long-form story after the short recap. Qwen-plus call
-        # is ~5s per match; hard-cap 2 per tick so the 10s cadence holds.
-        try:
-            from app.llm.story import generate_story
-            stories = await _generate_recaps_on_ft(
-                pool, selector=_select_finals_needing_story,
-                generator=generate_story, limit=2,
-            )
-            if stories:
-                print(f"[live-scores] wrote {stories} long-form stories")
-        except Exception as e:
-            print(f"[live-scores] story pass failed: {type(e).__name__}: {e}")
-
-        if not await _has_potential_live(pool):
-            print("[live-scores] no match within live window; skipping API call")
-            return
-        fixtures = _fetch(key)  # all top-5 leagues in one call
-        if fixtures is None:
-            return
-        print(f"[live-scores] {len(fixtures)} live top-5 league fixtures")
-        touched = 0
-        for f in fixtures:
+async def run_daemon(interval: float = 1.0) -> None:
+    """Long-running daemon — single Python process, persistent DB pool,
+    internal sleep loop. Saves ~500ms per tick vs systemd-oneshot
+    spawn pattern (Python boot + asyncpg.create_pool). Targets true
+    1-second cadence under the cap of execution-time per tick."""
+    key = os.environ.get("API_FOOTBALL_KEY")
+    if not key:
+        print("[live-scores] no API_FOOTBALL_KEY; daemon idle")
+        return
+    settings = get_settings()
+    pool = await asyncpg.create_pool(
+        settings.database_url, min_size=2, max_size=4,
+    )
+    print(f"[live-scores] daemon up — interval={interval}s")
+    try:
+        while True:
+            t0 = asyncio.get_event_loop().time()
             try:
-                if await _update(pool, f, key):
-                    touched += 1
+                await _tick(pool, key)
             except Exception as e:
-                print(f"[live-scores] skip fixture: {type(e).__name__}: {e}")
-        print(f"[live-scores] updated {touched} rows")
+                print(f"[live-scores] tick failed: {type(e).__name__}: {e}")
+            elapsed = asyncio.get_event_loop().time() - t0
+            sleep_for = max(0.0, interval - elapsed)
+            await asyncio.sleep(sleep_for)
     finally:
         await pool.close()
 
 
 def main() -> None:
+    import sys as _sys
     logging.disable(logging.CRITICAL)
-    asyncio.run(run())
+    if "--daemon" in _sys.argv:
+        # Optional --interval=1.0 flag.
+        interval = 1.0
+        for arg in _sys.argv:
+            if arg.startswith("--interval="):
+                try:
+                    interval = float(arg.split("=", 1)[1])
+                except ValueError:
+                    pass
+        asyncio.run(run_daemon(interval=interval))
+    else:
+        asyncio.run(run())
 
 
 if __name__ == "__main__":
