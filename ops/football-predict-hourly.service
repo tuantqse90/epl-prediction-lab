@@ -1,0 +1,11 @@
+[Unit]
+Description=football-predict — 4-hourly freshness refresh (xG + finals + predictions)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/football-predict
+ExecStart=/bin/bash /opt/football-predict/ops/hourly.sh
+User=root
+TimeoutStartSec=900

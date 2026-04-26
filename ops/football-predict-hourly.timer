@@ -1,0 +1,11 @@
+[Unit]
+Description=football-predict — every 4h freshness refresh
+
+[Timer]
+OnCalendar=*-*-* 02,06,10,14,18,22:00:00
+Unit=football-predict-hourly.service
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target
