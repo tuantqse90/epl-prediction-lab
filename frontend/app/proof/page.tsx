@@ -65,7 +65,7 @@ type SinceUpgrade = {
 
 async function fetchSinceUpgrade(): Promise<SinceUpgrade | null> {
   try {
-    const res = await fetch(`${BASE}/api/stats/since-upgrade?pattern=xgb%3D0.6`, { cache: "no-store" });
+    const res = await fetch(`${BASE}/api/stats/since-upgrade?pattern=xgb%3D0.6`, { next: { revalidate: 300 } });
     if (!res.ok) return null;
     return res.json();
   } catch {
@@ -76,7 +76,7 @@ async function fetchSinceUpgrade(): Promise<SinceUpgrade | null> {
 async function fetchHistory(league?: string): Promise<HistorySeason[]> {
   const qs = league ? `?league=${encodeURIComponent(league)}` : "";
   try {
-    const res = await fetch(`${BASE}/api/stats/history${qs}`, { cache: "no-store" });
+    const res = await fetch(`${BASE}/api/stats/history${qs}`, { next: { revalidate: 300 } });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -88,7 +88,7 @@ async function fetchCalibration(season: string, league?: string): Promise<StatsO
   const qs = new URLSearchParams({ season });
   if (league) qs.set("league", league);
   try {
-    const res = await fetch(`${BASE}/api/stats/calibration?${qs}`, { cache: "no-store" });
+    const res = await fetch(`${BASE}/api/stats/calibration?${qs}`, { next: { revalidate: 300 } });
     if (!res.ok) return null;
     return res.json();
   } catch {
@@ -100,7 +100,7 @@ async function fetchComparison(days: number, league?: string): Promise<Compariso
   const qs = new URLSearchParams({ days: String(days) });
   if (league) qs.set("league", league);
   try {
-    const res = await fetch(`${BASE}/api/stats/comparison?${qs}`, { cache: "no-store" });
+    const res = await fetch(`${BASE}/api/stats/comparison?${qs}`, { next: { revalidate: 300 } });
     if (!res.ok) return null;
     return res.json();
   } catch {
@@ -125,7 +125,7 @@ async function fetchClv(days: number, league?: string): Promise<ClvResponse | nu
   const qs = new URLSearchParams({ days: String(days), threshold: "0.05" });
   if (league) qs.set("league", league);
   try {
-    const res = await fetch(`${BASE}/api/stats/clv?${qs}`, { cache: "no-store" });
+    const res = await fetch(`${BASE}/api/stats/clv?${qs}`, { next: { revalidate: 300 } });
     if (!res.ok) return null;
     return res.json();
   } catch {
