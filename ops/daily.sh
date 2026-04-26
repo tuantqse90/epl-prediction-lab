@@ -81,6 +81,11 @@ run python scripts/ingest_weather.py --window-minutes 2880 || true
 # free + rate-limited so 5 league calls daily is cheap.
 for LG in epl laliga seriea bundesliga ligue1; do
   run python scripts/ingest_players.py --season "$SEASON" --league "$LG" || true
+  # Pull Understat match xG daily so finals stop sitting xG-NULL for
+  # up to 7 days waiting for the Monday weekly.sh cycle. Idempotent —
+  # ingest_season upserts; data only changes for matches Understat
+  # has refreshed (typically 24-72h after kickoff).
+  run python scripts/ingest_season.py  --season "$SEASON" --league "$LG" || true
 done
 
 # Ensure every scheduled match in window has a prediction + reasoning.
