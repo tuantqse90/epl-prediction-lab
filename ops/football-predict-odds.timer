@@ -1,17 +1,8 @@
 [Unit]
-Description=EPL Prediction Lab — tiered per-bookmaker odds refresh
+Description=football-predict — odds aggregator every 2 minutes (matchday hours)
 
 [Timer]
-# Peak window: 12:00–23:59 UTC (19:00–07:00 VN, covers European match
-# windows from afternoon kickoffs through midnight fixtures). Every 5 min
-# to catch the T-1h sharp-money movement + lineup leaks.
-OnCalendar=*-*-* 12..23:00/5:00
-
-# Off-peak: 00:00–11:59 UTC (07:00–19:00 VN, mostly working hours + no EU
-# matches running). Every 30 min is enough — odds barely move when no
-# kickoff is imminent.
-OnCalendar=*-*-* 00..11:00/30:00
-
+OnCalendar=*-*-* 12..23:00/2
 Unit=football-predict-odds.service
 AccuracySec=30s
 Persistent=true

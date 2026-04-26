@@ -1,9 +1,9 @@
 [Unit]
-Description=EPL Prediction Lab — poll lineups every 15 min
+Description=football-predict — lineups every 5 minutes (API-Football)
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=15min
+OnBootSec=1min
+OnUnitActiveSec=5min
 Unit=football-predict-lineups.service
 AccuracySec=30s
 
